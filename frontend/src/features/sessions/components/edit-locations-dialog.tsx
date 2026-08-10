@@ -4,6 +4,7 @@ import {ConfirmDialog} from '@/shared/components/confirm-dialog'
 import {DialogShell} from '@/shared/components/dialog-shell'
 import {SessionLocationsFields} from '@/features/sessions/components/session-locations'
 import {Button} from '@/shared/ui/button'
+import {useToggle} from '@/shared/hooks/use-toggle'
 import type {Session, SessionLocations} from '@/features/sessions/types'
 
 export function EditLocationsDialog({
@@ -17,31 +18,24 @@ export function EditLocationsDialog({
 }) {
     const [workingDir, setWorkingDir] = useState(session.workingDir)
     const [contextDir, setContextDir] = useState(session.contextDir)
-    const [confirming, setConfirming] = useState(false)
+    const confirming = useToggle()
 
     const changed = workingDir !== session.workingDir || contextDir !== session.contextDir
     const ready = changed && workingDir.length > 0 && contextDir.length > 0
 
-    const close = (open: boolean) => {
-        if (!open) onClose()
-    }
-
     const save = () => {
-        if (ready) setConfirming(true)
+        if (ready) confirming.open()
     }
-
-    const cancelConfirm = () => setConfirming(false)
 
     const commit = () => {
-        setConfirming(false)
+        confirming.close()
         onSave({workingDir, contextDir})
         onClose()
     }
 
     return (
         <DialogShell
-            open
-            onOpenChange={close}
+            onClose={onClose}
             title="Session directories"
             description="Where this session runs. Finalizing locks them."
             footer={
@@ -63,13 +57,13 @@ export function EditLocationsDialog({
                 onContextDirChange={setContextDir}
             />
 
-            {confirming && (
+            {confirming.on && (
                 <ConfirmDialog
                     title="Move this session?"
                     description="Nodes that already ran keep their reports, but every node from here on runs against the new directories."
                     confirmLabel="Save directories"
                     onConfirm={commit}
-                    onClose={cancelConfirm}
+                    onClose={confirming.close}
                 />
             )}
         </DialogShell>

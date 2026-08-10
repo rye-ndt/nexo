@@ -9,5 +9,5 @@ type MQEvent interface {
 type MessageQ interface {
 	Emit(qID uuid.UUID, event MQEvent, data any) error
 	Subscribe(qID uuid.UUID, event MQEvent) (<-chan any, error)
-	Unsubscribe(qID uuid.UUID, event MQEvent) (<-chan any, error)
+	Unsubscribe(qID uuid.UUID, event MQEvent) error
 }

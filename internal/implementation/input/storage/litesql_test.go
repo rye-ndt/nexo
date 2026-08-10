@@ -138,8 +138,8 @@ func TestTaskRoundTripsManualAcceptRequired(t *testing.T) {
 		Status:               enums.TaskAwaitingAccept,
 	}
 
-	if err := tasks.Create(task); err != nil {
-		t.Fatalf("create task: %v", err)
+	if err := tasks.SaveTaskHistory(nil, []*input_itf.TaskEntity{task}, nil, nil); err != nil {
+		t.Fatalf("save task: %v", err)
 	}
 
 	found, err := tasks.Find(task.ID)

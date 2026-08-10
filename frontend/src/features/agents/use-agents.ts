@@ -2,6 +2,7 @@ import {useEffect, useState} from 'react'
 import {useMutation, useQuery, useQueryClient} from '@tanstack/react-query'
 
 import * as api from '@/features/agents/api'
+import {AGENT_ACTION_FAILURES, AgentAction, InstallStage} from '@/shared/lib/enums'
 import {formatAgentName} from '@/shared/lib/format'
 import type {InstallProgress} from '@/features/agents/types'
 
@@ -9,9 +10,10 @@ const AGENTS_KEY = ['agents']
 
 const AUTH_POLL_MS = 2000
 
-type AgentAction = {
+type PendingAction = {
     agentId: string
-    label: string
+    kind: AgentAction
+    /** Read by the query client's error handler to title the dialog. */
     action: string
     run: () => Promise<void>
 }
@@ -23,8 +25,7 @@ function withoutKey(record: Record<string, string>, key: string) {
 }
 
 function progressLabel(progress: InstallProgress) {
-    const downloading = progress.stage === 'download' && progress.total > 0
-    if (!downloading) return progress.stage
+    if (progress.stage !== InstallStage.Download || progress.total <= 0) return progress.stage
 
     return `Downloading ${Math.round((progress.downloaded / progress.total) * 100)}%`
 }
@@ -47,8 +48,8 @@ export function useAgents() {
         refetchIntervalInBackground: true,
     })
 
-    const action = useMutation({
-        mutationFn: (input: AgentAction) => input.run(),
+    const mutation = useMutation({
+        mutationFn: (input: PendingAction) => input.run(),
         onSettled: (_data, _error, input) => {
             setProgress((current) => withoutKey(current, input.agentId))
             queryClient.invalidateQueries({queryKey: AGENTS_KEY})
@@ -63,58 +64,41 @@ export function useAgents() {
         [],
     )
 
-    const pending = action.isPending ? action.variables : null
+    const pending = mutation.isPending ? mutation.variables : null
 
-    const busyLabel = (agentId: string) => {
-        if (pending?.agentId !== agentId) return null
-        return progress[agentId] ?? pending.label
-    }
+    const start = (agentId: string, kind: AgentAction, run: () => Promise<void>) =>
+        mutation.mutate({
+            agentId,
+            kind,
+            action: `${AGENT_ACTION_FAILURES[kind]} ${formatAgentName(agentId)}`,
+            run,
+        })
 
     const install = (agentId: string) =>
-        action.mutate({
-            agentId,
-            label: 'Installing',
-            action: `Could not install ${formatAgentName(agentId)}`,
-            run: () => api.installAgent(agentId),
-        })
+        start(agentId, AgentAction.Install, () => api.installAgent(agentId))
 
     const uninstall = (agentId: string) =>
-        action.mutate({
-            agentId,
-            label: 'Uninstalling',
-            action: `Could not uninstall ${formatAgentName(agentId)}`,
-            run: () => api.uninstallAgent(agentId),
-        })
+        start(agentId, AgentAction.Uninstall, () => api.uninstallAgent(agentId))
 
     const logIn = (agentId: string) =>
-        action.mutate({
-            agentId,
-            label: 'Logging in',
-            action: `Could not start the login for ${formatAgentName(agentId)}`,
-            run: async () => {
-                const url = await api.startAgentLogin(agentId)
-                if (url) setAuthUrls((current) => ({...current, [agentId]: url}))
-            },
+        start(agentId, AgentAction.LogIn, async () => {
+            const url = await api.startAgentLogin(agentId)
+            if (url) setAuthUrls((current) => ({...current, [agentId]: url}))
         })
 
     const submitAuthCode = (agentId: string, code: string) =>
-        action.mutate({
-            agentId,
-            label: 'Verifying',
-            action: `Could not verify that code for ${formatAgentName(agentId)}`,
-            run: async () => {
-                await api.submitAgentAuthCode(agentId, code)
-                setAuthUrls((current) => withoutKey(current, agentId))
-            },
+        start(agentId, AgentAction.Verify, async () => {
+            await api.submitAgentAuthCode(agentId, code)
+            setAuthUrls((current) => withoutKey(current, agentId))
         })
 
-    const agents = agentsQuery.data ?? []
-
     return {
-        agents,
+        agents: agentsQuery.data ?? [],
         loading: agentsQuery.isPending,
         busy: pending !== null,
-        busyLabel,
+        actionOf: (agentId: string) => (pending?.agentId === agentId ? pending.kind : null),
+        progressOf: (agentId: string) =>
+            pending?.agentId === agentId ? (progress[agentId] ?? null) : null,
         authUrlOf: (agentId: string) => authUrls[agentId] ?? null,
         install,
         uninstall,
@@ -123,3 +107,5 @@ export function useAgents() {
         openAuthUrl: api.openExternalURL,
     }
 }
+
+export type AgentRoster = ReturnType<typeof useAgents>

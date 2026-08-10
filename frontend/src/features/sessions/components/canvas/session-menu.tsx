@@ -1,5 +1,5 @@
-import {useState, type ComponentType} from 'react'
-import {CircleStop, Copy, Lock, Menu, Play, Plus, Settings} from 'lucide-react'
+import {Menu, Settings} from 'lucide-react'
+import type {ComponentType} from 'react'
 
 import {Button} from '@/shared/ui/button'
 import {
@@ -10,40 +10,34 @@ import {
     SheetTitle,
     SheetTrigger,
 } from '@/shared/ui/sheet'
-import {isCancellable, sessionProgress} from '@/features/sessions/graph'
+import {sessionPaths, sessionProgress} from '@/features/sessions/graph'
+import {useToggle} from '@/shared/hooks/use-toggle'
+import type {SessionAction, SessionActionHandlers} from '@/features/sessions/session-actions'
 import type {Session} from '@/features/sessions/types'
 
 export function SessionMenu({
     session,
+    actions,
+    handlers,
     onEditLocations,
-    onFinalize,
-    onRun,
-    onCancel,
-    onClone,
-    onNewNode,
     onOpenSettings,
 }: {
     session: Session | null
+    actions: SessionAction[]
+    handlers: SessionActionHandlers
     onEditLocations: () => void
-    onFinalize: () => void
-    onRun: () => void
-    onCancel: () => void
-    onClone: () => void
-    onNewNode: () => void
     onOpenSettings: () => void
 }) {
-    const [open, setOpen] = useState(false)
-    const locked = session?.finalized ?? false
-    const runnable = locked && !session?.started
-    const cancellable = session ? isCancellable(session) : false
+    const sheet = useToggle()
 
-    const close = (action: () => void) => () => {
-        setOpen(false)
+    /** Every pick closes the sheet first, so the dialog it opens is not behind it. */
+    const pick = (action: () => void) => () => {
+        sheet.close()
         action()
     }
 
     return (
-        <Sheet open={open} onOpenChange={setOpen}>
+        <Sheet open={sheet.on} onOpenChange={sheet.set}>
             <SheetTrigger asChild>
                 <Button variant="ghost" size="icon" aria-label="Session menu" className="lg:hidden">
                     <Menu />
@@ -61,46 +55,33 @@ export function SessionMenu({
                 <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-x-hidden overflow-y-auto p-2">
                     {session && (
                         <>
-                            <SessionLocations session={session} onEdit={close(onEditLocations)} />
+                            <SessionLocations session={session} onEdit={pick(onEditLocations)} />
                             <SessionProgress session={session} />
 
-                            <span className="my-1 h-px shrink-0 bg-border" />
+                            <Divider />
 
-                            {!locked && (
+                            {actions.map((action) => (
                                 <MenuAction
-                                    label="New node"
-                                    icon={Plus}
-                                    onClick={close(onNewNode)}
+                                    key={action.id}
+                                    label={action.label}
+                                    icon={action.icon}
+                                    onClick={pick(handlers[action.id])}
                                 />
-                            )}
-                            <MenuAction label="Duplicate" icon={Copy} onClick={close(onClone)} />
-                            {!locked && (
-                                <MenuAction
-                                    label="Finalize"
-                                    icon={Lock}
-                                    onClick={close(onFinalize)}
-                                />
-                            )}
-                            {runnable && (
-                                <MenuAction label="Run" icon={Play} onClick={close(onRun)} />
-                            )}
-                            {cancellable && (
-                                <MenuAction
-                                    label="Cancel run"
-                                    icon={CircleStop}
-                                    onClick={close(onCancel)}
-                                />
-                            )}
+                            ))}
 
-                            <span className="my-1 h-px shrink-0 bg-border" />
+                            <Divider />
                         </>
                     )}
 
-                    <MenuAction label="Settings" icon={Settings} onClick={close(onOpenSettings)} />
+                    <MenuAction label="Settings" icon={Settings} onClick={pick(onOpenSettings)} />
                 </div>
             </SheetContent>
         </Sheet>
     )
+}
+
+function Divider() {
+    return <span className="my-1 h-px shrink-0 bg-border" />
 }
 
 function MenuAction({
@@ -121,7 +102,7 @@ function MenuAction({
 }
 
 function SessionLocations({session, onEdit}: {session: Session; onEdit: () => void}) {
-    const paths = [session.workingDir, session.contextDir].filter(Boolean)
+    const paths = sessionPaths(session)
     if (paths.length === 0) return null
 
     const body = (

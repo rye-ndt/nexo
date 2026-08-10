@@ -15,6 +15,10 @@ import type {
  * Single source of truth for the session graph. Sessions are server state and
  * live in the query cache; the active session and the selected task are view
  * state and stay local.
+ *
+ * Rail-level writes name the session they touch. Everything under `active` acts
+ * on the open session and is inert when there is none, so no caller repeats
+ * that guard.
  */
 export function useSessionStore() {
     const store = useSessions()
@@ -26,18 +30,22 @@ export function useSessionStore() {
     const activeSession = graph.findSession(sessions, selectedSessionId) ?? sessions[0] ?? null
     const activeSessionId = activeSession?.id ?? null
 
-    const openSession = (sessionId: string) => {
-        const session = graph.findSession(sessions, sessionId)
-        return session && !session.finalized ? session : null
-    }
-
     const selectSession = (sessionId: string | null) => {
         setSelectedSessionId(sessionId)
         setSelectedTaskId(null)
     }
 
-    const selectTask = (taskId: string | null) => {
-        setSelectedTaskId(taskId)
+    /** Lifts a write that needs a session id into one the open session supplies. */
+    const onActive =
+        <TArgs extends unknown[]>(write: (sessionId: string, ...args: TArgs) => void) =>
+        (...args: TArgs) => {
+            if (activeSessionId) write(activeSessionId, ...args)
+        }
+
+    /** A draft is the only thing structural edits may touch; a finalized graph is frozen. */
+    const openSession = (sessionId: string) => {
+        const session = graph.findSession(sessions, sessionId)
+        return session && !session.finalized ? session : null
     }
 
     const addSession = (draft: SessionDraft) => {
@@ -50,26 +58,6 @@ export function useSessionStore() {
         const sessionId = crypto.randomUUID()
         store.cloneSession({sourceId, sessionId})
         selectSession(sessionId)
-    }
-
-    const renameSession = (sessionId: string, name: string) => {
-        store.renameSession({sessionId, name})
-    }
-
-    const setLocations = (sessionId: string, locations: SessionLocations) => {
-        store.setSessionLocations({sessionId, ...locations})
-    }
-
-    const finalizeSession = (sessionId: string) => {
-        store.finalizeSession({sessionId})
-    }
-
-    const startSession = (sessionId: string) => {
-        store.startSession({sessionId})
-    }
-
-    const cancelSession = (sessionId: string, onSettled?: () => void) => {
-        store.cancelSession({sessionId}, {onSettled})
     }
 
     const deleteSession = (sessionId: string) => {
@@ -91,28 +79,6 @@ export function useSessionStore() {
         setSelectedTaskId(taskId)
     }
 
-    const updateTask = (sessionId: string, taskId: string, patch: Partial<Task>) => {
-        store.updateTask({sessionId, taskId, patch})
-    }
-
-    const saveTaskInputs = (
-        sessionId: string,
-        taskId: string,
-        values: Record<string, ParamValue>,
-    ) => {
-        store.saveTaskInputs({sessionId, taskId, values})
-    }
-
-    const answerTaskAcceptance = (taskId: string, accepted: boolean) => {
-        if (!activeSessionId) return
-
-        store.answerTaskAcceptance({sessionId: activeSessionId, taskId, accepted})
-    }
-
-    const moveTask = (sessionId: string, taskId: string, position: Point) => {
-        store.updateTask({sessionId, taskId, patch: {position}})
-    }
-
     const removeTask = (sessionId: string, taskId: string) => {
         store.deleteTask({sessionId, taskId})
         if (selectedTaskId === taskId) setSelectedTaskId(null)
@@ -125,38 +91,64 @@ export function useSessionStore() {
         store.connectTasks({sessionId, sourceId, targetId})
     }
 
-    const disconnectTasks = (sessionId: string, sourceId: string, targetId: string) => {
-        store.disconnectTasks({sessionId, sourceId, targetId})
+    const active = {
+        session: activeSession,
+
+        rename: onActive((sessionId, name: string) => store.renameSession({sessionId, name})),
+        setLocations: onActive((sessionId, locations: SessionLocations) =>
+            store.setSessionLocations({sessionId, ...locations}),
+        ),
+        finalize: onActive((sessionId) => store.finalizeSession({sessionId})),
+        start: onActive((sessionId) => store.startSession({sessionId})),
+        cancel: onActive((sessionId, onSettled?: () => void) =>
+            store.cancelSession({sessionId}, {onSettled}),
+        ),
+        clone: onActive((sessionId) => cloneSession(sessionId)),
+
+        addTask: onActive((sessionId, draft: TaskDraft, position: Point) =>
+            addTask(sessionId, draft, position),
+        ),
+        updateTask: onActive((sessionId, taskId: string, patch: Partial<Task>) =>
+            store.updateTask({sessionId, taskId, patch}),
+        ),
+        moveTask: onActive((sessionId, taskId: string, position: Point) =>
+            store.updateTask({sessionId, taskId, patch: {position}}),
+        ),
+        removeTask: onActive((sessionId, taskId: string) => removeTask(sessionId, taskId)),
+        saveTaskInputs: onActive((sessionId, taskId: string, values: Record<string, ParamValue>) =>
+            store.saveTaskInputs({sessionId, taskId, values}),
+        ),
+        answerTaskAcceptance: onActive((sessionId, taskId: string, accepted: boolean) =>
+            store.answerTaskAcceptance({sessionId, taskId, accepted}),
+        ),
+
+        connectTasks: onActive((sessionId, sourceId: string, targetId: string) =>
+            connectTasks(sessionId, sourceId, targetId),
+        ),
+        disconnectTasks: onActive((sessionId, sourceId: string, targetId: string) =>
+            store.disconnectTasks({sessionId, sourceId, targetId}),
+        ),
     }
 
     return {
         sessions,
-        activeSession,
         activeSessionId,
+        active,
+
         selectedTaskId,
         selectSession,
-        selectTask,
+        selectTask: setSelectedTaskId,
+
         addSession,
         cloneSession,
-        renameSession,
-        setLocations,
-        finalizeSession,
-        startSession,
-        startingSession: store.startingSession,
-        cancelSession,
-        cancellingSession: store.cancellingSession,
         deleteSession,
-        addTask,
-        updateTask,
-        saveTaskInputs,
+
+        cancelling: store.cancellingSession,
         savingTaskInputs: store.savingTaskInputs,
-        answerTaskAcceptance,
         answeringTaskAcceptance: store.answeringTaskAcceptance,
-        moveTask,
-        removeTask,
-        connectTasks,
-        disconnectTasks,
     }
 }
 
 export type SessionStore = ReturnType<typeof useSessionStore>
+
+export type ActiveSession = SessionStore['active']

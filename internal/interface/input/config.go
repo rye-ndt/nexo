@@ -31,11 +31,6 @@ type AgentManagerConfig struct {
 	ConnectivityCacheTTL      time.Duration `mapstructure:"connectivity_cache_ttl" validate:"gt=0,ltefield=FreezeTimeout"`
 }
 
-const (
-	MCPAuthFlowDCR    = "dcr"
-	MCPAuthFlowDevice = "device"
-)
-
 type MCPAccountConfig struct {
 	URL    string   `mapstructure:"url" validate:"required,http_url"`
 	Header string   `mapstructure:"header" validate:"required"`
@@ -47,7 +42,7 @@ type MCPServerConfig struct {
 	Name          string            `mapstructure:"name" validate:"required"`
 	AuthKeyName   string            `mapstructure:"auth_key_name"`
 	URL           string            `mapstructure:"url" validate:"required,http_url"`
-	AuthFlow      string            `mapstructure:"auth_flow" validate:"required,oneof=dcr device token"`
+	AuthFlow      enums.MCPAuthFlow `mapstructure:"auth_flow" validate:"required,mcp_auth_flow"`
 	ClientID      string            `mapstructure:"client_id" validate:"required_if=AuthFlow device"`
 	DeviceAuthURL string            `mapstructure:"device_auth_url" validate:"required_if=AuthFlow device,omitempty,http_url"`
 	TokenTTL      time.Duration     `mapstructure:"token_ttl" validate:"omitempty,gt=0"`

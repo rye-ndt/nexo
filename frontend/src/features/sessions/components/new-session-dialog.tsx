@@ -41,10 +41,6 @@ export function NewSessionDialog({
         setContextDir(path)
     }
 
-    const close = (open: boolean) => {
-        if (!open) onClose()
-    }
-
     const create = () => {
         if (!located || !agents.ready) return
         onCreate(locations)
@@ -52,8 +48,7 @@ export function NewSessionDialog({
 
     return (
         <DialogShell
-            open
-            onOpenChange={close}
+            onClose={onClose}
             title="New session"
             description={
                 onAgentStep ? 'The agents this session will run on.' : 'Where this session runs.'
@@ -88,15 +83,7 @@ export function NewSessionDialog({
                 <RequiredAgents
                     required={agents.required}
                     loading={agents.loading}
-                    actions={{
-                        busy: agents.busy,
-                        busyLabel: agents.busyLabel,
-                        authUrlOf: agents.authUrlOf,
-                        onInstall: agents.install,
-                        onLogIn: agents.logIn,
-                        onSubmitCode: agents.submitAuthCode,
-                        onOpenAuthUrl: agents.openAuthUrl,
-                    }}
+                    controls={agents.controls}
                 />
             ) : (
                 <SessionLocationsFields

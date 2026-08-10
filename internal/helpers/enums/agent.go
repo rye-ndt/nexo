@@ -30,12 +30,7 @@ func (m ModelName) String() string {
 }
 
 func (m ModelName) Valid() bool {
-	switch m {
-	case Fable, Opus, Sonnet, Haiku, Deepseek4Flash:
-		return true
-	default:
-		return false
-	}
+	return slices.Contains(modelNames, m)
 }
 
 func (m ModelName) DisplayName() string {
@@ -68,7 +63,6 @@ type AgentHarness string
 
 const (
 	ClaudeCode AgentHarness = "claude_code"
-	Codex      AgentHarness = "codex"
 	OpenCode   AgentHarness = "open_code"
 )
 

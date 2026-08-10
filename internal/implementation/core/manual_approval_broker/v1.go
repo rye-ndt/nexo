@@ -33,7 +33,6 @@ func InitV1(cfg *input_itf.ApprovalBrokerConfig) (core_itf.ApprovalBroker, error
 	}
 
 	return &v1{
-		locker:  sync.Mutex{},
 		cfg:     cfg,
 		waiting: map[uuid.UUID]*pending{},
 		stop:    make(chan struct{}),
@@ -58,15 +57,11 @@ func (b *v1) Request(req *core_itf.ApprovalRequest) (*core_itf.ApprovalAnswer, e
 		answer: make(chan *core_itf.ApprovalAnswer, 1),
 	}
 
-	b.raceSafe(func() {
-		b.waiting[uid] = waiter
-	})
+	b.locker.Lock()
+	b.waiting[uid] = waiter
+	b.locker.Unlock()
 
-	defer func() {
-		b.raceSafe(func() {
-			delete(b.waiting, uid)
-		})
-	}()
+	defer b.forget(uid)
 
 	select {
 	case answer := <-waiter.answer:
@@ -100,27 +95,32 @@ func validRequest(req *core_itf.ApprovalRequest) error {
 	return nil
 }
 
+func (b *v1) forget(requestID uuid.UUID) {
+	b.locker.Lock()
+	defer b.locker.Unlock()
+
+	delete(b.waiting, requestID)
+}
+
 func (b *v1) Answer(answer *core_itf.ApprovalAnswer) error {
-	var err error
+	b.locker.Lock()
+	defer b.locker.Unlock()
 
-	b.raceSafe(func() {
-		waiter, found := b.waiting[answer.RequestID]
-		if !found {
-			err = custom_error.Critical("approval %v is not waiting for an answer", answer.RequestID)
-			return
-		}
+	waiter, found := b.waiting[answer.RequestID]
+	if !found {
+		return custom_error.Critical("approval %v is not waiting for an answer", answer.RequestID)
+	}
 
-		if err = validAnswer(waiter.req, answer); err != nil {
-			return
-		}
+	if err := validAnswer(waiter.req, answer); err != nil {
+		return err
+	}
 
-		delete(b.waiting, answer.RequestID)
+	delete(b.waiting, answer.RequestID)
 
-		answer.AnsweredAt = helpers.NewUTC()
-		waiter.answer <- answer
-	})
+	answer.AnsweredAt = helpers.NewUTC()
+	waiter.answer <- answer
 
-	return err
+	return nil
 }
 
 func validAnswer(req *core_itf.ApprovalRequest, answer *core_itf.ApprovalAnswer) error {
@@ -158,13 +158,14 @@ func validAnswer(req *core_itf.ApprovalRequest, answer *core_itf.ApprovalAnswer)
 }
 
 func (b *v1) Pending() []*core_itf.ApprovalRequest {
-	requests := []*core_itf.ApprovalRequest{}
+	b.locker.Lock()
 
-	b.raceSafe(func() {
-		for _, waiter := range b.waiting {
-			requests = append(requests, snapshot(waiter.req))
-		}
-	})
+	requests := make([]*core_itf.ApprovalRequest, 0, len(b.waiting))
+	for _, waiter := range b.waiting {
+		requests = append(requests, snapshot(waiter.req))
+	}
+
+	b.locker.Unlock()
 
 	slices.SortFunc(requests, func(a, b *core_itf.ApprovalRequest) int {
 		return a.RequestedAt.Compare(b.RequestedAt)
@@ -178,29 +179,28 @@ func (b *v1) Awaiting(agentID uuid.UUID) bool {
 		return false
 	}
 
-	awaiting := false
+	b.locker.Lock()
+	defer b.locker.Unlock()
 
-	b.raceSafe(func() {
-		for _, waiter := range b.waiting {
-			if waiter.req.AgentID == agentID {
-				awaiting = true
-				return
-			}
+	for _, waiter := range b.waiting {
+		if waiter.req.AgentID == agentID {
+			return true
 		}
-	})
+	}
 
-	return awaiting
+	return false
 }
 
 func (b *v1) Stop() {
-	b.raceSafe(func() {
-		if b.stopped {
-			return
-		}
+	b.locker.Lock()
+	defer b.locker.Unlock()
 
-		b.stopped = true
-		close(b.stop)
-	})
+	if b.stopped {
+		return
+	}
+
+	b.stopped = true
+	close(b.stop)
 }
 
 func snapshot(req *core_itf.ApprovalRequest) *core_itf.ApprovalRequest {
@@ -213,10 +213,4 @@ func snapshot(req *core_itf.ApprovalRequest) *core_itf.ApprovalRequest {
 	}
 
 	return &clone
-}
-
-func (b *v1) raceSafe(exec func()) {
-	b.locker.Lock()
-	defer b.locker.Unlock()
-	exec()
 }

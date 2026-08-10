@@ -16,10 +16,9 @@ import (
 	"github.com/google/uuid"
 )
 
-const (
-	gatewayPath        = "/mcp/"
-	gatewayTokenHeader = "X-Harness-Gateway-Token"
-)
+const gatewayTokenHeader = "X-Harness-Gateway-Token"
+
+const gatewayPath = constances.GatewayMCPPath
 
 func (s *v1) Serve() (*core_itf.MCPGateway, error) {
 	s.locker.Lock()
@@ -159,8 +158,6 @@ func gatewayStatus(err error) int {
 		return http.StatusNotFound
 	case enums.ErrMcpForbiddenRequest:
 		return http.StatusForbidden
-	case enums.ErrMcpNotAuthenticated, enums.ErrMcpCredentialsExpired:
-		return http.StatusBadGateway
 	default:
 		return http.StatusBadGateway
 	}

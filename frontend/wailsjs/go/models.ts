@@ -423,6 +423,7 @@ export namespace output_itf {
 	}
 	export class SessionTaskInfo {
 	    task_id: string;
+	    agent_id: string;
 	    status: string;
 	    file_changes: FileChangeInfo[];
 	    handover_docs: HandoverDocInfo[];
@@ -436,6 +437,7 @@ export namespace output_itf {
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.task_id = source["task_id"];
+	        this.agent_id = source["agent_id"];
 	        this.status = source["status"];
 	        this.file_changes = this.convertValues(source["file_changes"], FileChangeInfo);
 	        this.handover_docs = this.convertValues(source["handover_docs"], HandoverDocInfo);

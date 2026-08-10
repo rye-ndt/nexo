@@ -3,7 +3,10 @@ import {useState, type FormEvent} from 'react'
 import {Button} from '@/shared/ui/button'
 import {ConfirmDialog} from '@/shared/components/confirm-dialog'
 import {Input} from '@/shared/ui/input'
+import {StatusChip} from '@/shared/components/status-chip'
+import {MCPAuthKind} from '@/shared/lib/enums'
 import {useMCPServers} from '@/features/settings/use-mcp'
+import {useToggle} from '@/shared/hooks/use-toggle'
 import {formatRelative} from '@/shared/lib/format'
 import type {MCPServer} from '@/features/settings/types'
 
@@ -81,7 +84,12 @@ function MCPServerRow({
     onSetToken: (input: {serverId: string; token: string}) => void
     onRevoke: (serverId: string) => void
 }) {
-    const [confirmingRevoke, setConfirmingRevoke] = useState(false)
+    const confirmingRevoke = useToggle()
+
+    const revoke = () => {
+        onRevoke(server.id)
+        confirmingRevoke.close()
+    }
 
     return (
         <div className="flex items-center gap-3 px-4 py-3">
@@ -105,34 +113,31 @@ function MCPServerRow({
                             {formatRelative(server.authorizedAt)}
                         </span>
                     )}
-                    <span className="rounded-sm bg-state-done-tint px-2.5 py-1 text-xs leading-none font-bold tracking-[0.05em] text-state-done uppercase">
-                        {server.kind === 'token' ? 'Connected' : 'Authorized'}
-                    </span>
+                    <StatusChip tone="done">
+                        {server.kind === MCPAuthKind.Token ? 'Connected' : 'Authorized'}
+                    </StatusChip>
                     <Button
                         variant="ghost"
                         size="sm"
                         className="text-muted-foreground hover:text-destructive"
                         disabled={busy}
-                        onClick={() => setConfirmingRevoke(true)}
+                        onClick={confirmingRevoke.open}
                     >
                         {revoking ? 'Revoking' : 'Revoke'}
                     </Button>
 
-                    {confirmingRevoke && (
+                    {confirmingRevoke.on && (
                         <ConfirmDialog
                             destructive
                             title={`Revoke ${server.name} access`}
                             description={revokeDescription(server)}
                             confirmLabel="Revoke"
-                            onConfirm={() => {
-                                onRevoke(server.id)
-                                setConfirmingRevoke(false)
-                            }}
-                            onClose={() => setConfirmingRevoke(false)}
+                            onConfirm={revoke}
+                            onClose={confirmingRevoke.close}
                         />
                     )}
                 </span>
-            ) : server.kind === 'token' ? (
+            ) : server.kind === MCPAuthKind.Token ? (
                 <MCPTokenForm
                     busy={busy}
                     pending={pending}
@@ -154,7 +159,9 @@ function MCPServerRow({
 
 function revokeDescription(server: MCPServer) {
     const regain =
-        server.kind === 'token' ? 'until you save a new token' : 'until you authorize it again'
+        server.kind === MCPAuthKind.Token
+            ? 'until you save a new token'
+            : 'until you authorize it again'
     const credential = server.account
         ? `the credential stored for ${server.account}`
         : 'the stored credential'

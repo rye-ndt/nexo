@@ -124,24 +124,21 @@ func (s *v1) List() ([]*core_itf.MCPAuthInfo, error) {
 		)
 	}
 
-	mappedAuthList := helpers.SliceToMap(authenticatedList, func(item *input_itf.MCPEntity) (string, *input_itf.MCPEntity) {
-		return item.Name, item
-	})
+	authenticated := map[string]*input_itf.MCPEntity{}
+	for _, m := range authenticatedList {
+		authenticated[m.Name] = m
+	}
 
 	resp := []*core_itf.MCPAuthInfo{}
 
 	for _, m := range s.cfg.SupportedServers {
-
 		item := &core_itf.MCPAuthInfo{
-			ServerName:    m.Name,
-			Kind:          m.AuthFlow,
-			URL:           m.URL,
-			Authenticated: false,
-			InitializedAt: time.Time{},
+			ServerName: m.Name,
+			Kind:       m.AuthFlow,
+			URL:        m.URL,
 		}
 
-		info, found := mappedAuthList[m.Name]
-		if found {
+		if info, found := authenticated[m.Name]; found {
 			item.Authenticated = info.ExpiredAt.After(helpers.NewUTC())
 			item.InitializedAt = info.UpdatedAt
 
@@ -231,7 +228,7 @@ func (s *v1) Authorize(server string) error {
 		return err
 	}
 
-	if mcp.AuthFlow == input_itf.MCPAuthFlowDevice {
+	if mcp.AuthFlow == enums.MCPAuthFlowDevice {
 		return s.authorizeDevice(mcp, target)
 	}
 

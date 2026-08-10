@@ -33,3 +33,8 @@ export function useTemplates() {
         removeTemplate: remove.mutate,
     }
 }
+
+export function useTemplate(templateId: string | undefined) {
+    const {templates} = useTemplates()
+    return templates.find((template) => template.id === templateId)
+}

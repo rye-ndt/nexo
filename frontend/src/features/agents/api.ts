@@ -14,6 +14,7 @@ import {
     mockListAgents,
     mockStartLogin,
     mockSubmitAuthCode,
+    mockUninstallAgent,
 } from '@/features/agents/mock-agents'
 import type {Agent, InstallProgress} from '@/features/agents/types'
 import {
@@ -58,6 +59,8 @@ export async function installAgent(agentId: string): Promise<void> {
 }
 
 export async function uninstallAgent(agentId: string): Promise<void> {
+    if (!hasWailsRuntime()) return mockUninstallAgent(agentId)
+
     await bridge(() => UninstallAgent(agentId))
 }
 

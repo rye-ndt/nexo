@@ -193,6 +193,10 @@ export function hasActiveTask(session: Session) {
     )
 }
 
+export function sessionPaths(session: Session): string[] {
+    return [session.workingDir, session.contextDir].filter(Boolean)
+}
+
 export function sessionProgress(session: Session) {
     const done = session.tasks.filter((task) => task.state === TaskState.Done).length
     return {done, total: session.tasks.length}
@@ -256,7 +260,6 @@ export function descendantsOf(tasks: Task[], taskId: string) {
     return reachable(adjacency, taskId)
 }
 
-/** Depth-first reachability check, so connecting two tasks can never form a cycle. */
 export function createsCycle(tasks: Task[], sourceId: string, targetId: string) {
     return sourceId === targetId || ancestorsOf(tasks, sourceId).has(targetId)
 }

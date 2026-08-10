@@ -2,35 +2,32 @@ import {useState, type ChangeEvent, type KeyboardEvent} from 'react'
 
 import {Button} from '@/shared/ui/button'
 import {Input} from '@/shared/ui/input'
+import {AGENT_ACTION_BUSY_LABELS, AgentAction} from '@/shared/lib/enums'
+import type {AgentControls} from '@/features/agents/controls'
 
 export function AgentLogin({
     agentId,
     authUrl,
-    busy,
-    verifying,
-    onSubmitCode,
-    onOpenAuthUrl,
+    controls,
 }: {
     agentId: string
     authUrl: string
-    busy: boolean
-    verifying: boolean
-    onSubmitCode: (agentId: string, code: string) => void
-    onOpenAuthUrl: (url: string) => void
+    controls: AgentControls
 }) {
     const [code, setCode] = useState('')
 
     const trimmed = code.trim()
-    const canSubmit = trimmed.length > 0 && !busy
+    const canSubmit = trimmed.length > 0 && !controls.busy
+    const verifying = controls.actionOf(agentId) === AgentAction.Verify
 
     const submit = () => {
         if (!canSubmit) return
 
-        onSubmitCode(agentId, trimmed)
+        controls.submitAuthCode(agentId, trimmed)
         setCode('')
     }
 
-    const openUrl = () => onOpenAuthUrl(authUrl)
+    const openUrl = () => controls.openAuthUrl(authUrl)
 
     const changeCode = (event: ChangeEvent<HTMLInputElement>) => setCode(event.target.value)
 
@@ -63,7 +60,7 @@ export function AgentLogin({
                     onKeyDown={submitOnEnter}
                 />
                 <Button size="sm" disabled={!canSubmit} onClick={submit}>
-                    {verifying ? 'Verifying' : 'Submit'}
+                    {verifying ? AGENT_ACTION_BUSY_LABELS[AgentAction.Verify] : 'Submit'}
                 </Button>
             </div>
         </div>

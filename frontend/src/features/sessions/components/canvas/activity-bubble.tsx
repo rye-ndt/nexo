@@ -5,7 +5,6 @@ import type {ActivityLine} from '@/features/sessions/types'
 
 const STICK_SLACK_PX = 16
 
-/** What the running node is doing right now, spoken above the node it belongs to. */
 export function ActivityBubble({lines}: {lines: ActivityLine[]}) {
     const feed = useRef<HTMLOListElement>(null)
     const stick = useRef(true)

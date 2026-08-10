@@ -3,7 +3,6 @@ import type {SessionLocations} from '@/features/sessions/types'
 
 export const CONTEXT_SUFFIX = '/.harness/context'
 
-/** The pair of directories a session runs in, picked the same way everywhere. */
 export function SessionLocationsFields({
     workingDir,
     contextDir,

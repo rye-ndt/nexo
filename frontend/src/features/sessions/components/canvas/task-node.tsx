@@ -1,6 +1,7 @@
 import {Handle, Position, type Node, type NodeProps} from '@xyflow/react'
 
 import {StateBadge, StateIcon} from '@/shared/components/task-state'
+import {StatusChip} from '@/shared/components/status-chip'
 import {TaskLevelTag} from '@/shared/components/task-level-tag'
 import {useElapsed} from '@/shared/hooks/use-elapsed'
 import {TaskState, type TaskLevel} from '@/shared/lib/enums'
@@ -50,14 +51,6 @@ function failureTldr(task: Task) {
 function upstreamLine(upstream: Task[]) {
     if (upstream.length === 1) return `Runs after ${upstream[0].title || UNTITLED}`
     return `Runs after all ${upstream.length} upstream tasks`
-}
-
-function NeedsInputsChip() {
-    return (
-        <span className="inline-flex shrink-0 items-center rounded-sm bg-state-approval-tint px-2 py-1 text-xs leading-none font-bold tracking-[0.05em] text-state-approval uppercase">
-            Inputs
-        </span>
-    )
 }
 
 export function TaskNode({data, selected}: NodeProps<TaskNodeType>) {
@@ -120,7 +113,7 @@ export function TaskNode({data, selected}: NodeProps<TaskNodeType>) {
             <div className="relative mt-2 flex items-center justify-between gap-2 text-sm">
                 <span className="flex min-w-0 items-center gap-2">
                     {taskLevel && <TaskLevelTag taskLevel={taskLevel} />}
-                    {needsInput && <NeedsInputsChip />}
+                    {needsInput && <StatusChip tone="attention">Inputs</StatusChip>}
                 </span>
                 <span className="flex shrink-0 items-center gap-2">
                     {context && <ContextStamina used={context.used} total={context.total} />}

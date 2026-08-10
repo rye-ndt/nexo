@@ -23,7 +23,6 @@ type v1 struct {
 
 func InitV1() output_itf.MessageQ {
 	return &v1{
-		locker:  sync.Mutex{},
 		streams: map[subscription]chan any{},
 	}
 }
@@ -34,25 +33,20 @@ func (q *v1) Emit(qID uuid.UUID, event output_itf.MQEvent, data any) error {
 		return err
 	}
 
-	var emitErr error
+	q.locker.Lock()
+	defer q.locker.Unlock()
 
-	q.raceSafe(func() {
-		stream, found := q.streams[key]
-		if !found {
-			return
-		}
+	stream, found := q.streams[key]
+	if !found {
+		return nil
+	}
 
-		select {
-		case stream <- data:
-		default:
-			emitErr = custom_error.Bypass(
-				"event %s of queue %v dropped, channel is full",
-				key.event, qID,
-			)
-		}
-	})
-
-	return emitErr
+	select {
+	case stream <- data:
+		return nil
+	default:
+		return custom_error.Bypass("event %s of queue %v dropped, channel is full", key.event, qID)
+	}
 }
 
 func (q *v1) Subscribe(qID uuid.UUID, event output_itf.MQEvent) (<-chan any, error) {
@@ -61,50 +55,37 @@ func (q *v1) Subscribe(qID uuid.UUID, event output_itf.MQEvent) (<-chan any, err
 		return nil, err
 	}
 
-	stream := make(chan any, eventBufferSize)
+	q.locker.Lock()
+	defer q.locker.Unlock()
 
-	q.raceSafe(func() {
-		if _, found := q.streams[key]; found {
-			err = custom_error.Critical("event %s of queue %v is already subscribed", key.event, qID)
-			return
-		}
-
-		q.streams[key] = stream
-	})
-
-	if err != nil {
-		return nil, err
+	if _, found := q.streams[key]; found {
+		return nil, custom_error.Critical("event %s of queue %v is already subscribed", key.event, qID)
 	}
+
+	stream := make(chan any, eventBufferSize)
+	q.streams[key] = stream
 
 	return stream, nil
 }
 
-func (q *v1) Unsubscribe(qID uuid.UUID, event output_itf.MQEvent) (<-chan any, error) {
+func (q *v1) Unsubscribe(qID uuid.UUID, event output_itf.MQEvent) error {
 	key, err := newSubscription(qID, event)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	var stream chan any
+	q.locker.Lock()
+	defer q.locker.Unlock()
 
-	q.raceSafe(func() {
-		found := false
-
-		stream, found = q.streams[key]
-		if !found {
-			err = custom_error.Critical("event %s of queue %v is not subscribed", key.event, qID)
-			return
-		}
-
-		delete(q.streams, key)
-		close(stream)
-	})
-
-	if err != nil {
-		return nil, err
+	stream, found := q.streams[key]
+	if !found {
+		return custom_error.Critical("event %s of queue %v is not subscribed", key.event, qID)
 	}
 
-	return stream, nil
+	delete(q.streams, key)
+	close(stream)
+
+	return nil
 }
 
 func newSubscription(qID uuid.UUID, event output_itf.MQEvent) (subscription, error) {
@@ -120,10 +101,4 @@ func newSubscription(qID uuid.UUID, event output_itf.MQEvent) (subscription, err
 		qID:   qID,
 		event: event.Event(),
 	}, nil
-}
-
-func (q *v1) raceSafe(exec func()) {
-	q.locker.Lock()
-	defer q.locker.Unlock()
-	exec()
 }

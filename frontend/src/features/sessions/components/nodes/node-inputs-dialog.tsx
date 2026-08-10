@@ -5,7 +5,7 @@ import {MissingInputs} from '@/features/sessions/components/nodes/missing-inputs
 import {ParamFields} from '@/features/templates/components/param-fields'
 import {PromptPreview} from '@/features/templates/components/prompt-preview'
 import {Button} from '@/shared/ui/button'
-import {useTemplates} from '@/features/templates/use-templates'
+import {useTemplate} from '@/features/templates/use-templates'
 import {toFieldValues, toParamValues} from '@/features/templates/template'
 import {paramRefs} from '@/features/templates/param-refs'
 import {pendingParams} from '@/features/sessions/task-inputs'
@@ -23,8 +23,7 @@ export function NodeInputsDialog({
     onSave: (values: Record<string, ParamValue>) => void
     onClose: () => void
 }) {
-    const {templates} = useTemplates()
-    const template = templates.find((candidate) => candidate.id === task.templateId)
+    const template = useTemplate(task.templateId)
 
     const [edits, setEdits] = useState<Record<string, FieldValue>>({})
 
@@ -42,10 +41,6 @@ export function NodeInputsDialog({
     const editValue = (key: string, value: FieldValue) =>
         setEdits((current) => ({...current, [key]: value}))
 
-    const close = (open: boolean) => {
-        if (!open) onClose()
-    }
-
     const save = () => {
         if (!template || busy) return
 
@@ -55,8 +50,7 @@ export function NodeInputsDialog({
 
     return (
         <DialogShell
-            open
-            onOpenChange={close}
+            onClose={onClose}
             title={task.title || 'Untitled node'}
             description="The graph is locked. Inputs stay open until the run starts."
             footer={

@@ -1,40 +1,31 @@
-import {useState, type ChangeEvent, type ComponentType, type KeyboardEvent} from 'react'
-import {
-    CircleStop,
-    Copy,
-    Folder,
-    Lock,
-    PanelLeftClose,
-    PanelLeftOpen,
-    Play,
-    Plus,
-    Settings,
-} from 'lucide-react'
+import {Settings} from 'lucide-react'
 
 import {Button} from '@/shared/ui/button'
 import {ConfirmDialog} from '@/shared/components/confirm-dialog'
+import {HeaderAction} from '@/features/sessions/components/canvas/header/header-action'
+import {RailToggle} from '@/features/sessions/components/canvas/header/rail-toggle'
+import {SessionDirectories} from '@/features/sessions/components/canvas/header/session-directories'
+import {SessionIdentity} from '@/features/sessions/components/canvas/header/session-identity'
 import {SessionMenu} from '@/features/sessions/components/canvas/session-menu'
-import {SESSION_BADGE_CLASSES, SESSION_TITLE_CLASSES} from '@/features/sessions/session-status'
+import {SessionName} from '@/features/sessions/components/canvas/header/session-name'
 import {Tooltip, TooltipContent, TooltipTrigger} from '@/shared/ui/tooltip'
-import {SESSION_STATUS_LABELS} from '@/shared/lib/enums'
-import {isCancellable, sessionProgress, sessionStatus} from '@/features/sessions/graph'
-import {cn} from '@/shared/lib/utils'
-import type {SessionStatus} from '@/shared/lib/enums'
+import {
+    SessionActionId,
+    sessionActions,
+    type SessionActionHandlers,
+} from '@/features/sessions/session-actions'
+import {CANCEL_CONFIRM, FINALIZE_CONFIRM} from '@/features/sessions/session-copy'
+import {useToggle} from '@/shared/hooks/use-toggle'
 import type {Session} from '@/features/sessions/types'
-
-const FINALIZED_HINT = 'Finalized — duplicate to make changes.'
-
-const CANCEL_BODY =
-    'The node running right now loses its work — there will be no report for it. Finished nodes keep theirs, and the session stays on the rail. You cannot resume a cancelled run; duplicate it to start over.'
 
 export function SessionHeader({
     session,
+    cancelling,
     onRename,
     onEditLocations,
     onFinalize,
     onRun,
     onCancel,
-    cancelling,
     onClone,
     onNewNode,
     onOpenSettings,
@@ -42,39 +33,37 @@ export function SessionHeader({
     onToggleRail,
 }: {
     session: Session | null
+    cancelling: boolean
     onRename: (name: string) => void
     onEditLocations: () => void
     onFinalize: () => void
     onRun: () => void
     onCancel: (onSettled: () => void) => void
-    cancelling: boolean
     onClone: () => void
     onNewNode: () => void
     onOpenSettings: () => void
     railOpen: boolean
     onToggleRail: () => void
 }) {
-    const status = session ? sessionStatus(session) : null
-    const locked = session?.finalized ?? false
-    const runnable = locked && !session?.started
-    const cancellable = session ? isCancellable(session) : false
-    const [confirmingFinalize, setConfirmingFinalize] = useState(false)
-    const [confirmingCancel, setConfirmingCancel] = useState(false)
+    const confirmingFinalize = useToggle()
+    const confirmingCancel = useToggle()
 
-    const askFinalize = () => setConfirmingFinalize(true)
-    const cancelFinalize = () => setConfirmingFinalize(false)
+    const handlers: SessionActionHandlers = {
+        [SessionActionId.NewNode]: onNewNode,
+        [SessionActionId.Clone]: onClone,
+        [SessionActionId.Finalize]: confirmingFinalize.open,
+        [SessionActionId.Run]: onRun,
+        [SessionActionId.Cancel]: confirmingCancel.open,
+    }
 
-    const askCancel = () => setConfirmingCancel(true)
-    const keepRunning = () => setConfirmingCancel(false)
+    const actions = sessionActions(session)
 
     const finalize = () => {
-        setConfirmingFinalize(false)
+        confirmingFinalize.close()
         onFinalize()
     }
 
-    const cancelRun = () => {
-        onCancel(() => setConfirmingCancel(false))
-    }
+    const cancelRun = () => onCancel(confirmingCancel.close)
 
     return (
         <header className="shrink-0">
@@ -83,78 +72,32 @@ export function SessionHeader({
 
                 <SessionMenu
                     session={session}
+                    actions={actions}
+                    handlers={handlers}
                     onEditLocations={onEditLocations}
-                    onFinalize={askFinalize}
-                    onRun={onRun}
-                    onCancel={askCancel}
-                    onClone={onClone}
-                    onNewNode={onNewNode}
                     onOpenSettings={onOpenSettings}
                 />
 
-                <div className="flex min-w-0 flex-1 items-center gap-3">
-                    {session &&
-                        status &&
-                        (locked ? (
-                            <FinalizedName name={session.name} status={status} />
-                        ) : (
-                            <SessionNameInput
-                                key={session.id}
-                                name={session.name}
-                                status={status}
-                                onRename={onRename}
-                            />
-                        ))}
+                {session && (
+                    <div className="flex min-w-0 flex-1 items-center gap-3">
+                        <SessionName session={session} onRename={onRename} />
+                        <SessionDirectories session={session} onEdit={onEditLocations} />
+                        <SessionIdentity session={session} />
+                    </div>
+                )}
 
-                    {session && <SessionDirectories session={session} onEdit={onEditLocations} />}
-
-                    {session && status && <SessionIdentity session={session} status={status} />}
-                </div>
+                {!session && <span className="flex-1" />}
 
                 <div className="hidden shrink-0 items-center gap-2 lg:flex">
-                    {session && (
-                        <>
-                            {!locked && (
-                                <HeaderAction
-                                    label="New node"
-                                    icon={Plus}
-                                    variant="outline"
-                                    onClick={onNewNode}
-                                />
-                            )}
-                            <HeaderAction
-                                label="Duplicate"
-                                icon={Copy}
-                                variant="ghost"
-                                onClick={onClone}
-                            />
-                            {!locked && (
-                                <HeaderAction
-                                    label="Finalize"
-                                    icon={Lock}
-                                    variant="outline"
-                                    onClick={askFinalize}
-                                />
-                            )}
-                            {runnable && (
-                                <HeaderAction
-                                    label="Run"
-                                    icon={Play}
-                                    variant="default"
-                                    onClick={onRun}
-                                />
-                            )}
-                            {cancellable && (
-                                <HeaderAction
-                                    label="Cancel run"
-                                    icon={CircleStop}
-                                    variant="outline"
-                                    onClick={askCancel}
-                                />
-                            )}
-                            <span className="mx-1 h-5 w-px bg-border" />
-                        </>
-                    )}
+                    {actions.map((action) => (
+                        <HeaderAction
+                            key={action.id}
+                            action={action}
+                            onClick={handlers[action.id]}
+                        />
+                    ))}
+
+                    {actions.length > 0 && <span className="mx-1 h-5 w-px bg-border" />}
 
                     <Tooltip>
                         <TooltipTrigger asChild>
@@ -172,209 +115,28 @@ export function SessionHeader({
                 </div>
             </div>
 
-            {confirmingFinalize && session && (
+            {confirmingFinalize.on && session && (
                 <ConfirmDialog
                     title={`Finalize “${session.name}”?`}
-                    description="The graph and its directories lock for good. To change anything after this you have to duplicate the session. Nothing runs until you press Run."
-                    confirmLabel="Finalize session"
+                    description={FINALIZE_CONFIRM.description}
+                    confirmLabel={FINALIZE_CONFIRM.confirmLabel}
                     onConfirm={finalize}
-                    onClose={cancelFinalize}
+                    onClose={confirmingFinalize.close}
                 />
             )}
 
-            {confirmingCancel && session && (
+            {confirmingCancel.on && session && (
                 <ConfirmDialog
-                    title="Cancel the run?"
-                    description={CANCEL_BODY}
+                    title={CANCEL_CONFIRM.title}
+                    description={CANCEL_CONFIRM.description}
                     confirmLabel={cancelling ? 'Cancelling…' : 'Cancel run'}
-                    dismissLabel="Keep running"
+                    dismissLabel={CANCEL_CONFIRM.dismissLabel}
                     destructive
                     busy={cancelling}
                     onConfirm={cancelRun}
-                    onClose={keepRunning}
+                    onClose={confirmingCancel.close}
                 />
             )}
         </header>
-    )
-}
-
-function RailToggle({open, onToggle}: {open: boolean; onToggle: () => void}) {
-    const label = open ? 'Hide sessions' : 'Show sessions'
-
-    return (
-        <Tooltip>
-            <TooltipTrigger asChild>
-                <Button
-                    variant="ghost"
-                    size="icon"
-                    className="-ml-1 shrink-0"
-                    aria-label={label}
-                    onClick={onToggle}
-                >
-                    {open ? <PanelLeftClose /> : <PanelLeftOpen />}
-                </Button>
-            </TooltipTrigger>
-            <TooltipContent side="bottom">{label}</TooltipContent>
-        </Tooltip>
-    )
-}
-
-function HeaderAction({
-    label,
-    icon: Icon,
-    variant,
-    onClick,
-}: {
-    label: string
-    icon: ComponentType<{className?: string}>
-    variant: 'default' | 'outline' | 'ghost'
-    onClick: () => void
-}) {
-    return (
-        <Tooltip>
-            <TooltipTrigger asChild>
-                <Button variant={variant} size="sm" aria-label={label} onClick={onClick}>
-                    <Icon />
-                    <span className={cn(variant === 'default' ? 'inline' : 'hidden xl:inline')}>
-                        {label}
-                    </span>
-                </Button>
-            </TooltipTrigger>
-            <TooltipContent
-                side="bottom"
-                className={variant === 'default' ? 'hidden' : 'xl:hidden'}
-            >
-                {label}
-            </TooltipContent>
-        </Tooltip>
-    )
-}
-
-function FinalizedName({name, status}: {name: string; status: SessionStatus}) {
-    return (
-        <span className="flex w-full max-w-96 min-w-0 items-center gap-1 lg:min-w-40">
-            <span className={cn('truncate text-xl font-bold', SESSION_TITLE_CLASSES[status])}>
-                {name}
-            </span>
-            <Tooltip>
-                <TooltipTrigger asChild>
-                    <button
-                        type="button"
-                        aria-label="This session is finalized"
-                        className="flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-live"
-                    >
-                        <Lock className="size-3.5" />
-                    </button>
-                </TooltipTrigger>
-                <TooltipContent side="bottom">{FINALIZED_HINT}</TooltipContent>
-            </Tooltip>
-        </span>
-    )
-}
-
-function SessionNameInput({
-    name,
-    status,
-    onRename,
-}: {
-    name: string
-    status: SessionStatus
-    onRename: (name: string) => void
-}) {
-    const [draft, setDraft] = useState(name)
-
-    const change = (event: ChangeEvent<HTMLInputElement>) => setDraft(event.target.value)
-
-    const commit = () => {
-        const next = draft.trim()
-        if (!next) {
-            setDraft(name)
-            return
-        }
-
-        if (next !== name) onRename(next)
-    }
-
-    const handleKeys = (event: KeyboardEvent<HTMLInputElement>) => {
-        if (event.key === 'Enter') event.currentTarget.blur()
-        if (event.key === 'Escape') {
-            setDraft(name)
-            event.currentTarget.blur()
-        }
-    }
-
-    return (
-        <input
-            value={draft}
-            aria-label="Session name"
-            onChange={change}
-            onBlur={commit}
-            onKeyDown={handleKeys}
-            className={cn(
-                '-ml-2 w-full max-w-96 min-w-0 truncate rounded-md bg-transparent px-2 py-1 text-xl font-bold outline-none transition-colors hover:bg-muted focus:bg-background focus-visible:ring-2 focus-visible:ring-live lg:min-w-40',
-                SESSION_TITLE_CLASSES[status],
-            )}
-        />
-    )
-}
-
-function SessionDirectories({session, onEdit}: {session: Session; onEdit: () => void}) {
-    const paths = [session.workingDir, session.contextDir].filter(Boolean)
-    if (paths.length === 0) return null
-
-    if (session.finalized)
-        return (
-            <span className="hidden min-w-0 shrink truncate font-mono text-sm text-muted-foreground lg:block lg:max-w-40 xl:max-w-72">
-                {session.workingDir}
-            </span>
-        )
-
-    return (
-        <Tooltip>
-            <TooltipTrigger asChild>
-                <button
-                    type="button"
-                    aria-label="Session directories"
-                    onClick={onEdit}
-                    className="hidden min-w-0 shrink items-center gap-2 rounded-md px-2 py-1 outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-live lg:flex lg:max-w-40 xl:max-w-72"
-                >
-                    <Folder className="size-3.5 shrink-0 text-muted-foreground" />
-                    <span className="hidden truncate font-mono text-sm text-muted-foreground lg:block">
-                        {session.workingDir}
-                    </span>
-                </button>
-            </TooltipTrigger>
-            <TooltipContent side="bottom">
-                <span className="flex flex-col gap-1">
-                    {paths.map((path) => (
-                        <span key={path} className="font-mono">
-                            {path}
-                        </span>
-                    ))}
-                    <span>Click to change either one.</span>
-                </span>
-            </TooltipContent>
-        </Tooltip>
-    )
-}
-
-function SessionIdentity({session, status}: {session: Session; status: SessionStatus}) {
-    const {done, total} = sessionProgress(session)
-
-    return (
-        <span className="flex shrink-0 items-center gap-3">
-            <span
-                className={cn(
-                    'inline-flex items-center rounded-sm px-2.5 py-1 text-xs font-bold tracking-[0.05em] uppercase',
-                    SESSION_BADGE_CLASSES[status],
-                )}
-            >
-                {SESSION_STATUS_LABELS[status]}
-            </span>
-
-            <span className="hidden font-mono text-sm text-muted-foreground lg:block">
-                {done}/{total}
-            </span>
-        </span>
     )
 }

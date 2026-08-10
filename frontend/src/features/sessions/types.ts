@@ -63,6 +63,7 @@ export type Task = {
     dependsOn: string[]
     templateId?: string
     values?: Record<string, ParamValue>
+    agentId?: string
     run?: Run
     report?: TaskReport
 }
@@ -91,7 +92,6 @@ export type SessionLocations = {
     contextDir: string
 }
 
-/** What the new-session dialog collects before the session exists. */
 export type SessionDraft = {
     name: string
     workingDir: string

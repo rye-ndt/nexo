@@ -4,11 +4,12 @@ import {Lock, Trash2} from 'lucide-react'
 import {ConfirmDialog} from '@/shared/components/confirm-dialog'
 import {DialogShell} from '@/shared/components/dialog-shell'
 import {InheritedAgent} from '@/features/sessions/components/nodes/inherited-agent'
+import {MissingInputsNote} from '@/features/sessions/components/nodes/missing-inputs'
 import {NodeForm} from '@/features/sessions/components/nodes/node-form'
 import {Button} from '@/shared/ui/button'
-import {useTemplates} from '@/features/templates/use-templates'
+import {useTemplate} from '@/features/templates/use-templates'
+import {useToggle} from '@/shared/hooks/use-toggle'
 import {missingRequired, toFieldValues, toParamValues} from '@/features/templates/template'
-import {pluralize} from '@/shared/lib/format'
 import type {Task} from '@/features/sessions/types'
 import type {FieldValue} from '@/features/templates/types'
 
@@ -23,13 +24,12 @@ export function EditNodeDialog({
     onDelete: () => void
     onClose: () => void
 }) {
-    const {templates} = useTemplates()
-    const template = templates.find((candidate) => candidate.id === task.templateId)
+    const template = useTemplate(task.templateId)
 
     const [title, setTitle] = useState(task.title)
     const [prompt, setPrompt] = useState(task.prompt)
     const [edits, setEdits] = useState<Record<string, FieldValue>>({})
-    const [confirmingDelete, setConfirmingDelete] = useState(false)
+    const confirmingDelete = useToggle()
 
     const stored = useMemo(
         () => (template ? toFieldValues(template, task.values) : {}),
@@ -42,13 +42,6 @@ export function EditNodeDialog({
 
     const editValue = (key: string, value: FieldValue) =>
         setEdits((current) => ({...current, [key]: value}))
-
-    const close = (open: boolean) => {
-        if (!open) onClose()
-    }
-
-    const askDelete = () => setConfirmingDelete(true)
-    const cancelDelete = () => setConfirmingDelete(false)
 
     const save = () => {
         if (!ready) return
@@ -63,8 +56,7 @@ export function EditNodeDialog({
 
     return (
         <DialogShell
-            open
-            onOpenChange={close}
+            onClose={onClose}
             title={title.trim() || 'Untitled node'}
             footer={
                 <>
@@ -72,18 +64,13 @@ export function EditNodeDialog({
                         variant="ghost"
                         size="sm"
                         className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-                        onClick={askDelete}
+                        onClick={confirmingDelete.open}
                     >
                         <Trash2 />
                         Delete node
                     </Button>
                     <span className="flex-1" />
-                    {missing.length > 0 && (
-                        <span className="text-sm text-muted-foreground">
-                            {pluralize(missing.length, 'input')} still empty — fill{' '}
-                            {missing.length === 1 ? 'it' : 'them'} before you run.
-                        </span>
-                    )}
+                    <MissingInputsNote count={missing.length} />
                     <Button variant="outline" size="sm" onClick={onClose}>
                         Cancel
                     </Button>
@@ -118,14 +105,14 @@ export function EditNodeDialog({
                 onValueChange={editValue}
             />
 
-            {confirmingDelete && (
+            {confirmingDelete.on && (
                 <ConfirmDialog
                     title={`Delete “${task.title || 'this node'}”?`}
                     description="Its prompt, inputs and any report it produced go with it. This cannot be undone."
                     confirmLabel="Delete node"
                     destructive
                     onConfirm={onDelete}
-                    onClose={cancelDelete}
+                    onClose={confirmingDelete.close}
                 />
             )}
         </DialogShell>

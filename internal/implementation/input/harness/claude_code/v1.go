@@ -31,8 +31,30 @@ import (
 const harnessName = "claude-code"
 const maxActivity = 40
 
+const (
+	eventAssistant = "assistant"
+	blockText      = "text"
+	blockToolUse   = "tool_use"
+)
+
+const (
+	toolRead      = "Read"
+	toolEdit      = "Edit"
+	toolWrite     = "Write"
+	toolGlob      = "Glob"
+	toolGrep      = "Grep"
+	toolBash      = "Bash"
+	toolWebFetch  = "WebFetch"
+	toolWebSearch = "WebSearch"
+	toolAskUser   = "AskUserQuestion"
+)
+
 var authURLRe = regexp.MustCompile(`https://[A-Za-z0-9._~:/?#&=%+-]+`)
-var claudePermissions = "Read,Edit,Write,Glob,Grep,Bash,WebFetch,WebSearch,mcp__harness"
+
+var allowedTools = strings.Join([]string{
+	toolRead, toolEdit, toolWrite, toolGlob, toolGrep, toolBash, toolWebFetch, toolWebSearch,
+	"mcp__" + constances.GatewayLocalServer,
+}, ",")
 
 type authSession struct {
 	cmd    *exec.Cmd
@@ -142,7 +164,7 @@ type claudeEvent struct {
 
 func (a *agentProc) track(line []byte) {
 	event := &claudeEvent{}
-	if err := json.Unmarshal(line, event); err != nil || event.Type != "assistant" {
+	if err := json.Unmarshal(line, event); err != nil || event.Type != eventAssistant {
 		return
 	}
 
@@ -215,9 +237,9 @@ func (a *agentProc) snapshotActivity() []input_itf.Activity {
 
 func digest(block *claudeBlock) string {
 	switch block.Type {
-	case "text":
+	case blockText:
 		return clip(firstSentence(block.Text), 140)
-	case "tool_use":
+	case blockToolUse:
 		return toolPhrase(block)
 	default:
 		return ""
@@ -226,15 +248,15 @@ func digest(block *claudeBlock) string {
 
 func toolPhrase(block *claudeBlock) string {
 	switch block.Name {
-	case "Read":
+	case toolRead:
 		return "Reading " + shortPath(block.Input.FilePath)
-	case "Edit", "Write":
+	case toolEdit, toolWrite:
 		return "Editing " + shortPath(block.Input.FilePath)
-	case "Bash":
+	case toolBash:
 		return "Running " + clip(firstSentence(block.Input.Command), 80)
-	case "Grep", "Glob":
+	case toolGrep, toolGlob:
 		return "Searching for " + clip(block.Input.Pattern, 80)
-	case "WebFetch":
+	case toolWebFetch:
 		return "Fetching " + clip(block.Input.URL, 80)
 	default:
 		if block.Name == "" {
@@ -376,8 +398,8 @@ func New(
 			"--output-format", "stream-json",
 			"--verbose",
 			"--permission-mode", "dontAsk",
-			"--allowedTools", claudePermissions,
-			"--disallowedTools", "AskUserQuestion",
+			"--allowedTools", allowedTools,
+			"--disallowedTools", toolAskUser,
 			"--append-system-prompt", string(prompts.System()),
 		},
 	}, nil
@@ -964,19 +986,10 @@ func claudeMCPConfig(gateway *core_itf.MCPGateway) ([]byte, error) {
 	servers := map[string]any{}
 
 	for _, server := range gateway.Servers {
-		headers := map[string]string{
-			gateway.TokenHeader:           gateway.Token,
-			constances.GatewayAgentHeader: constances.GatewayAgentPlaceholder,
-		}
-
-		if server.AuthKeyName != "" {
-			headers["Authorization"] = "Bearer " + server.AuthKeyName
-		}
-
 		servers[server.Name] = map[string]any{
 			"type":    "http",
-			"url":     gateway.BaseURL + "/mcp/" + server.Name,
-			"headers": headers,
+			"url":     harness_helper.GatewayURL(gateway, server),
+			"headers": harness_helper.GatewayHeaders(gateway, server),
 		}
 	}
 
@@ -989,7 +1002,11 @@ func claudeMCPConfig(gateway *core_itf.MCPGateway) ([]byte, error) {
 }
 
 func platformString() (string, error) {
-	goos := map[string]string{"darwin": "darwin", "linux": "linux", "windows": "win32"}[runtime.GOOS]
+	goos := map[string]string{
+		enums.Mac.String():     "darwin",
+		enums.Linux.String():   "linux",
+		enums.Windows.String(): "win32",
+	}[runtime.GOOS]
 	arch := map[string]string{"arm64": "arm64", "amd64": "x64"}[runtime.GOARCH]
 	if goos == "" || arch == "" {
 		return "", custom_error.Critical("unsupported platform %s/%s", runtime.GOOS, runtime.GOARCH)

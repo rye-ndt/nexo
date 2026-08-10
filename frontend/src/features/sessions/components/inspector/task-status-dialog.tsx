@@ -1,20 +1,20 @@
-import {DialogShell} from '@/shared/components/dialog-shell'
-import {StateBadge} from '@/shared/components/task-state'
 import {ContextDonut} from '@/features/sessions/components/inspector/context-donut'
 import {FileChanges} from '@/features/sessions/components/inspector/file-changes'
 import {HandoverDocs} from '@/features/sessions/components/inspector/handover-docs'
-import {ParamFields} from '@/features/templates/components/param-fields'
-import {Button} from '@/shared/ui/button'
-import {useAgentDefaults} from '@/features/settings/use-agent-defaults'
-import {useElapsed} from '@/shared/hooks/use-elapsed'
-import {useTemplates} from '@/features/templates/use-templates'
-import {agentDefaultFor} from '@/features/settings/agent-default'
-import {toFieldValues} from '@/features/templates/template'
-import {TaskState, TASK_LEVEL_LABELS, THINKING_LEVEL_LABELS} from '@/shared/lib/enums'
-import {formatMoment, formatPercent} from '@/shared/lib/format'
 import type {Task} from '@/features/sessions/types'
+import {agentDefaultFor} from '@/features/settings/agent-default'
 import type {AgentDefault} from '@/features/settings/types'
+import {useAgentDefaults} from '@/features/settings/use-agent-defaults'
+import {ParamFields} from '@/features/templates/components/param-fields'
+import {toFieldValues} from '@/features/templates/template'
 import type {Template} from '@/features/templates/types'
+import {useTemplate} from '@/features/templates/use-templates'
+import {DialogShell} from '@/shared/components/dialog-shell'
+import {StateBadge} from '@/shared/components/task-state'
+import {useElapsed} from '@/shared/hooks/use-elapsed'
+import {TASK_LEVEL_LABELS, TaskState, THINKING_LEVEL_LABELS} from '@/shared/lib/enums'
+import {formatMoment, formatPercent} from '@/shared/lib/format'
+import {Button} from '@/shared/ui/button'
 
 function summarize(template?: Template, agentDefault?: AgentDefault) {
     return [
@@ -67,9 +67,8 @@ function Stat({label, value}: {label: string; value: string}) {
 }
 
 export function TaskStatusDialog({task, onClose}: {task: Task; onClose: () => void}) {
-    const {templates} = useTemplates()
     const {defaults} = useAgentDefaults()
-    const template = templates.find((candidate) => candidate.id === task.templateId)
+    const template = useTemplate(task.templateId)
     const agentDefault = agentDefaultFor(defaults, template?.taskLevel)
 
     const run = task.run
@@ -77,14 +76,9 @@ export function TaskStatusDialog({task, onClose}: {task: Task; onClose: () => vo
     const elapsed = useElapsed(run?.startedAt, run?.finishedAt)
     const retried = run?.retryCount !== undefined && run.retryCount > 0
 
-    const close = (open: boolean) => {
-        if (!open) onClose()
-    }
-
     return (
         <DialogShell
-            open
-            onOpenChange={close}
+            onClose={onClose}
             title={task.title || 'Untitled node'}
             description={summarize(template, agentDefault)}
             aside={<StateBadge state={task.state} />}

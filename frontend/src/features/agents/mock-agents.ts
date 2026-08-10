@@ -122,3 +122,11 @@ export async function mockInstallAgent(
 
     emit({stage: InstallStage.Done, downloaded: total, total})
 }
+
+export async function mockUninstallAgent(agentId: string): Promise<void> {
+    await wait(RESOLVE_MS)
+
+    agents = agents.map((agent) =>
+        agent.id === agentId ? {...agent, installed: false, loggedIn: false} : agent,
+    )
+}

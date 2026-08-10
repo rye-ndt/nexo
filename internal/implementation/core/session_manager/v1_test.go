@@ -61,8 +61,8 @@ func (fakeMQ) Subscribe(uuid.UUID, output_itf.MQEvent) (<-chan any, error) {
 	return make(chan any), nil
 }
 
-func (fakeMQ) Unsubscribe(uuid.UUID, output_itf.MQEvent) (<-chan any, error) {
-	return nil, nil
+func (fakeMQ) Unsubscribe(uuid.UUID, output_itf.MQEvent) error {
+	return nil
 }
 
 func newManager(t *testing.T) (core_itf.SessionManager, *fakeWAL) {

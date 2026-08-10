@@ -15,7 +15,6 @@ type SessionEntity struct {
 	CompletedAt    time.Time
 	TotalTask      int
 	TotalRetry     int
-	RevertCount    int
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
 }
@@ -70,13 +69,9 @@ type TaskEntity struct {
 	ManualAcceptRequired bool
 	FileWriteAllowance   enums.FileAllowance
 	AllowedFilePaths     []string
-	TemplateFilePaths    []string
 	ExtraGuidance        string
 	RetryCount           int
 	Status               enums.TaskStatus
-	PrevTaskID           uuid.UUID
-	NextTaskID           uuid.UUID
-	ChildrenTaskIDs      uuid.UUIDs
 	DependsOnTaskIDs     uuid.UUIDs
 	LastReportID         uuid.UUID
 	CreatedAt            time.Time
@@ -84,10 +79,7 @@ type TaskEntity struct {
 }
 
 type TaskStorage interface {
-	Create(task *TaskEntity) error
-	CreateImplementRecord(implement *TaskReportEntity) error // only when done or being cancelled
 	Find(taskID uuid.UUID) (*TaskEntity, error)
-	FindLastImplementRecord(taskID uuid.UUID) *TaskReportEntity
 	SaveTaskHistory(
 		sessions []*SessionEntity,
 		tasks []*TaskEntity,

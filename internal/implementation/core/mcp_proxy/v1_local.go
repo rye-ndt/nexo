@@ -12,9 +12,8 @@ import (
 )
 
 const (
-	approvalTool           = "request_approval"
-	reportTool             = "report_task"
-	defaultProtocolVersion = "2025-06-18"
+	approvalTool = "request_approval"
+	reportTool   = "report_task"
 )
 
 const approvalToolDescription = `Ask the human operator to approve a decision or grant a permission, then wait for their answer.
@@ -37,35 +36,6 @@ const (
 		"Do not retry the same approach; stop and report what is blocked."
 	reportReceived = "Report received. This task is closed — stop now and take no further actions."
 )
-
-type rpcError struct {
-	Code    int    `json:"code"`
-	Message string `json:"message"`
-}
-
-type rpcRequest struct {
-	JSONRPC string          `json:"jsonrpc"`
-	ID      json.RawMessage `json:"id"`
-	Method  string          `json:"method"`
-	Params  json.RawMessage `json:"params"`
-}
-
-type rpcResponse struct {
-	JSONRPC string          `json:"jsonrpc"`
-	ID      json.RawMessage `json:"id"`
-	Result  any             `json:"result,omitempty"`
-	Error   *rpcError       `json:"error,omitempty"`
-}
-
-type toolContent struct {
-	Type string `json:"type"`
-	Text string `json:"text"`
-}
-
-type toolResult struct {
-	Content []toolContent `json:"content"`
-	IsError bool          `json:"isError"`
-}
 
 type approvalArgs struct {
 	Kind        string `json:"kind"`
@@ -95,189 +65,87 @@ type reportArgs struct {
 }
 
 func (s *v1) serveLocal(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	req := &rpcRequest{}
-	if err := json.NewDecoder(r.Body).Decode(req); err != nil {
-		writeRPC(w, &rpcResponse{
-			JSONRPC: "2.0",
-			Error:   &rpcError{Code: -32700, Message: "cannot parse request"},
-		})
-
-		return
-	}
-
-	if len(req.ID) == 0 {
-		w.WriteHeader(http.StatusAccepted)
-		return
-	}
-
-	res := &rpcResponse{JSONRPC: "2.0", ID: req.ID}
-
-	switch req.Method {
-	case "initialize":
-		res.Result = initializeResult(req.Params, constances.GatewayLocalServer)
-	case "tools/list":
-		res.Result = map[string]any{"tools": s.toolSchemas()}
-	case "tools/call":
-		res.Result = s.callTool(req.Params, agentFromHeader(r))
-	default:
-		res.Error = &rpcError{Code: -32601, Message: "unknown method " + req.Method}
-	}
-
-	writeRPC(w, res)
+	serveRPC(w, r, constances.GatewayLocalServer, s.localTools())
 }
 
-func initializeResult(params json.RawMessage, serverName string) map[string]any {
-	requested := struct {
-		ProtocolVersion string `json:"protocolVersion"`
-	}{}
-
-	protocol := defaultProtocolVersion
-	if err := json.Unmarshal(params, &requested); err == nil && requested.ProtocolVersion != "" {
-		protocol = requested.ProtocolVersion
-	}
-
-	return map[string]any{
-		"protocolVersion": protocol,
-		"capabilities":    map[string]any{"tools": map[string]any{}},
-		"serverInfo": map[string]any{
-			"name":    serverName,
-			"version": "1",
-		},
-	}
-}
-
-func (s *v1) toolSchemas() []any {
-	tools := []any{approvalToolSchema()}
-
-	if s.reporter != nil {
-		tools = append(tools, reportToolSchema())
-	}
-
-	return tools
-}
-
-func approvalToolSchema() map[string]any {
-	return map[string]any{
-		"name":        approvalTool,
-		"description": approvalToolDescription,
-		"inputSchema": map[string]any{
-			"type": "object",
-			"properties": map[string]any{
-				"question": map[string]any{
-					"type":        "string",
-					"description": "The decision to be made, phrased as a question the operator can answer.",
-				},
-				"kind": map[string]any{
-					"type":        "string",
-					"enum":        []string{enums.ApproveDecision.String(), enums.ApprovePermission.String()},
-					"description": "decision to lock a choice in, permission to be allowed to do something.",
-				},
-				"detail": map[string]any{
-					"type":        "string",
-					"description": "Context the operator needs: what you found, what each option costs.",
-				},
-				"options": map[string]any{
-					"type":        "array",
-					"minItems":    1,
-					"description": "The choices available. Put your recommendation first.",
-					"items": map[string]any{
-						"type": "object",
-						"properties": map[string]any{
-							"id":          map[string]any{"type": "string"},
-							"label":       map[string]any{"type": "string"},
-							"description": map[string]any{"type": "string"},
-						},
-						"required": []string{"id", "label"},
+func (s *v1) localTools() []*rpcTool {
+	tools := []*rpcTool{{
+		name:        approvalTool,
+		description: approvalToolDescription,
+		input: objectSchema(map[string]any{
+			"question": stringProp("The decision to be made, phrased as a question the operator can answer."),
+			"kind": map[string]any{
+				"type":        "string",
+				"enum":        []string{enums.ApproveDecision.String(), enums.ApprovePermission.String()},
+				"description": "decision to lock a choice in, permission to be allowed to do something.",
+			},
+			"detail": stringProp("Context the operator needs: what you found, what each option costs."),
+			"options": map[string]any{
+				"type":        "array",
+				"minItems":    1,
+				"description": "The choices available. Put your recommendation first.",
+				"items": map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"id":          map[string]any{"type": "string"},
+						"label":       map[string]any{"type": "string"},
+						"description": map[string]any{"type": "string"},
 					},
-				},
-				"multi_select": map[string]any{
-					"type":        "boolean",
-					"description": "Whether the operator may pick more than one option.",
+					"required": []string{"id", "label"},
 				},
 			},
-			"required": []string{"question", "options"},
-		},
-	}
-}
+			"multi_select": map[string]any{
+				"type":        "boolean",
+				"description": "Whether the operator may pick more than one option.",
+			},
+		}, "question", "options"),
+		call: s.callApproval,
+	}}
 
-func reportToolSchema() map[string]any {
-	section := func(description string) map[string]any {
-		return map[string]any{
-			"type":                 "object",
-			"additionalProperties": map[string]any{"type": "string"},
-			"description":          description,
-		}
-	}
-
-	return map[string]any{
-		"name":        reportTool,
-		"description": reportToolDescription,
-		"inputSchema": map[string]any{
-			"type": "object",
-			"properties": map[string]any{
+	if s.reporter != nil {
+		tools = append(tools, &rpcTool{
+			name:        reportTool,
+			description: reportToolDescription,
+			input: objectSchema(map[string]any{
 				"status": map[string]any{
 					"type":        "string",
 					"enum":        []string{string(enums.TaskCompleted), string(enums.TaskFailed)},
 					"description": "completed when the goal is met, failed when you are blocked.",
 				},
-				"task": map[string]any{
-					"type":        "string",
-					"description": "Short name of what was worked on.",
-				},
-				"tldr": map[string]any{
-					"type": "string",
-					"description": "Exactly one sentence, written for a person who has not read the code and knows " +
-						"nothing about this project: what you did and how you did it. Use plain words, " +
-						"no file paths, no identifiers, no jargon. It must make sense on its own.",
-				},
-				"outcome": map[string]any{
-					"type":        "string",
-					"description": "What was achieved, or why the task failed.",
-				},
-				"blockers":           section("What is blocking further progress, keyed by a short name."),
-				"approved_decisions": section("Decisions the operator approved, keyed by a short name."),
-				"rejected_decisions": section("Decisions the operator rejected, keyed by a short name."),
-				"current_behaviors":  section("How the system behaves now, keyed by a short name."),
-				"changed_behaviors":  section("Behaviors this task changed, keyed by a short name."),
-				"must_avoid":         section("Approaches the next agent must not take, keyed by a short name."),
-				"nuances":            section("Subtleties the next agent needs, keyed by a short name."),
-				"known_gaps":         section("Work knowingly left undone, keyed by a short name."),
-			},
-			"required": []string{"status", "task", "tldr", "outcome"},
-		},
+				"task": stringProp("Short name of what was worked on."),
+				"tldr": stringProp("Exactly one sentence, written for a person who has not read the code and knows " +
+					"nothing about this project: what you did and how you did it. Use plain words, " +
+					"no file paths, no identifiers, no jargon. It must make sense on its own."),
+				"outcome":            stringProp("What was achieved, or why the task failed."),
+				"blockers":           handoverSection("What is blocking further progress, keyed by a short name."),
+				"approved_decisions": handoverSection("Decisions the operator approved, keyed by a short name."),
+				"rejected_decisions": handoverSection("Decisions the operator rejected, keyed by a short name."),
+				"current_behaviors":  handoverSection("How the system behaves now, keyed by a short name."),
+				"changed_behaviors":  handoverSection("Behaviors this task changed, keyed by a short name."),
+				"must_avoid":         handoverSection("Approaches the next agent must not take, keyed by a short name."),
+				"nuances":            handoverSection("Subtleties the next agent needs, keyed by a short name."),
+				"known_gaps":         handoverSection("Work knowingly left undone, keyed by a short name."),
+			}, "status", "task", "tldr", "outcome"),
+			call: s.callReport,
+		})
 	}
+
+	return tools
 }
 
-func (s *v1) callTool(params json.RawMessage, agentID uuid.UUID) *toolResult {
-	call := struct {
-		Name      string          `json:"name"`
-		Arguments json.RawMessage `json:"arguments"`
-	}{}
-
-	if err := json.Unmarshal(params, &call); err != nil {
-		return errorResult("cannot parse tool arguments: " + err.Error())
-	}
-
-	switch call.Name {
-	case approvalTool:
-		return s.callApproval(call.Arguments, agentID)
-	case reportTool:
-		if s.reporter == nil {
-			return errorResult("unknown tool " + call.Name)
-		}
-
-		return s.callReport(call.Arguments, agentID)
-	default:
-		return errorResult("unknown tool " + call.Name)
+func handoverSection(description string) map[string]any {
+	return map[string]any{
+		"type":                 "object",
+		"additionalProperties": map[string]any{"type": "string"},
+		"description":          description,
 	}
 }
 
 func (s *v1) callApproval(arguments json.RawMessage, agentID uuid.UUID) *toolResult {
+	if agentID == uuid.Nil {
+		return errorResult("cannot identify the calling agent")
+	}
+
 	args := approvalArgs{}
 	if err := json.Unmarshal(arguments, &args); err != nil {
 		return errorResult("cannot parse tool arguments: " + err.Error())
@@ -336,7 +204,7 @@ func (s *v1) callReport(arguments json.RawMessage, agentID uuid.UUID) *toolResul
 		return errorResult(err.Error())
 	}
 
-	return &toolResult{Content: []toolContent{{Type: "text", Text: reportReceived}}}
+	return textResult(reportReceived)
 }
 
 func answerResult(request *core_itf.ApprovalRequest, answer *core_itf.ApprovalAnswer) *toolResult {
@@ -375,26 +243,5 @@ func answerResult(request *core_itf.ApprovalRequest, answer *core_itf.ApprovalAn
 		return errorResult("cannot encode the operator's answer: " + err.Error())
 	}
 
-	return &toolResult{Content: []toolContent{{Type: "text", Text: string(raw)}}}
-}
-
-func errorResult(message string) *toolResult {
-	return &toolResult{
-		Content: []toolContent{{Type: "text", Text: message}},
-		IsError: true,
-	}
-}
-
-func agentFromHeader(r *http.Request) uuid.UUID {
-	parsed, err := uuid.Parse(r.Header.Get(constances.GatewayAgentHeader))
-	if err != nil {
-		return uuid.Nil
-	}
-
-	return parsed
-}
-
-func writeRPC(w http.ResponseWriter, res *rpcResponse) {
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(res)
+	return textResult(string(raw))
 }

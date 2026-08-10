@@ -24,24 +24,22 @@ var removable = []TaskStatus{
 	TaskCancelled,
 }
 
-func (s TaskStatus) Takeable() bool {
-	for _, t := range takeable {
-		if s == t {
-			return true
-		}
-	}
+var cancellable = []TaskStatus{
+	TaskNotTaken,
+	TaskProcessing,
+	TaskAwaitingAccept,
+}
 
-	return false
+func (s TaskStatus) Takeable() bool {
+	return slices.Contains(takeable, s)
 }
 
 func (s TaskStatus) Removable() bool {
-	for _, t := range removable {
-		if s == t {
-			return true
-		}
-	}
+	return slices.Contains(removable, s)
+}
 
-	return false
+func (s TaskStatus) Cancellable() bool {
+	return slices.Contains(cancellable, s)
 }
 
 type SessionEvent string

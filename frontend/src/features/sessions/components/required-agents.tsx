@@ -1,27 +1,19 @@
+import {AgentActionButton} from '@/features/agents/components/agent-action-button'
 import {AgentLogin} from '@/features/agents/components/agent-login'
-import {Button} from '@/shared/ui/button'
+import {AgentAction} from '@/shared/lib/enums'
 import {isAgentReady, type RequiredAgent} from '@/features/sessions/use-required-agents'
 import {formatAgentName} from '@/shared/lib/format'
 import {cn} from '@/shared/lib/utils'
-
-type AgentActions = {
-    busy: boolean
-    busyLabel: (agentId: string) => string | null
-    authUrlOf: (agentId: string) => string | null
-    onInstall: (agentId: string) => void
-    onLogIn: (agentId: string) => void
-    onSubmitCode: (agentId: string, code: string) => void
-    onOpenAuthUrl: (url: string) => void
-}
+import type {AgentControls} from '@/features/agents/controls'
 
 export function RequiredAgents({
     required,
     loading,
-    actions,
+    controls,
 }: {
     required: RequiredAgent[]
     loading: boolean
-    actions: AgentActions
+    controls: AgentControls
 }) {
     return (
         <div className="flex flex-col">
@@ -35,7 +27,7 @@ export function RequiredAgents({
             ) : (
                 <div className="divide-y divide-border border-t border-border">
                     {required.map((entry) => (
-                        <RequiredAgentRow key={entry.harness} entry={entry} actions={actions} />
+                        <RequiredAgentRow key={entry.harness} entry={entry} controls={controls} />
                     ))}
                 </div>
             )}
@@ -50,14 +42,10 @@ function statusLine(entry: RequiredAgent) {
     return `v${entry.agent.version} · Ready`
 }
 
-function RequiredAgentRow({entry, actions}: {entry: RequiredAgent; actions: AgentActions}) {
+function RequiredAgentRow({entry, controls}: {entry: RequiredAgent; controls: AgentControls}) {
     const {agent} = entry
     const ready = isAgentReady(entry)
-    const authUrl = agent ? actions.authUrlOf(agent.id) : null
-    const busyLabel = agent ? actions.busyLabel(agent.id) : null
-
-    const install = () => agent && actions.onInstall(agent.id)
-    const logIn = () => agent && actions.onLogIn(agent.id)
+    const authUrl = agent ? controls.authUrlOf(agent.id) : null
 
     return (
         <div className="flex flex-col gap-3 px-4 py-3">
@@ -79,20 +67,21 @@ function RequiredAgentRow({entry, actions}: {entry: RequiredAgent; actions: Agen
                 </div>
 
                 {agent && !agent.installed && (
-                    <Button
-                        size="sm"
+                    <AgentActionButton
+                        action={AgentAction.Install}
+                        agentId={agent.id}
+                        controls={controls}
                         className="shrink-0"
-                        disabled={actions.busy}
-                        onClick={install}
-                    >
-                        {busyLabel ?? 'Install'}
-                    </Button>
+                    />
                 )}
 
                 {agent?.installed && !agent.loggedIn && (
-                    <Button size="sm" className="shrink-0" disabled={actions.busy} onClick={logIn}>
-                        {busyLabel === 'Logging in' ? 'Logging in' : 'Log in'}
-                    </Button>
+                    <AgentActionButton
+                        action={AgentAction.LogIn}
+                        agentId={agent.id}
+                        controls={controls}
+                        className="shrink-0"
+                    />
                 )}
             </div>
 
@@ -101,14 +90,7 @@ function RequiredAgentRow({entry, actions}: {entry: RequiredAgent; actions: Agen
             </p>
 
             {agent && authUrl && !agent.loggedIn && (
-                <AgentLogin
-                    agentId={agent.id}
-                    authUrl={authUrl}
-                    busy={actions.busy}
-                    verifying={busyLabel === 'Verifying'}
-                    onSubmitCode={actions.onSubmitCode}
-                    onOpenAuthUrl={actions.onOpenAuthUrl}
-                />
+                <AgentLogin agentId={agent.id} authUrl={authUrl} controls={controls} />
             )}
         </div>
     )

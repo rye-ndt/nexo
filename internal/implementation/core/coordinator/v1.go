@@ -1,14 +1,10 @@
 package coordinator
 
 import (
-	"maps"
-	"slices"
-	"strings"
 	"sync"
 	"time"
 
 	"hexago/internal/helpers"
-	"hexago/internal/helpers/constances"
 	"hexago/internal/helpers/custom_error"
 	"hexago/internal/helpers/enums"
 	core_itf "hexago/internal/interface/core"
@@ -40,7 +36,6 @@ func InitV1(
 	}
 
 	return &v1{
-		locker:   sync.Mutex{},
 		cfg:      cfg,
 		sessions: sessions,
 		agents:   agents,
@@ -51,31 +46,14 @@ func InitV1(
 }
 
 func (c *v1) Run(session uuid.UUID) error {
-	var err error
-	var halt chan struct{}
-
-	c.raceSafe(func() {
-		if _, found := c.running[session]; found {
-			err = custom_error.Critical("session %v is already running", session)
-			return
-		}
-
-		halt = make(chan struct{})
-		c.running[session] = halt
-	})
-
+	halt, err := c.startRunning(session)
 	if err != nil {
 		return err
 	}
 
 	progress, err := c.sessions.Execute(session)
 	if err != nil {
-		c.raceSafe(func() {
-			if c.running[session] == halt {
-				delete(c.running, session)
-			}
-		})
-
+		c.forget(session, halt)
 		return err
 	}
 
@@ -85,22 +63,12 @@ func (c *v1) Run(session uuid.UUID) error {
 }
 
 func (c *v1) Cancel(session uuid.UUID) error {
-	var halt chan struct{}
-
-	c.raceSafe(func() {
-		halt = c.running[session]
-		delete(c.running, session)
-	})
-
-	if halt != nil {
-		close(halt)
-	}
+	c.halt(session)
 
 	agentIDs, err := c.sessions.Cancel(session)
 
 	for _, agentID := range agentIDs {
-		c.stopWatcher(agentID)
-		_ = c.agents.Kill(agentID)
+		c.releaseAgent(agentID)
 	}
 
 	return err
@@ -110,12 +78,44 @@ func (c *v1) Stop() {
 	c.stopOnce.Do(func() { close(c.stop) })
 }
 
+func (c *v1) startRunning(session uuid.UUID) (chan struct{}, error) {
+	c.locker.Lock()
+	defer c.locker.Unlock()
+
+	if _, found := c.running[session]; found {
+		return nil, custom_error.Critical("session %v is already running", session)
+	}
+
+	halt := make(chan struct{})
+	c.running[session] = halt
+
+	return halt, nil
+}
+
+func (c *v1) halt(session uuid.UUID) {
+	c.locker.Lock()
+	running := c.running[session]
+	delete(c.running, session)
+	c.locker.Unlock()
+
+	if running != nil {
+		close(running)
+	}
+}
+
+// Only forgets the run the caller started: a relaunched session must not be dropped
+// by the loop it replaced.
+func (c *v1) forget(session uuid.UUID, halt <-chan struct{}) {
+	c.locker.Lock()
+	defer c.locker.Unlock()
+
+	if c.running[session] == halt {
+		delete(c.running, session)
+	}
+}
+
 func (c *v1) runSession(session uuid.UUID, halt <-chan struct{}, progress <-chan *core_itf.SessionProgress) {
-	defer c.raceSafe(func() {
-		if c.running[session] == halt {
-			delete(c.running, session)
-		}
-	})
+	defer c.forget(session, halt)
 
 	ticker := time.NewTicker(scheduleInterval)
 	defer ticker.Stop()
@@ -137,8 +137,7 @@ func (c *v1) runSession(session uuid.UUID, halt <-chan struct{}, progress <-chan
 
 			switch event.Event {
 			case enums.SessionTaskReported, enums.SessionTaskDropped:
-				c.stopWatcher(event.AgentID)
-				_ = c.agents.Kill(event.AgentID)
+				c.releaseAgent(event.AgentID)
 			}
 
 			c.schedule(session)
@@ -162,41 +161,45 @@ func (c *v1) schedule(session uuid.UUID) {
 			continue
 		}
 
-		agent, err := c.agents.RequestInstance(&core_itf.AgentRequest{
-			Name:          spec.AgentSpecs.Name,
-			Role:          spec.AgentSpecs.Role,
-			ThinkingLevel: spec.AgentSpecs.ThinkingLevel,
-			SystemPrompts: spec.AgentSpecs.SystemPrompts,
-			WorkingDir:    status.WorkingDirPath,
-		})
-		if err != nil {
+		if stop := c.start(spec, status); stop {
 			return
 		}
-
-		if err := c.sessions.Assign(spec.TaskID, agent.ID); err != nil {
-			_ = c.agents.Kill(agent.ID)
-			continue
-		}
-
-		if err := c.agents.Send(agent.ID, buildPrompt(spec, status)); err != nil {
-			_ = c.sessions.Report(agent.ID, enums.TaskFailed, []*core_itf.HandoverDoc{{
-				Task:    spec.Name,
-				TLDR:    "The assistant working on this step stopped running before it could start, so nothing was done.",
-				Outcome: "agent died before reporting: " + err.Error(),
-			}})
-			_ = c.agents.Kill(agent.ID)
-
-			continue
-		}
-
-		c.watch(agent.ID, spec.Name)
 	}
+}
+
+func (c *v1) start(spec *core_itf.TaskSpec, status *core_itf.SessionStatus) (outOfCapacity bool) {
+	agent, err := c.agents.RequestInstance(&core_itf.AgentRequest{
+		Name:          spec.AgentSpecs.Name,
+		Role:          spec.AgentSpecs.Role,
+		ThinkingLevel: spec.AgentSpecs.ThinkingLevel,
+		SystemPrompts: spec.AgentSpecs.SystemPrompts,
+		WorkingDir:    status.WorkingDirPath,
+	})
+	if err != nil {
+		return true
+	}
+
+	if err := c.sessions.Assign(spec.TaskID, agent.ID); err != nil {
+		_ = c.agents.Kill(agent.ID)
+		return false
+	}
+
+	if err := c.agents.Send(agent.ID, buildPrompt(spec, status)); err != nil {
+		c.reportDeath(agent.ID, spec.Name, "The assistant working on this step stopped running before it could start, so nothing was done.", err)
+		return false
+	}
+
+	c.watch(agent.ID, spec.Name)
+
+	return false
 }
 
 func (c *v1) watch(agentID uuid.UUID, taskName string) {
 	watcher := make(chan struct{})
 
-	c.raceSafe(func() { c.watchers[agentID] = watcher })
+	c.locker.Lock()
+	c.watchers[agentID] = watcher
+	c.locker.Unlock()
 
 	go func() {
 		ticker := time.NewTicker(c.cfg.AgentHeartbeatInterval)
@@ -212,14 +215,8 @@ func (c *v1) watch(agentID uuid.UUID, taskName string) {
 				_ = c.sessions.HeartBeat(agentID)
 
 				if err := c.agents.HeartBeat(agentID); err != nil {
-					c.raceSafe(func() { delete(c.watchers, agentID) })
-
-					_ = c.sessions.Report(agentID, enums.TaskFailed, []*core_itf.HandoverDoc{{
-						Task:    taskName,
-						TLDR:    "The assistant working on this step stopped responding partway through, so the work is unfinished.",
-						Outcome: "agent died before reporting: " + err.Error(),
-					}})
-					_ = c.agents.Kill(agentID)
+					c.forgetWatcher(agentID)
+					c.reportDeath(agentID, taskName, "The assistant working on this step stopped responding partway through, so the work is unfinished.", err)
 
 					return
 				}
@@ -228,111 +225,34 @@ func (c *v1) watch(agentID uuid.UUID, taskName string) {
 	}()
 }
 
-func (c *v1) stopWatcher(agentID uuid.UUID) {
+func (c *v1) reportDeath(agentID uuid.UUID, taskName, tldr string, cause error) {
+	_ = c.sessions.Report(agentID, enums.TaskFailed, []*core_itf.HandoverDoc{{
+		Task:    taskName,
+		TLDR:    tldr,
+		Outcome: "agent died before reporting: " + cause.Error(),
+	}})
+
+	_ = c.agents.Kill(agentID)
+}
+
+func (c *v1) releaseAgent(agentID uuid.UUID) {
 	if agentID == uuid.Nil {
 		return
 	}
 
-	var watcher chan struct{}
-
-	c.raceSafe(func() {
-		watcher = c.watchers[agentID]
-		delete(c.watchers, agentID)
-	})
-
-	if watcher != nil {
+	if watcher := c.forgetWatcher(agentID); watcher != nil {
 		close(watcher)
 	}
+
+	_ = c.agents.Kill(agentID)
 }
 
-func buildPrompt(spec *core_itf.TaskSpec, status *core_itf.SessionStatus) string {
-	b := &strings.Builder{}
-
-	b.WriteString("# Task: " + spec.Name + "\n")
-
-	if guidance := strings.TrimSpace(spec.ExtraGuidance); guidance != "" {
-		b.WriteString("\n" + guidance + "\n")
-	}
-
-	b.WriteString("\nYou are already running inside " + status.WorkingDirPath + "; all work happens there.\n")
-
-	if spec.FileWriteAllowance == enums.Restricted && len(spec.AllowedFilePaths) > 0 {
-		b.WriteString("\nYou may only write these paths:\n")
-
-		for _, path := range spec.AllowedFilePaths {
-			b.WriteString("- " + path + "\n")
-		}
-	}
-
-	for _, dep := range spec.DependsOn {
-		report, found := status.Tasks[dep]
-		if !found {
-			continue
-		}
-
-		for _, doc := range report.HandoverDocs {
-			writeDoc(b, doc)
-		}
-	}
-
-	if spec.ManualAcceptRequired {
-		b.WriteString("\nA human operator reviews your report before anything downstream runs, " +
-			"so nothing continues until they confirm it. Write the `outcome` field as a complete, " +
-			"self-contained briefing for that operator: what you did and why, the plan you followed, " +
-			"the decisions you took and the alternatives you rejected, the risks you see, and anything " +
-			"that could surprise them. Assume they have not read the code or watched you work. " +
-			"Also fill `approved_decisions`, `rejected_decisions`, `must_avoid`, `nuances` and " +
-			"`known_gaps` wherever they apply.\n")
-	}
-
-	b.WriteString("\nWhen you are finished, call the `report_task` tool on the `" +
-		constances.GatewayLocalServer +
-		"` MCP server exactly once, with status completed or failed and a complete, honest handover doc. " +
-		"After the tool returns, stop.\n")
-
-	b.WriteString("\nOne field of that doc is not for the next agent. `tldr` is read by a person who has " +
-		"not seen this codebase and may not know what this task was for. Write exactly one sentence " +
-		"saying what you did and how you did it, in plain words a non-programmer would follow: no file " +
-		"paths, no function or type names, no jargon, no abbreviations from this project. It has to make " +
-		"sense on its own, to someone who reads nothing else. If you failed, say in that one sentence " +
-		"what you were trying to do and what stopped you.\n")
-
-	return b.String()
-}
-
-func writeDoc(b *strings.Builder, doc *core_itf.HandoverDoc) {
-	b.WriteString("\n## Handover from \"" + doc.Task + "\"\n")
-	b.WriteString("\nOutcome: " + doc.Outcome + "\n")
-
-	sections := []struct {
-		title string
-		items map[string]string
-	}{
-		{"Blockers", doc.Blockers},
-		{"Approved decisions", doc.ApprovedDecisions},
-		{"Rejected decisions", doc.RejectedDecisions},
-		{"Current behaviors", doc.CurrentBehaviors},
-		{"Changed behaviors", doc.ChangedBehaviors},
-		{"Must avoid", doc.MustAvoid},
-		{"Nuances", doc.Nuances},
-		{"Known gaps", doc.KnownGaps},
-	}
-
-	for _, section := range sections {
-		if len(section.items) == 0 {
-			continue
-		}
-
-		b.WriteString("\n### " + section.title + "\n")
-
-		for _, key := range slices.Sorted(maps.Keys(section.items)) {
-			b.WriteString("- " + key + ": " + section.items[key] + "\n")
-		}
-	}
-}
-
-func (c *v1) raceSafe(exec func()) {
+func (c *v1) forgetWatcher(agentID uuid.UUID) chan struct{} {
 	c.locker.Lock()
 	defer c.locker.Unlock()
-	exec()
+
+	watcher := c.watchers[agentID]
+	delete(c.watchers, agentID)
+
+	return watcher
 }

@@ -38,6 +38,10 @@ func newConfigValidator() *validator.Validate {
 		return enums.ThinkingLevel(fl.Field().String()).Valid()
 	})
 
+	v.RegisterValidation("mcp_auth_flow", func(fl validator.FieldLevel) bool {
+		return enums.MCPAuthFlow(fl.Field().String()).Valid()
+	})
+
 	return v
 }
 

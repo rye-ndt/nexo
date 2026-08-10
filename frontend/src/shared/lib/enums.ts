@@ -129,6 +129,52 @@ export const INSTALL_STAGE_LABELS: Record<InstallStage, string> = {
     [InstallStage.Done]: 'Ready',
 }
 
+export const ApprovalKind = {
+    Decision: 'decision',
+    Permission: 'permission',
+} as const
+
+export type ApprovalKind = (typeof ApprovalKind)[keyof typeof ApprovalKind]
+
+export const MCPAuthKind = {
+    DynamicRegistration: 'dcr',
+    Device: 'device',
+    Token: 'token',
+} as const
+
+export type MCPAuthKind = (typeof MCPAuthKind)[keyof typeof MCPAuthKind]
+
+export const AgentAction = {
+    Install: 'install',
+    Uninstall: 'uninstall',
+    LogIn: 'log_in',
+    Verify: 'verify',
+} as const
+
+export type AgentAction = (typeof AgentAction)[keyof typeof AgentAction]
+
+export const AGENT_ACTION_LABELS: Record<AgentAction, string> = {
+    [AgentAction.Install]: 'Install',
+    [AgentAction.Uninstall]: 'Uninstall',
+    [AgentAction.LogIn]: 'Log in',
+    [AgentAction.Verify]: 'Verify',
+}
+
+export const AGENT_ACTION_BUSY_LABELS: Record<AgentAction, string> = {
+    [AgentAction.Install]: 'Installing',
+    [AgentAction.Uninstall]: 'Uninstalling',
+    [AgentAction.LogIn]: 'Logging in',
+    [AgentAction.Verify]: 'Verifying',
+}
+
+/** Completed by the agent's name to title the error dialog when the action fails. */
+export const AGENT_ACTION_FAILURES: Record<AgentAction, string> = {
+    [AgentAction.Install]: 'Could not install',
+    [AgentAction.Uninstall]: 'Could not uninstall',
+    [AgentAction.LogIn]: 'Could not start the login for',
+    [AgentAction.Verify]: 'Could not verify that code for',
+}
+
 export const ParamType = {
     Text: 'text',
     Textarea: 'textarea',

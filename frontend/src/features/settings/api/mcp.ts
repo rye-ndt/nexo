@@ -5,6 +5,7 @@
  * server the same contract is answered from src/lib/mock-mcp.ts.
  */
 
+import {MCPAuthKind} from '@/shared/lib/enums'
 import {bridge, hasWailsRuntime} from '@/shared/api/bridge'
 import {
     mockAccount,
@@ -78,7 +79,8 @@ export async function setMCPCredential(serverId: string, token: string): Promise
 
     const target = servers.find((server) => server.id === serverId)
     if (!target) throw new Error('That MCP server is no longer configured.')
-    if (target.kind !== 'token') throw new Error('That MCP server does not take a pasted token.')
+    if (target.kind !== MCPAuthKind.Token)
+        throw new Error('That MCP server does not take a pasted token.')
 
     await roundtrip()
 

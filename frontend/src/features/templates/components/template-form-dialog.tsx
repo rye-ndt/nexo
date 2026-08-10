@@ -5,6 +5,7 @@ import {DialogShell} from '@/shared/components/dialog-shell'
 import {TemplateForm} from '@/features/templates/components/template-form'
 import {Button} from '@/shared/ui/button'
 import {useTemplates} from '@/features/templates/use-templates'
+import {useToggle} from '@/shared/hooks/use-toggle'
 import {emptyTemplate, templateIssues} from '@/features/templates/template'
 import type {Template, TemplateDraft} from '@/features/templates/types'
 
@@ -19,33 +20,26 @@ export function TemplateFormDialog({
     const [draft, setDraft] = useState<TemplateDraft>(() =>
         template ? structuredClone(template) : emptyTemplate(),
     )
-    const [confirming, setConfirming] = useState(false)
+    const confirming = useToggle()
 
     const issues = templateIssues(draft)
 
-    const close = (open: boolean) => {
-        if (!open) onClose()
-    }
-
     const commit = () => {
-        setConfirming(false)
+        confirming.close()
         saveTemplate(draft, {onSuccess: onClose})
     }
 
     const save = () => {
         if (issues.length > 0) return
-        if (template) setConfirming(true)
+        if (template) confirming.open()
         else commit()
     }
-
-    const cancelConfirm = () => setConfirming(false)
 
     const saveLabel = template ? 'Save changes' : 'Create template'
 
     return (
         <DialogShell
-            open
-            onOpenChange={close}
+            onClose={onClose}
             title={template ? 'Edit template' : 'New template'}
             footer={
                 <>
@@ -63,14 +57,14 @@ export function TemplateFormDialog({
         >
             <TemplateForm draft={draft} onChange={setDraft} />
 
-            {confirming && template && (
+            {confirming.on && template && (
                 <ConfirmDialog
                     title={`Save changes to “${template.name}”?`}
                     description="The template is overwritten. Nodes already built from it keep their prompt."
                     confirmLabel="Save changes"
                     busy={saving}
                     onConfirm={commit}
-                    onClose={cancelConfirm}
+                    onClose={confirming.close}
                 />
             )}
         </DialogShell>

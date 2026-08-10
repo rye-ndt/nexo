@@ -12,14 +12,9 @@ export function MissingInputsDialog({
     onSelectTask: (taskId: string) => void
     onClose: () => void
 }) {
-    const close = (open: boolean) => {
-        if (!open) onClose()
-    }
-
     return (
         <DialogShell
-            open
-            onOpenChange={close}
+            onClose={onClose}
             title="Fill inputs before the run"
             description={`Inputs are missing on ${pluralize(entries.length, 'node')}. Pick one to fill them, then run.`}
             footer={

@@ -1,8 +1,10 @@
 import type {MouseEvent} from 'react'
 import {CircleStop, Lock, MoreHorizontal} from 'lucide-react'
+import type {LucideIcon} from 'lucide-react'
 
 import {SessionSpine} from '@/features/sessions/components/session-spine'
 import {SESSION_TITLE_CLASSES} from '@/features/sessions/session-status'
+import {CANCELLED_HINT, FINALIZED_HINT} from '@/features/sessions/session-copy'
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -16,9 +18,27 @@ import {sessionProgress, sessionStatus} from '@/features/sessions/graph'
 import {cn} from '@/shared/lib/utils'
 import type {Session} from '@/features/sessions/types'
 
-const FINALIZED_HINT = 'Finalized — duplicate to make changes.'
+type Marker = {icon: LucideIcon; label: string; hint: string; className: string}
 
-const CANCELLED_HINT = 'Run cancelled — duplicate to start over.'
+function markerFor(session: Session, status: SessionStatus): Marker | null {
+    if (status === SessionStatus.Cancelled)
+        return {
+            icon: CircleStop,
+            label: 'Cancelled',
+            hint: CANCELLED_HINT,
+            className: 'text-state-idle',
+        }
+
+    if (session.finalized)
+        return {
+            icon: Lock,
+            label: 'Finalized',
+            hint: FINALIZED_HINT,
+            className: 'text-muted-foreground',
+        }
+
+    return null
+}
 
 export function SessionRow({
     session,
@@ -33,10 +53,8 @@ export function SessionRow({
     onClone: (sessionId: string) => void
     onDelete: (sessionId: string) => void
 }) {
-    const {done, total} = sessionProgress(session)
-    const relative = formatRelative(session.createdAt)
     const status = sessionStatus(session)
-    const cancelled = status === SessionStatus.Cancelled
+    const marker = markerFor(session, status)
 
     const select = () => onSelect(session.id)
     const clone = () => onClone(session.id)
@@ -63,61 +81,18 @@ export function SessionRow({
                     >
                         {session.name}
                     </span>
-                    {cancelled ? (
-                        <Tooltip>
-                            <TooltipTrigger asChild>
-                                <span
-                                    role="img"
-                                    aria-label="Cancelled"
-                                    className="flex shrink-0 text-state-idle"
-                                >
-                                    <CircleStop className="size-3" />
-                                </span>
-                            </TooltipTrigger>
-                            <TooltipContent side="bottom">{CANCELLED_HINT}</TooltipContent>
-                        </Tooltip>
-                    ) : (
-                        session.finalized && (
-                            <Tooltip>
-                                <TooltipTrigger asChild>
-                                    <span
-                                        role="img"
-                                        aria-label="Finalized"
-                                        className="flex shrink-0 text-muted-foreground"
-                                    >
-                                        <Lock className="size-3" />
-                                    </span>
-                                </TooltipTrigger>
-                                <TooltipContent side="bottom">{FINALIZED_HINT}</TooltipContent>
-                            </Tooltip>
-                        )
-                    )}
+                    {marker && <LockMarker marker={marker} />}
                 </span>
 
                 <SessionSpine session={session} />
 
-                <span className="flex items-center gap-1 text-sm text-muted-foreground">
-                    {total === 0 ? (
-                        <span>No tasks</span>
-                    ) : (
-                        <span>
-                            <span className="font-mono">
-                                {done}/{total}
-                            </span>{' '}
-                            done
-                        </span>
-                    )}
-                    {relative && (
-                        <>
-                            <span aria-hidden>·</span>
-                            <span className="font-mono">{relative}</span>
-                        </>
-                    )}
-                </span>
+                <SessionMeta session={session} />
             </button>
 
             {active && (
-                <span className="pointer-events-none absolute inset-y-1 left-0 w-1 rounded-full bg-live" />
+                <span className="pointer-events-none absolute inset-0 overflow-hidden rounded-xl">
+                    <span className="absolute inset-y-0 left-0 w-1 bg-live" />
+                </span>
             )}
 
             <DropdownMenu>
@@ -139,5 +114,46 @@ export function SessionRow({
                 </DropdownMenuContent>
             </DropdownMenu>
         </div>
+    )
+}
+
+function LockMarker({marker}: {marker: Marker}) {
+    const {icon: Icon, label, hint, className} = marker
+
+    return (
+        <Tooltip>
+            <TooltipTrigger asChild>
+                <span role="img" aria-label={label} className={cn('flex shrink-0', className)}>
+                    <Icon className="size-3" />
+                </span>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">{hint}</TooltipContent>
+        </Tooltip>
+    )
+}
+
+function SessionMeta({session}: {session: Session}) {
+    const {done, total} = sessionProgress(session)
+    const relative = formatRelative(session.createdAt)
+
+    return (
+        <span className="flex items-center gap-1 text-sm text-muted-foreground">
+            {total === 0 ? (
+                <span>No tasks</span>
+            ) : (
+                <span>
+                    <span className="font-mono">
+                        {done}/{total}
+                    </span>{' '}
+                    done
+                </span>
+            )}
+            {relative && (
+                <>
+                    <span aria-hidden>·</span>
+                    <span className="font-mono">{relative}</span>
+                </>
+            )}
+        </span>
     )
 }

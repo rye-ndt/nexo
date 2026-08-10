@@ -14,7 +14,6 @@ type AddTask struct {
 	ManualAcceptRequired bool
 	FileWriteAllowance   enums.FileAllowance
 	AllowedFilePaths     []string
-	TemplateFilePaths    []string
 	ExtraGuidance        string
 	DependsOn            []uuid.UUID
 	AgentSpecs           *AgentRequest
@@ -60,6 +59,7 @@ type HandoverDoc struct {
 
 type TaskReport struct {
 	TaskID       uuid.UUID
+	AgentID      uuid.UUID
 	Status       enums.TaskStatus
 	FileChanges  []*FileChange
 	HandoverDocs []*HandoverDoc

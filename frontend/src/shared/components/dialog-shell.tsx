@@ -2,25 +2,28 @@ import type {ReactNode} from 'react'
 
 import {Dialog, DialogContent, DialogDescription, DialogTitle} from '@/shared/ui/dialog'
 
+/** Always mounted open — callers render it conditionally — so there is no `open` prop. */
 export function DialogShell({
-    open,
-    onOpenChange,
     title,
     description,
     aside,
     footer,
+    onClose,
     children,
 }: {
-    open: boolean
-    onOpenChange: (open: boolean) => void
     title: string
     description?: string
     aside?: ReactNode
     footer: ReactNode
+    onClose: () => void
     children: ReactNode
 }) {
+    const change = (open: boolean) => {
+        if (!open) onClose()
+    }
+
     return (
-        <Dialog open={open} onOpenChange={onOpenChange}>
+        <Dialog open onOpenChange={change}>
             <DialogContent
                 {...(description ? {} : {'aria-describedby': undefined})}
                 className="flex h-[600px] max-w-[560px] flex-col gap-0 overflow-hidden p-0"

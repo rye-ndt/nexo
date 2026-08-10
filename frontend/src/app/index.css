@@ -239,11 +239,11 @@
     }
 
     .react-flow__handle-left {
-        left: -5px;
+        left: 0;
     }
 
     .react-flow__handle-right {
-        right: -5px;
+        right: 0;
     }
 
     .react-flow__edge-path {

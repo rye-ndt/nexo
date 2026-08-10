@@ -1,7 +1,6 @@
-import {useState} from 'react'
-
 import {DialogShell} from '@/shared/components/dialog-shell'
 import {Button} from '@/shared/ui/button'
+import {useDecision} from '@/shared/hooks/use-decision'
 import {pluralize} from '@/shared/lib/format'
 import type {HandoverDoc, Task} from '@/features/sessions/types'
 
@@ -91,25 +90,15 @@ export function AcceptGateDialog({
     onAnswer: (accepted: boolean) => void
     onClose: () => void
 }) {
-    const [answer, setAnswer] = useState<boolean | null>(null)
-
+    const decision = useDecision(busy, onAnswer)
     const docs = task.report?.handoverDocs ?? []
 
-    const close = (open: boolean) => {
-        if (!open) onClose()
-    }
-
-    const answerGate = (accepted: boolean) => {
-        if (busy) return
-
-        setAnswer(accepted)
-        onAnswer(accepted)
-    }
+    const reject = () => decision.answer(false)
+    const confirm = () => decision.answer(true)
 
     return (
         <DialogShell
-            open
-            onOpenChange={close}
+            onClose={onClose}
             title={task.title || 'Untitled node'}
             description="Finished. Nothing downstream runs until you decide."
             aside={
@@ -125,16 +114,11 @@ export function AcceptGateDialog({
                         Not now
                     </Button>
                     <span className="flex-1" />
-                    <Button
-                        variant="destructive"
-                        size="sm"
-                        disabled={busy}
-                        onClick={() => answerGate(false)}
-                    >
-                        {busy && answer === false ? 'Rejecting…' : 'Reject and stop'}
+                    <Button variant="destructive" size="sm" disabled={busy} onClick={reject}>
+                        {decision.labelOf(false, 'Reject and stop', 'Rejecting…')}
                     </Button>
-                    <Button size="sm" disabled={busy} onClick={() => answerGate(true)}>
-                        {busy && answer === true ? 'Confirming…' : 'Confirm and continue'}
+                    <Button size="sm" disabled={busy} onClick={confirm}>
+                        {decision.labelOf(true, 'Confirm and continue', 'Confirming…')}
                     </Button>
                 </>
             }

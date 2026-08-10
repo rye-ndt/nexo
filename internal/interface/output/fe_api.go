@@ -96,6 +96,7 @@ type TaskActivityInfo struct {
 
 type SessionTaskInfo struct {
 	TaskID       string                  `json:"task_id"`
+	AgentID      string                  `json:"agent_id"`
 	Status       string                  `json:"status"`
 	FileChanges  []*FileChangeInfo       `json:"file_changes"`
 	HandoverDocs []*HandoverDocInfo      `json:"handover_docs"`
@@ -150,16 +151,12 @@ type FEAPI interface {
 	InstallAgent(id string) error
 	AuthAgent(id string) (string, error)
 	SubmitAuthCode(id string, code string) error
-	SpawnAgent(id string) (string, error)
-	SendToAgent(id string, agentID string, message string) error
-	AgentContextUsage(agentID string) (*input_itf.ContextUsage, error)
 	PendingApprovals() ([]*ApprovalInfo, error)
 	AnswerApproval(requestID string, approved bool, optionIDs []string, guidance string) error
 	Templates() ([]*TemplateInfo, error)
 	Template(id string) (*TemplateInfo, error)
 	UpsertTemplate(template *TemplateInfo) (string, error)
 	RemoveTemplate(id string) error
-	KillAgent(id string, agentID string) error
 	UninstallAgent(id string) error
 	ChooseDirectory(title string) (string, error)
 	AgentDefaults() ([]*AgentDefaultInfo, error)

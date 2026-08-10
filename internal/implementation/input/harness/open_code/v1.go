@@ -35,10 +35,15 @@ import (
 
 const openCodeName = "open-code"
 
+const (
+	permissionAllow = "allow"
+	sseDataPrefix   = "data: "
+)
+
 var openCodePermissions = map[string]string{
-	"edit":     "allow",
-	"bash":     "allow",
-	"webfetch": "allow",
+	"edit":     permissionAllow,
+	"bash":     permissionAllow,
+	"webfetch": permissionAllow,
 }
 
 type githubRelease struct {
@@ -606,7 +611,7 @@ func streamEvents(
 	for sc.Scan() {
 		proc.lastOut.Store(helpers.NewUTCUnix())
 
-		data, ok := strings.CutPrefix(sc.Text(), "data: ")
+		data, ok := strings.CutPrefix(sc.Text(), sseDataPrefix)
 		if !ok || data == "" {
 			continue
 		}
@@ -778,20 +783,11 @@ func openCodeMCPCfg(gateway *core_itf.MCPGateway) map[string]any {
 	block := map[string]any{}
 
 	for _, server := range gateway.Servers {
-		headers := map[string]string{
-			gateway.TokenHeader:           gateway.Token,
-			constances.GatewayAgentHeader: constances.GatewayAgentPlaceholder,
-		}
-
-		if server.AuthKeyName != "" {
-			headers["Authorization"] = "Bearer " + server.AuthKeyName
-		}
-
 		block[server.Name] = map[string]any{
 			"type":    "remote",
-			"url":     gateway.BaseURL + "/mcp/" + server.Name,
+			"url":     harness_helper.GatewayURL(gateway, server),
 			"enabled": true,
-			"headers": headers,
+			"headers": harness_helper.GatewayHeaders(gateway, server),
 		}
 	}
 
@@ -799,7 +795,11 @@ func openCodeMCPCfg(gateway *core_itf.MCPGateway) map[string]any {
 }
 
 func openCodePlatform() (string, error) {
-	goos := map[string]string{"darwin": "darwin", "linux": "linux", "windows": "windows"}[runtime.GOOS]
+	goos := map[string]string{
+		enums.Mac.String():     enums.Mac.String(),
+		enums.Linux.String():   enums.Linux.String(),
+		enums.Windows.String(): enums.Windows.String(),
+	}[runtime.GOOS]
 	arch := map[string]string{"arm64": "arm64", "amd64": "x64"}[runtime.GOARCH]
 	if goos == "" || arch == "" {
 		return "", custom_error.Critical("unsupported platform %s/%s", runtime.GOOS, runtime.GOARCH)

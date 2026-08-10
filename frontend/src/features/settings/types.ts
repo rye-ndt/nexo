@@ -1,4 +1,4 @@
-import type {TaskLevel, ThinkingLevel} from '@/shared/lib/enums'
+import type {MCPAuthKind, TaskLevel, ThinkingLevel} from '@/shared/lib/enums'
 
 export type MCPServer = {
     id: string
@@ -8,7 +8,7 @@ export type MCPServer = {
     authorizedAt?: string
     /** Who the server says the stored credential belongs to — set once authorized. */
     account?: string
-    kind: 'dcr' | 'device' | 'token'
+    kind: MCPAuthKind
 }
 
 export type AgentDefault = {

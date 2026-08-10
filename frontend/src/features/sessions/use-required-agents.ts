@@ -20,28 +20,21 @@ export function isAgentReady(required: RequiredAgent) {
  */
 export function useRequiredAgents() {
     const {defaults, options, loading: defaultsLoading} = useAgentDefaults()
-    const roster = useAgents()
+    const controls = useAgents()
 
     const required: RequiredAgent[] = requiredHarnesses(defaults, options?.models ?? []).map(
         (demand) => ({
             ...demand,
-            agent: roster.agents.find((agent) => agent.id === demand.harness) ?? null,
+            agent: controls.agents.find((agent) => agent.id === demand.harness) ?? null,
         }),
     )
 
-    const loading = defaultsLoading || roster.loading
-    const ready = !loading && required.length > 0 && required.every(isAgentReady)
+    const loading = defaultsLoading || controls.loading
 
     return {
         required,
-        ready,
+        ready: !loading && required.length > 0 && required.every(isAgentReady),
         loading,
-        busy: roster.busy,
-        busyLabel: roster.busyLabel,
-        authUrlOf: roster.authUrlOf,
-        install: roster.install,
-        logIn: roster.logIn,
-        submitAuthCode: roster.submitAuthCode,
-        openAuthUrl: roster.openAuthUrl,
+        controls,
     }
 }

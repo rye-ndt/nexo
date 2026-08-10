@@ -1,3 +1,4 @@
+import {MCPAuthKind} from '@/shared/lib/enums'
 import type {MCPServer} from '@/features/settings/types'
 
 const FIGMA_TOKEN_PREFIX = 'figd_'
@@ -47,7 +48,7 @@ export const MOCK_MCP_SERVERS: MCPServer[] = [
         authorized: true,
         authorizedAt: '2026-07-24T09:12:00.000Z',
         account: MOCK_ACCOUNTS.atlassian,
-        kind: 'dcr',
+        kind: MCPAuthKind.DynamicRegistration,
     },
     {
         id: 'github',
@@ -56,27 +57,27 @@ export const MOCK_MCP_SERVERS: MCPServer[] = [
         authorized: true,
         authorizedAt: '2026-07-28T15:40:00.000Z',
         account: MOCK_ACCOUNTS.github,
-        kind: 'device',
+        kind: MCPAuthKind.Device,
     },
     {
         id: 'linear',
         name: 'Linear',
         url: 'https://mcp.linear.app/sse',
         authorized: false,
-        kind: 'dcr',
+        kind: MCPAuthKind.DynamicRegistration,
     },
     {
         id: 'sentry',
         name: 'Sentry',
         url: 'https://mcp.sentry.dev/sse',
         authorized: false,
-        kind: 'dcr',
+        kind: MCPAuthKind.DynamicRegistration,
     },
     {
         id: 'figma',
         name: 'Figma',
         url: 'https://api.figma.com',
         authorized: false,
-        kind: 'token',
+        kind: MCPAuthKind.Token,
     },
 ]

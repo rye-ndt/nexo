@@ -2,7 +2,6 @@ import {promptSegments} from '@/features/templates/param-refs'
 import {cn} from '@/shared/lib/utils'
 import type {FieldValue} from '@/features/templates/types'
 
-/** The prompt as the agent will read it, with every `{{key}}` already resolved. */
 export function PromptPreview({
     prompt,
     values,

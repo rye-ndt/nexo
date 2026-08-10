@@ -37,6 +37,7 @@ import {
     setSessions,
 } from '@/features/sessions/api/store'
 import {forgetSessionActivity} from '@/features/sessions/api/activity'
+import {forgetMockApprovals} from '@/features/approvals/mock-approvals'
 import {resolveAcceptance, stopRun, tick} from '@/features/sessions/api/simulated-run'
 import {
     answerRemoteAcceptance,
@@ -164,6 +165,13 @@ export async function answerTaskAcceptance(
     return structuredClone(findSession(sessionId))
 }
 
+/** A held node loses its question when its session goes away, or the queue outlives the run. */
+function forgetSessionApprovals(session: Session) {
+    forgetMockApprovals(
+        session.tasks.map((task) => task.agentId).filter((id): id is string => Boolean(id)),
+    )
+}
+
 /** Cancel is terminal — the node that was running loses its work and the session can only be duplicated. */
 export async function cancelSession(sessionId: string): Promise<Session> {
     await hydrate()
@@ -175,6 +183,7 @@ export async function cancelSession(sessionId: string): Promise<Session> {
     stopRun(sessionId)
     await cancelRemoteRun(sessionId)
     forgetSessionActivity(session)
+    forgetSessionApprovals(session)
 
     return replaceSession(cancelRun(session))
 }
@@ -187,7 +196,12 @@ export async function deleteSession(sessionId: string): Promise<void> {
     stopRun(sessionId)
     await cancelRemoteRun(sessionId).catch(() => {})
     runs.delete(sessionId)
-    if (doomed) forgetSessionActivity(doomed)
+
+    if (doomed) {
+        forgetSessionActivity(doomed)
+        forgetSessionApprovals(doomed)
+    }
+
     setSessions(sessions.filter((session) => session.id !== sessionId))
 
     if (hasWailsRuntime()) await bridge(() => DeleteSessionDraft(sessionId))

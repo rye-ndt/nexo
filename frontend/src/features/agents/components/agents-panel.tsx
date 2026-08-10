@@ -1,43 +1,18 @@
+import {AgentActionButton} from '@/features/agents/components/agent-action-button'
 import {AgentLogin} from '@/features/agents/components/agent-login'
-import {Button} from '@/shared/ui/button'
+import {StatusChip} from '@/shared/components/status-chip'
+import {AgentAction} from '@/shared/lib/enums'
 import {useAgents} from '@/features/agents/use-agents'
-import {cn} from '@/shared/lib/utils'
 import type {Agent} from '@/features/agents/types'
+import type {AgentControls} from '@/features/agents/controls'
 
 function metaLine(agent: Agent) {
     if (!agent.installed) return 'Not installed'
     return `v${agent.version.replace(/^v/, '')} · ${agent.instanceCount} running`
 }
 
-function LoginBadge({loggedIn}: {loggedIn: boolean}) {
-    return (
-        <span
-            className={cn(
-                'shrink-0 rounded-sm px-2.5 py-1 text-xs leading-none font-bold tracking-[0.05em] uppercase',
-                loggedIn
-                    ? 'bg-state-done-tint text-state-done'
-                    : 'bg-state-idle-tint text-muted-foreground',
-            )}
-        >
-            {loggedIn ? 'Logged in' : 'Not logged in'}
-        </span>
-    )
-}
-
 export function AgentsPanel() {
-    const {
-        agents,
-        busy,
-        busyLabel,
-        authUrlOf,
-        install,
-        uninstall,
-        logIn,
-        submitAuthCode,
-        openAuthUrl,
-    } = useAgents()
-
-    const isEmpty = agents.length === 0
+    const controls = useAgents()
 
     return (
         <section className="flex flex-col">
@@ -50,22 +25,11 @@ export function AgentsPanel() {
             </div>
 
             <div className="divide-y divide-border border-t border-border">
-                {agents.map((agent) => (
-                    <AgentRow
-                        key={agent.id}
-                        agent={agent}
-                        busy={busy}
-                        busyLabel={busyLabel(agent.id)}
-                        authUrl={authUrlOf(agent.id)}
-                        onInstall={install}
-                        onUninstall={uninstall}
-                        onLogIn={logIn}
-                        onSubmitCode={submitAuthCode}
-                        onOpenAuthUrl={openAuthUrl}
-                    />
+                {controls.agents.map((agent) => (
+                    <AgentRow key={agent.id} agent={agent} controls={controls} />
                 ))}
 
-                {isEmpty && (
+                {controls.agents.length === 0 && (
                     <p className="px-4 py-3 text-base text-muted-foreground">
                         No agents configured. Add one to config.yaml to see it here.
                     </p>
@@ -75,32 +39,8 @@ export function AgentsPanel() {
     )
 }
 
-function AgentRow({
-    agent,
-    busy,
-    busyLabel,
-    authUrl,
-    onInstall,
-    onUninstall,
-    onLogIn,
-    onSubmitCode,
-    onOpenAuthUrl,
-}: {
-    agent: Agent
-    busy: boolean
-    busyLabel: string | null
-    authUrl: string | null
-    onInstall: (agentId: string) => void
-    onUninstall: (agentId: string) => void
-    onLogIn: (agentId: string) => void
-    onSubmitCode: (agentId: string, code: string) => void
-    onOpenAuthUrl: (url: string) => void
-}) {
-    const showLogin = authUrl !== null && !agent.loggedIn
-
-    const install = () => onInstall(agent.id)
-    const uninstall = () => onUninstall(agent.id)
-    const logIn = () => onLogIn(agent.id)
+function AgentRow({agent, controls}: {agent: Agent; controls: AgentControls}) {
+    const authUrl = controls.authUrlOf(agent.id)
 
     return (
         <div className="flex flex-col gap-3 px-4 py-3">
@@ -110,7 +50,11 @@ function AgentRow({
                         <span className="truncate font-mono text-base font-medium">
                             {agent.name}
                         </span>
-                        {agent.installed && <LoginBadge loggedIn={agent.loggedIn} />}
+                        {agent.installed && (
+                            <StatusChip tone={agent.loggedIn ? 'done' : 'muted'}>
+                                {agent.loggedIn ? 'Logged in' : 'Not logged in'}
+                            </StatusChip>
+                        )}
                     </p>
                     <p className="truncate font-mono text-sm text-muted-foreground">
                         {metaLine(agent)}
@@ -120,36 +64,32 @@ function AgentRow({
                 {agent.installed ? (
                     <div className="flex shrink-0 gap-2">
                         {!agent.loggedIn && (
-                            <Button size="sm" disabled={busy} onClick={logIn}>
-                                {busyLabel === 'Logging in' ? 'Logging in' : 'Log in'}
-                            </Button>
+                            <AgentActionButton
+                                action={AgentAction.LogIn}
+                                agentId={agent.id}
+                                controls={controls}
+                            />
                         )}
-                        <Button
-                            size="sm"
+                        <AgentActionButton
+                            action={AgentAction.Uninstall}
+                            agentId={agent.id}
+                            controls={controls}
                             variant="ghost"
                             className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-                            disabled={busy}
-                            onClick={uninstall}
-                        >
-                            {busyLabel === 'Uninstalling' ? 'Uninstalling' : 'Uninstall'}
-                        </Button>
+                        />
                     </div>
                 ) : (
-                    <Button size="sm" className="shrink-0" disabled={busy} onClick={install}>
-                        {busyLabel ?? 'Install'}
-                    </Button>
+                    <AgentActionButton
+                        action={AgentAction.Install}
+                        agentId={agent.id}
+                        controls={controls}
+                        className="shrink-0"
+                    />
                 )}
             </div>
 
-            {showLogin && (
-                <AgentLogin
-                    agentId={agent.id}
-                    authUrl={authUrl}
-                    busy={busy}
-                    verifying={busyLabel === 'Verifying'}
-                    onSubmitCode={onSubmitCode}
-                    onOpenAuthUrl={onOpenAuthUrl}
-                />
+            {authUrl && !agent.loggedIn && (
+                <AgentLogin agentId={agent.id} authUrl={authUrl} controls={controls} />
             )}
         </div>
     )

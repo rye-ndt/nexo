@@ -87,28 +87,23 @@ function DirectoryPicker({title, onSettle}: {title: string; onSettle: (path: str
     const children = directories.data ?? []
     const parent = parentPath(path)
 
-    const cancel = (open: boolean) => {
-        if (!open) onSettle('')
-    }
-
-    const createFolder = () => {
-        creation.mutate({parent: path, name: newName ?? ''})
-    }
+    const dismiss = () => onSettle('')
+    const choose = () => onSettle(path)
+    const createFolder = () => creation.mutate({parent: path, name: newName ?? ''})
 
     return (
         <DialogShell
-            open
-            onOpenChange={cancel}
+            onClose={dismiss}
             title={title}
             footer={
                 <>
                     <span className="min-w-0 flex-1 truncate font-mono text-sm text-muted-foreground">
                         {path}
                     </span>
-                    <Button variant="outline" size="sm" onClick={() => onSettle('')}>
+                    <Button variant="outline" size="sm" onClick={dismiss}>
                         Cancel
                     </Button>
-                    <Button size="sm" onClick={() => onSettle(path)}>
+                    <Button size="sm" onClick={choose}>
                         Choose folder
                     </Button>
                 </>

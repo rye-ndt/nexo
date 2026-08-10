@@ -17,6 +17,9 @@ import (
 	input_itf "hexago/internal/interface/input"
 )
 
+// driverName is modernc's, and is deliberately not "sqlite3" — that is the cgo one.
+const driverName = "sqlite"
+
 var migrations = []string{
 	`CREATE TABLE harnesses (
 		name TEXT PRIMARY KEY,
@@ -112,6 +115,12 @@ var migrations = []string{
 	`ALTER TABLE task_reports ADD COLUMN snapshot_id TEXT NOT NULL DEFAULT ''`,
 	`ALTER TABLE mcp_credentials ADD COLUMN account TEXT NOT NULL DEFAULT ''`,
 	`ALTER TABLE task_reports ADD COLUMN context_usage TEXT NOT NULL DEFAULT ''`,
+	`ALTER TABLE tasks DROP COLUMN prev_task_id`,
+	`ALTER TABLE tasks DROP COLUMN next_task_id`,
+	`ALTER TABLE tasks DROP COLUMN children_task_ids`,
+	`ALTER TABLE tasks DROP COLUMN template_file_paths`,
+	`ALTER TABLE task_reports DROP COLUMN snapshot_id`,
+	`ALTER TABLE sessions DROP COLUMN revert_count`,
 }
 
 const templateColumns = `id, name, role, task_level, retryable, manual_accept_required, params, system_prompts, created_at, updated_at`
@@ -140,12 +149,12 @@ type execer interface {
 	Exec(query string, args ...any) (sql.Result, error)
 }
 
-func New(path string) (*litesql, error) {
+func New(path string) (input_itf.Storage, error) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return nil, err
 	}
 
-	db, err := sql.Open("sqlite", path)
+	db, err := sql.Open(driverName, path)
 	if err != nil {
 		return nil, err
 	}
@@ -462,33 +471,23 @@ func (s *mcpStore) DeleteCredentials(name string) error {
 	return err
 }
 
-func (s *taskStore) Create(task *input_itf.TaskEntity) error {
-	return saveTask(s.db, task)
-}
-
-func (s *taskStore) CreateImplementRecord(implement *input_itf.TaskReportEntity) error {
-	return saveReport(s.db, implement)
-}
-
 func (s *taskStore) Find(taskID uuid.UUID) (*input_itf.TaskEntity, error) {
 	t := &input_itf.TaskEntity{}
 
 	var id, sessionID, model, thinkingLevel, allowance string
-	var systemPrompts, allowedPaths, templatePaths, childrenIDs, dependsOnIDs string
-	var status, prevID, nextID, lastReportID string
+	var systemPrompts, allowedPaths, dependsOnIDs string
+	var status, lastReportID string
 	var createdAt, updatedAt string
 
 	err := s.db.QueryRow(`SELECT id, session_id, name, agent_role, preferred_model,
 		thinking_level, system_prompts, auto_retry, manual_accept_required,
-		file_write_allowance, allowed_file_paths, template_file_paths, extra_guidance,
-		retry_count, status, prev_task_id, next_task_id, children_task_ids,
-		depends_on_task_ids, last_report_id, created_at, updated_at
+		file_write_allowance, allowed_file_paths, extra_guidance,
+		retry_count, status, depends_on_task_ids, last_report_id, created_at, updated_at
 		FROM tasks WHERE id = ?`, taskID.String()).
 		Scan(&id, &sessionID, &t.Name, &t.AgentRole, &model,
 			&thinkingLevel, &systemPrompts, &t.AutoRetry, &t.ManualAcceptRequired,
-			&allowance, &allowedPaths, &templatePaths, &t.ExtraGuidance,
-			&t.RetryCount, &status, &prevID, &nextID, &childrenIDs,
-			&dependsOnIDs, &lastReportID, &createdAt, &updatedAt)
+			&allowance, &allowedPaths, &t.ExtraGuidance,
+			&t.RetryCount, &status, &dependsOnIDs, &lastReportID, &createdAt, &updatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
@@ -502,8 +501,6 @@ func (s *taskStore) Find(taskID uuid.UUID) (*input_itf.TaskEntity, error) {
 	t.ThinkingLevel = enums.ThinkingLevel(thinkingLevel)
 	t.FileWriteAllowance = enums.FileAllowance(allowance)
 	t.Status = enums.TaskStatus(status)
-	t.PrevTaskID = parseUUID(prevID)
-	t.NextTaskID = parseUUID(nextID)
 	t.LastReportID = parseUUID(lastReportID)
 	t.CreatedAt = parseTime(createdAt)
 	t.UpdatedAt = parseTime(updatedAt)
@@ -514,59 +511,11 @@ func (s *taskStore) Find(taskID uuid.UUID) (*input_itf.TaskEntity, error) {
 	if err := json.Unmarshal([]byte(allowedPaths), &t.AllowedFilePaths); err != nil {
 		return nil, err
 	}
-	if err := json.Unmarshal([]byte(templatePaths), &t.TemplateFilePaths); err != nil {
-		return nil, err
-	}
-	if err := json.Unmarshal([]byte(childrenIDs), &t.ChildrenTaskIDs); err != nil {
-		return nil, err
-	}
 	if err := json.Unmarshal([]byte(dependsOnIDs), &t.DependsOnTaskIDs); err != nil {
 		return nil, err
 	}
 
 	return t, nil
-}
-
-func (s *taskStore) FindLastImplementRecord(taskID uuid.UUID) *input_itf.TaskReportEntity {
-	r := &input_itf.TaskReportEntity{}
-
-	var id, tID, agentID, attemptStatus, handoverDoc, contextUsage string
-	var startedAt, completedAt, createdAt, updatedAt string
-
-	err := s.db.QueryRow(`SELECT id, task_id, agent_id, attempt_status, handover_doc, context_usage,
-		started_at, completed_at, created_at, updated_at
-		FROM task_reports WHERE task_id = ? ORDER BY id DESC LIMIT 1`, taskID.String()).
-		Scan(&id, &tID, &agentID, &attemptStatus, &handoverDoc, &contextUsage,
-			&startedAt, &completedAt, &createdAt, &updatedAt)
-	if err != nil {
-		return nil
-	}
-
-	r.ID = parseUUID(id)
-	r.TaskID = parseUUID(tID)
-	r.AgentID = parseUUID(agentID)
-	r.AttemptStatus = enums.TaskStatus(attemptStatus)
-	r.StartedAt = parseTime(startedAt)
-	r.CompletedAt = parseTime(completedAt)
-	r.CreatedAt = parseTime(createdAt)
-	r.UpdatedAt = parseTime(updatedAt)
-
-	docs := []*input_itf.HandoverDocEntity{}
-	if err := json.Unmarshal([]byte(handoverDoc), &docs); err != nil {
-		return nil
-	}
-	r.HandoverDocs = docs
-
-	if contextUsage != "" {
-		usage := &input_itf.ContextUsage{}
-		if err := json.Unmarshal([]byte(contextUsage), usage); err != nil {
-			return nil
-		}
-
-		r.ContextUsage = usage
-	}
-
-	return r
 }
 
 func (s *taskStore) SaveTaskHistory(
@@ -611,8 +560,8 @@ func (s *taskStore) SaveTaskHistory(
 func saveSession(e execer, sess *input_itf.SessionEntity) error {
 	_, err := e.Exec(`INSERT OR REPLACE INTO sessions
 		(id, working_dir_path, context_dir_path, started_at, completed_at,
-		total_task, total_retry, revert_count, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		total_task, total_retry, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		sess.ID.String(),
 		sess.WorkingDirPath,
 		sess.ContextDirPath,
@@ -620,7 +569,6 @@ func saveSession(e execer, sess *input_itf.SessionEntity) error {
 		formatTime(sess.CompletedAt),
 		sess.TotalTask,
 		sess.TotalRetry,
-		sess.RevertCount,
 		formatTime(sess.CreatedAt),
 		formatTime(sess.UpdatedAt),
 	)
@@ -638,16 +586,6 @@ func saveTask(e execer, t *input_itf.TaskEntity) error {
 		return err
 	}
 
-	templatePaths, err := json.Marshal(t.TemplateFilePaths)
-	if err != nil {
-		return err
-	}
-
-	childrenIDs, err := json.Marshal(t.ChildrenTaskIDs)
-	if err != nil {
-		return err
-	}
-
 	dependsOnIDs, err := json.Marshal(t.DependsOnTaskIDs)
 	if err != nil {
 		return err
@@ -656,10 +594,9 @@ func saveTask(e execer, t *input_itf.TaskEntity) error {
 	_, err = e.Exec(`INSERT OR REPLACE INTO tasks
 		(id, session_id, name, agent_role, preferred_model, thinking_level, system_prompts,
 		auto_retry, manual_accept_required, file_write_allowance,
-		allowed_file_paths, template_file_paths, extra_guidance, retry_count, status,
-		prev_task_id, next_task_id, children_task_ids, depends_on_task_ids,
+		allowed_file_paths, extra_guidance, retry_count, status, depends_on_task_ids,
 		last_report_id, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		t.ID.String(),
 		t.SessionID.String(),
 		t.Name,
@@ -671,13 +608,9 @@ func saveTask(e execer, t *input_itf.TaskEntity) error {
 		t.ManualAcceptRequired,
 		string(t.FileWriteAllowance),
 		string(allowedPaths),
-		string(templatePaths),
 		t.ExtraGuidance,
 		t.RetryCount,
 		string(t.Status),
-		t.PrevTaskID.String(),
-		t.NextTaskID.String(),
-		string(childrenIDs),
 		string(dependsOnIDs),
 		t.LastReportID.String(),
 		formatTime(t.CreatedAt),

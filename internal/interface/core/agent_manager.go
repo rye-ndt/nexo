@@ -30,7 +30,6 @@ type AgentManager interface {
 	SupportedAgents() (map[enums.AgentHarness][]enums.ModelName, error)
 	Admin(name enums.AgentHarness) (input_itf.AgentAdmin, error)
 	RequestInstance(specs *AgentRequest) (*Agent, error)
-	Instance(agentID uuid.UUID) (*Agent, error)
 	Send(agentID uuid.UUID, message string) error
 	Listen(agentID uuid.UUID) (<-chan string, error)
 	ContextUsage(agentID uuid.UUID) (*input_itf.ContextUsage, error)

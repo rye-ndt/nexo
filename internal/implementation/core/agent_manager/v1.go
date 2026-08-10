@@ -18,13 +18,17 @@ type connectivity struct {
 	Err       error
 }
 
+type instance struct {
+	agent   *core_itf.Agent
+	harness input_itf.AgentHarness
+}
+
 type agentManagerV1 struct {
 	locker         sync.Mutex
 	cfg            *input_itf.AgentManagerConfig
 	httpCli        input_itf.HttpCli
-	harnessTool    map[enums.AgentHarness]input_itf.AgentHarness
-	instances      map[enums.ModelName][]*core_itf.Agent
-	heartBeats     map[uuid.UUID]int64
+	harnesses      map[enums.AgentHarness]input_itf.AgentHarness
+	instances      map[uuid.UUID]*instance
 	approvalBroker core_itf.ApprovalBroker
 	online         connectivity
 }
@@ -40,167 +44,45 @@ func InitV1(
 	}
 
 	return &agentManagerV1{
-		locker:         sync.Mutex{},
 		cfg:            cfg,
 		httpCli:        httpCli,
-		harnessTool:    harnesses,
-		instances:      map[enums.ModelName][]*core_itf.Agent{},
-		heartBeats:     map[uuid.UUID]int64{},
+		harnesses:      harnesses,
+		instances:      map[uuid.UUID]*instance{},
 		approvalBroker: approvalBroker,
 	}, nil
 }
 
-func (m *agentManagerV1) HeartBeat(agentID uuid.UUID) error {
-	if agentID == uuid.Nil {
-		return custom_error.Critical("heartbeat needs an agent id")
+func (m *agentManagerV1) SupportedAgents() (map[enums.AgentHarness][]enums.ModelName, error) {
+	supported := map[enums.AgentHarness][]enums.ModelName{}
+
+	for name, harness := range m.harnesses {
+		supported[name] = harness.SupportedModels()
 	}
 
-	var err error
-	var instance *core_itf.Agent
-	var model enums.ModelName
-
-	m.raceSafe(func() {
-		instance, model = m.findInstance(agentID)
-		if instance == nil {
-			err = custom_error.Critical("agent %v not found", agentID)
-			return
-		}
-
-		if instance.HealthStatus == enums.Terminated {
-			err = custom_error.Critical("agent %v is already terminated", agentID)
-			return
-		}
-
-		m.heartBeats[agentID] = helpers.NewUTCUnix()
-	})
-
-	if err != nil {
-		return err
-	}
-
-	tool, found := m.harnessFor(model)
-	if !found {
-		return custom_error.Critical("no harness client support model %s", model)
-	}
-
-	lastOut, err := tool.Alive(agentID.String())
-	if err != nil {
-		m.raceSafe(func() {
-			instance.HealthStatus = enums.Terminated
-			instance.TerminatedAt = helpers.NewUTC()
-		})
-
-		return custom_error.Critical("session of agent %v is gone: %v", agentID, err)
-	}
-
-	if m.approvalBroker.Awaiting(agentID) {
-		m.raceSafe(func() {
-			m.heartBeats[agentID] = helpers.NewUTCUnix()
-
-			instance.HealthStatus = enums.AwaitingHuman
-		})
-
-		return nil
-	}
-
-	if frozenFor := time.Since(lastOut); frozenFor > m.cfg.FreezeTimeout {
-		m.raceSafe(func() {
-			instance.HealthStatus = enums.NotResponding
-		})
-
-		if err := m.checkConnectivity(); err != nil {
-			return custom_error.Critical(
-				"session of agent %v is silent for %v and the network is unreachable: %v", agentID, frozenFor, err,
-			)
-		}
-
-		return custom_error.Critical("session of agent %v is frozen, silent for %v", agentID, frozenFor)
-	}
-
-	m.raceSafe(func() {
-		m.heartBeats[agentID] = helpers.NewUTCUnix()
-
-		instance.HealthStatus = enums.Healthy
-	})
-
-	return nil
-}
-
-func (m *agentManagerV1) checkConnectivity() error {
-	var probe bool
-
-	m.raceSafe(func() {
-		probe = time.Since(m.online.CheckedAt) > m.cfg.ConnectivityCacheTTL
-	})
-
-	if !probe {
-		var cached error
-		m.raceSafe(func() { cached = m.online.Err })
-
-		return cached
-	}
-
-	err := m.httpCli.Reachable(m.cfg.ConnectivityProbeURL)
-
-	m.raceSafe(func() {
-		m.online = connectivity{
-			CheckedAt: helpers.NewUTC(),
-			Err:       err,
-		}
-	})
-
-	return err
-}
-
-func (m *agentManagerV1) findInstance(agentID uuid.UUID) (*core_itf.Agent, enums.ModelName) {
-	for model, agents := range m.instances {
-		for _, agent := range agents {
-			if agent.ID == agentID {
-				return agent, model
-			}
-		}
-	}
-
-	return nil, enums.ModelUnknown
-}
-
-func (m *agentManagerV1) harnessFor(model enums.ModelName) (input_itf.AgentHarness, bool) {
-	for _, tool := range m.harnessTool {
-		if tool.Support(model) {
-			return tool, true
-		}
-	}
-
-	return nil, false
-}
-
-func (m *agentManagerV1) raceSafe(exec func()) {
-	m.locker.Lock()
-	defer m.locker.Unlock()
-	exec()
+	return supported, nil
 }
 
 func (m *agentManagerV1) Admin(name enums.AgentHarness) (input_itf.AgentAdmin, error) {
-	tool, found := m.harnessTool[name]
+	harness, found := m.harnesses[name]
 	if !found {
 		return nil, custom_error.Critical("no configured harness named %s", name)
 	}
 
-	return tool, nil
+	return harness, nil
 }
 
 func (m *agentManagerV1) RequestInstance(specs *core_itf.AgentRequest) (*core_itf.Agent, error) {
-	tool, found := m.harnessFor(specs.Name)
+	harness, found := m.harnessFor(specs.Name)
 	if !found {
 		return nil, custom_error.Critical("no harness client support model %s", specs.Name)
 	}
 
-	agentID, err := tool.Spawn(specs.Name, specs.ThinkingLevel, specs.SystemPrompts, specs.WorkingDir)
+	agentID, err := harness.Spawn(specs.Name, specs.ThinkingLevel, specs.SystemPrompts, specs.WorkingDir)
 	if err != nil {
 		return nil, err
 	}
 
-	info := &core_itf.Agent{
+	agent := &core_itf.Agent{
 		ID:            agentID,
 		Name:          specs.Name,
 		Role:          specs.Role,
@@ -209,127 +91,175 @@ func (m *agentManagerV1) RequestInstance(specs *core_itf.AgentRequest) (*core_it
 		SpawnedAt:     helpers.NewUTC(),
 	}
 
-	clone := *info
+	clone := *agent
 
-	m.raceSafe(func() {
-		m.instances[specs.Name] = append(m.instances[specs.Name], info)
-		m.heartBeats[agentID] = helpers.NewUTCUnix()
-	})
+	m.locker.Lock()
+	m.instances[agentID] = &instance{agent: agent, harness: harness}
+	m.locker.Unlock()
 
 	return &clone, nil
 }
 
-func (m *agentManagerV1) Instance(agentID uuid.UUID) (*core_itf.Agent, error) {
-	var instance *core_itf.Agent
-
-	m.raceSafe(func() {
-		instance, _ = m.findInstance(agentID)
-		if instance == nil {
-			return
-		}
-	})
-
-	if instance == nil {
-		return nil, custom_error.Critical("agent %v not found", agentID)
-	}
-
-	return instance, nil
-}
-
-func (m *agentManagerV1) Kill(agentID uuid.UUID) error {
-	var instance *core_itf.Agent
-	var model enums.ModelName
-
-	m.raceSafe(func() {
-		instance, model = m.findInstance(agentID)
-	})
-
-	if instance == nil {
-		return custom_error.Critical("agent %v not found", agentID)
-	}
-
-	tool, found := m.harnessFor(model)
-	if !found {
-		return custom_error.Critical("no harness client support model %s", model)
-	}
-
-	killErr := tool.Kill(agentID.String())
-
-	m.raceSafe(func() {
-		instance.HealthStatus = enums.Terminated
-		instance.TerminatedAt = helpers.NewUTC()
-		delete(m.heartBeats, agentID)
-	})
-
-	return killErr
-}
-
-func (m *agentManagerV1) SupportedAgents() (map[enums.AgentHarness][]enums.ModelName, error) {
-	if m == nil {
-		return nil, custom_error.Critical("agent manager is not initialized")
-	}
-
-	supported := map[enums.AgentHarness][]enums.ModelName{}
-
-	for name, tool := range m.harnessTool {
-		supported[name] = tool.SupportedModels()
-	}
-
-	return supported, nil
-}
-
 func (m *agentManagerV1) Send(agentID uuid.UUID, message string) error {
-	tool, err := m.toolForAgent(agentID)
+	harness, err := m.harnessOf(agentID)
 	if err != nil {
 		return err
 	}
 
-	return tool.Send(agentID.String(), message)
+	return harness.Send(agentID.String(), message)
 }
 
 func (m *agentManagerV1) Listen(agentID uuid.UUID) (<-chan string, error) {
-	tool, err := m.toolForAgent(agentID)
+	harness, err := m.harnessOf(agentID)
 	if err != nil {
 		return nil, err
 	}
 
-	return tool.Listen(agentID.String())
+	return harness.Listen(agentID.String())
 }
 
 func (m *agentManagerV1) ContextUsage(agentID uuid.UUID) (*input_itf.ContextUsage, error) {
-	tool, err := m.toolForAgent(agentID)
+	harness, err := m.harnessOf(agentID)
 	if err != nil {
 		return nil, err
 	}
 
-	return tool.Usage(agentID.String())
+	return harness.Usage(agentID.String())
 }
 
 func (m *agentManagerV1) Activity(agentID uuid.UUID) ([]input_itf.Activity, error) {
-	tool, err := m.toolForAgent(agentID)
+	harness, err := m.harnessOf(agentID)
 	if err != nil {
 		return nil, err
 	}
 
-	return tool.Activity(agentID.String())
+	return harness.Activity(agentID.String())
 }
 
-func (m *agentManagerV1) toolForAgent(agentID uuid.UUID) (input_itf.AgentHarness, error) {
-	var model enums.ModelName
-	var agent *core_itf.Agent
+func (m *agentManagerV1) Kill(agentID uuid.UUID) error {
+	harness, err := m.harnessOf(agentID)
+	if err != nil {
+		return err
+	}
 
-	m.raceSafe(func() {
-		agent, model = m.findInstance(agentID)
-	})
+	killErr := harness.Kill(agentID.String())
 
-	if agent == nil {
+	m.setHealth(agentID, enums.Terminated)
+
+	return killErr
+}
+
+// An agent waiting on a human is not frozen, so that check comes before the timeout.
+func (m *agentManagerV1) HeartBeat(agentID uuid.UUID) error {
+	if agentID == uuid.Nil {
+		return custom_error.Critical("heartbeat needs an agent id")
+	}
+
+	harness, err := m.liveHarnessOf(agentID)
+	if err != nil {
+		return err
+	}
+
+	lastOut, err := harness.Alive(agentID.String())
+	if err != nil {
+		m.setHealth(agentID, enums.Terminated)
+
+		return custom_error.Critical("session of agent %v is gone: %v", agentID, err)
+	}
+
+	if m.approvalBroker.Awaiting(agentID) {
+		m.setHealth(agentID, enums.AwaitingHuman)
+
+		return nil
+	}
+
+	frozenFor := time.Since(lastOut)
+	if frozenFor <= m.cfg.FreezeTimeout {
+		m.setHealth(agentID, enums.Healthy)
+
+		return nil
+	}
+
+	m.setHealth(agentID, enums.NotResponding)
+
+	if err := m.checkConnectivity(); err != nil {
+		return custom_error.Critical(
+			"session of agent %v is silent for %v and the network is unreachable: %v", agentID, frozenFor, err,
+		)
+	}
+
+	return custom_error.Critical("session of agent %v is frozen, silent for %v", agentID, frozenFor)
+}
+
+func (m *agentManagerV1) checkConnectivity() error {
+	m.locker.Lock()
+	fresh := time.Since(m.online.CheckedAt) <= m.cfg.ConnectivityCacheTTL
+	cached := m.online.Err
+	m.locker.Unlock()
+
+	if fresh {
+		return cached
+	}
+
+	err := m.httpCli.Reachable(m.cfg.ConnectivityProbeURL)
+
+	m.locker.Lock()
+	m.online = connectivity{CheckedAt: helpers.NewUTC(), Err: err}
+	m.locker.Unlock()
+
+	return err
+}
+
+func (m *agentManagerV1) harnessOf(agentID uuid.UUID) (input_itf.AgentHarness, error) {
+	m.locker.Lock()
+	defer m.locker.Unlock()
+
+	live, found := m.instances[agentID]
+	if !found {
 		return nil, custom_error.Critical("agent %v not found", agentID)
 	}
 
-	tool, found := m.harnessFor(model)
+	return live.harness, nil
+}
+
+func (m *agentManagerV1) liveHarnessOf(agentID uuid.UUID) (input_itf.AgentHarness, error) {
+	m.locker.Lock()
+	defer m.locker.Unlock()
+
+	live, found := m.instances[agentID]
 	if !found {
-		return nil, custom_error.Critical("no harness client support model %s", model)
+		return nil, custom_error.Critical("agent %v not found", agentID)
 	}
 
-	return tool, nil
+	if live.agent.HealthStatus == enums.Terminated {
+		return nil, custom_error.Critical("agent %v is already terminated", agentID)
+	}
+
+	return live.harness, nil
+}
+
+func (m *agentManagerV1) setHealth(agentID uuid.UUID, status enums.AgentInstanceStatus) {
+	m.locker.Lock()
+	defer m.locker.Unlock()
+
+	live, found := m.instances[agentID]
+	if !found {
+		return
+	}
+
+	live.agent.HealthStatus = status
+
+	if status == enums.Terminated {
+		live.agent.TerminatedAt = helpers.NewUTC()
+	}
+}
+
+func (m *agentManagerV1) harnessFor(model enums.ModelName) (input_itf.AgentHarness, bool) {
+	for _, harness := range m.harnesses {
+		if harness.Support(model) {
+			return harness, true
+		}
+	}
+
+	return nil, false
 }

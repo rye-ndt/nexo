@@ -1,4 +1,3 @@
-/** The failed node's own account of why it stopped, spoken above the node it belongs to. */
 export function FailureBubble({tldr}: {tldr: string}) {
     return (
         <div

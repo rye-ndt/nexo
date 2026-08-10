@@ -206,7 +206,6 @@ const GENERATED_CHANGES = [
     CHANGES.sessionRename,
 ]
 
-/** Stand-in data until the graph APIs land. Shapes match `types/session.ts` exactly. */
 export const MOCK_SESSIONS: Session[] = [
     {
         id: '0198e3a1-0000-7000-8000-000000000001',

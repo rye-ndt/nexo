@@ -4,11 +4,13 @@ import (
 	"io"
 	"net/http"
 	"time"
+
+	"hexago/internal/helpers/enums"
 )
 
 type MCPAuthInfo struct {
 	ServerName    string
-	Kind          string
+	Kind          enums.MCPAuthFlow
 	URL           string
 	Authenticated bool
 	Account       string

@@ -2,6 +2,7 @@ package wails_api
 
 import (
 	"context"
+	"fmt"
 	"sort"
 	"time"
 
@@ -9,6 +10,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"hexago/internal/helpers"
 	"hexago/internal/helpers/custom_error"
 	"hexago/internal/helpers/enums"
 	core_itf "hexago/internal/interface/core"
@@ -16,13 +18,15 @@ import (
 	output_itf "hexago/internal/interface/output"
 )
 
-const (
-	installProgressEvent = "harness:install:progress"
-	agentOutputEvent     = "agent:output"
-	agentClosedEvent     = "agent:closed"
-)
+const installProgressEvent = "harness:install:progress"
 
-const outputFlushInterval = 100 * time.Millisecond
+const (
+	idApproval = "approval"
+	idTemplate = "template"
+	idSession  = "session"
+	idTask     = "task"
+	idDraft    = "session draft"
+)
 
 type API struct {
 	ctx          context.Context
@@ -110,17 +114,27 @@ func (a *API) Shutdown(ctx context.Context) {
 	a.mcpProxy.Close()
 }
 
-func (a *API) admin(id string) (input_itf.AgentAdmin, error) {
-	return a.agentManager.Admin(enums.AgentHarness(id))
-}
-
-func agentUUID(agentID string) (uuid.UUID, error) {
-	parsed, err := uuid.Parse(agentID)
+func parseID(kind, id string) (uuid.UUID, error) {
+	parsed, err := uuid.Parse(id)
 	if err != nil {
-		return uuid.Nil, custom_error.Critical("invalid agent id %s: %v", agentID, err)
+		return uuid.Nil, custom_error.Critical("invalid %s id %s: %v", kind, id, err)
 	}
 
 	return parsed, nil
+}
+
+func labels[T fmt.Stringer](items []T) []string {
+	names := make([]string, 0, len(items))
+
+	for _, item := range items {
+		names = append(names, item.String())
+	}
+
+	return names
+}
+
+func (a *API) admin(id string) (input_itf.AgentAdmin, error) {
+	return a.agentManager.Admin(enums.AgentHarness(id))
 }
 
 func (a *API) AgentStatuses() ([]output_itf.AgentInfo, error) {
@@ -178,86 +192,6 @@ func (a *API) SubmitAuthCode(id string, code string) error {
 	return h.SubmitAuthCode(code)
 }
 
-func (a *API) SpawnAgent(id string) (string, error) {
-	h, err := a.admin(id)
-	if err != nil {
-		return "", err
-	}
-
-	models := h.SupportedModels()
-	if len(models) == 0 {
-		return "", custom_error.Critical("harness %s has no enabled model", id)
-	}
-
-	agent, err := a.agentManager.RequestInstance(&core_itf.AgentRequest{
-		Name:          models[0],
-		ThinkingLevel: enums.MedThinking,
-	})
-	if err != nil {
-		return "", err
-	}
-
-	out, err := a.agentManager.Listen(agent.ID)
-	if err != nil {
-		return "", err
-	}
-
-	agentID := agent.ID.String()
-
-	go a.pumpOutput(id, agentID, out)
-
-	return agentID, nil
-}
-
-func (a *API) pumpOutput(id string, agentID string, out <-chan string) {
-	ticker := time.NewTicker(outputFlushInterval)
-	defer ticker.Stop()
-
-	batch := []string{}
-
-	flush := func() {
-		if len(batch) == 0 {
-			return
-		}
-
-		runtime.EventsEmit(a.ctx, agentOutputEvent, id, agentID, batch)
-		batch = []string{}
-	}
-
-	for {
-		select {
-		case line, open := <-out:
-			if !open {
-				flush()
-				runtime.EventsEmit(a.ctx, agentClosedEvent, id, agentID)
-				return
-			}
-
-			batch = append(batch, line)
-		case <-ticker.C:
-			flush()
-		}
-	}
-}
-
-func (a *API) SendToAgent(id string, agentID string, message string) error {
-	parsed, err := agentUUID(agentID)
-	if err != nil {
-		return err
-	}
-
-	return a.agentManager.Send(parsed, message)
-}
-
-func (a *API) AgentContextUsage(agentID string) (*input_itf.ContextUsage, error) {
-	parsed, err := agentUUID(agentID)
-	if err != nil {
-		return nil, err
-	}
-
-	return a.agentManager.ContextUsage(parsed)
-}
-
 func (a *API) PendingApprovals() ([]*output_itf.ApprovalInfo, error) {
 	pending := a.approvals.Pending()
 
@@ -290,9 +224,9 @@ func approvalInfo(request *core_itf.ApprovalRequest) *output_itf.ApprovalInfo {
 }
 
 func (a *API) AnswerApproval(requestID string, approved bool, optionIDs []string, guidance string) error {
-	parsed, err := uuid.Parse(requestID)
+	parsed, err := parseID(idApproval, requestID)
 	if err != nil {
-		return custom_error.Critical("invalid approval id %s: %v", requestID, err)
+		return err
 	}
 
 	agentID := uuid.Nil
@@ -301,6 +235,16 @@ func (a *API) AnswerApproval(requestID string, approved bool, optionIDs []string
 			agentID = request.AgentID
 			break
 		}
+	}
+
+	var sendErr error
+
+	if !approved && guidance != "" {
+		if agentID == uuid.Nil {
+			return custom_error.Critical("approval %s has no agent to send the guidance to", requestID)
+		}
+
+		sendErr = a.agentManager.Send(agentID, guidance)
 	}
 
 	if err := a.approvals.Answer(&core_itf.ApprovalAnswer{
@@ -312,15 +256,7 @@ func (a *API) AnswerApproval(requestID string, approved bool, optionIDs []string
 		return err
 	}
 
-	if approved || guidance == "" {
-		return nil
-	}
-
-	if agentID == uuid.Nil {
-		return custom_error.Critical("approval %s has no agent to send the guidance to", requestID)
-	}
-
-	return a.agentManager.Send(agentID, guidance)
+	return sendErr
 }
 
 func (a *API) Templates() ([]*output_itf.TemplateInfo, error) {
@@ -339,7 +275,7 @@ func (a *API) Templates() ([]*output_itf.TemplateInfo, error) {
 }
 
 func (a *API) Template(id string) (*output_itf.TemplateInfo, error) {
-	parsed, err := templateUUID(id)
+	parsed, err := parseID(idTemplate, id)
 	if err != nil {
 		return nil, err
 	}
@@ -360,7 +296,7 @@ func (a *API) UpsertTemplate(template *output_itf.TemplateInfo) (string, error) 
 	id := uuid.Nil
 
 	if template.ID != "" {
-		parsed, err := templateUUID(template.ID)
+		parsed, err := parseID(idTemplate, template.ID)
 		if err != nil {
 			return "", err
 		}
@@ -403,21 +339,12 @@ func (a *API) UpsertTemplate(template *output_itf.TemplateInfo) (string, error) 
 }
 
 func (a *API) RemoveTemplate(id string) error {
-	parsed, err := templateUUID(id)
+	parsed, err := parseID(idTemplate, id)
 	if err != nil {
 		return err
 	}
 
 	return a.templates.Remove(parsed)
-}
-
-func templateUUID(id string) (uuid.UUID, error) {
-	parsed, err := uuid.Parse(id)
-	if err != nil {
-		return uuid.Nil, custom_error.Critical("invalid template id %s: %v", id, err)
-	}
-
-	return parsed, nil
 }
 
 func templateInfo(template *core_itf.Template) *output_itf.TemplateInfo {
@@ -447,15 +374,6 @@ func templateInfo(template *core_itf.Template) *output_itf.TemplateInfo {
 		Params:               params,
 		SystemPrompts:        template.SystemPrompts,
 	}
-}
-
-func (a *API) KillAgent(id string, agentID string) error {
-	parsed, err := agentUUID(agentID)
-	if err != nil {
-		return err
-	}
-
-	return a.agentManager.Kill(parsed)
 }
 
 func (a *API) UninstallAgent(id string) error {
@@ -578,13 +496,6 @@ func (a *API) SetAutopilot(on bool) error {
 }
 
 func (a *API) AgentDefaultOptions() (*output_itf.AgentDefaultOptionsInfo, error) {
-	levels := enums.TaskLevels()
-	taskLevels := make([]string, 0, len(levels))
-
-	for _, level := range levels {
-		taskLevels = append(taskLevels, level.String())
-	}
-
 	names := enums.ModelNames()
 	models := make([]*output_itf.ModelOptionInfo, 0, len(names))
 
@@ -596,17 +507,10 @@ func (a *API) AgentDefaultOptions() (*output_itf.AgentDefaultOptionsInfo, error)
 		})
 	}
 
-	levelsOfThinking := enums.ThinkingLevels()
-	thinkingLevels := make([]string, 0, len(levelsOfThinking))
-
-	for _, level := range levelsOfThinking {
-		thinkingLevels = append(thinkingLevels, level.String())
-	}
-
 	return &output_itf.AgentDefaultOptionsInfo{
-		TaskLevels:     taskLevels,
+		TaskLevels:     labels(enums.TaskLevels()),
 		Models:         models,
-		ThinkingLevels: thinkingLevels,
+		ThinkingLevels: labels(enums.ThinkingLevels()),
 	}, nil
 }
 
@@ -648,7 +552,7 @@ func resolveDeps(dependsOn []string, clientToTask map[string]uuid.UUID) ([]uuid.
 }
 
 func (a *API) SessionStatus(sessionID string) (*output_itf.SessionStatusInfo, error) {
-	parsed, err := sessionUUID(sessionID)
+	parsed, err := parseID(idSession, sessionID)
 	if err != nil {
 		return nil, err
 	}
@@ -662,7 +566,7 @@ func (a *API) SessionStatus(sessionID string) (*output_itf.SessionStatusInfo, er
 }
 
 func (a *API) CancelSession(sessionID string) error {
-	parsed, err := sessionUUID(sessionID)
+	parsed, err := parseID(idSession, sessionID)
 	if err != nil {
 		return err
 	}
@@ -671,18 +575,18 @@ func (a *API) CancelSession(sessionID string) error {
 }
 
 func (a *API) RetrySessionTask(taskID string) error {
-	parsed, err := uuid.Parse(taskID)
+	parsed, err := parseID(idTask, taskID)
 	if err != nil {
-		return custom_error.Critical("invalid task id %s: %v", taskID, err)
+		return err
 	}
 
 	return a.sessions.RetryTask(parsed)
 }
 
 func (a *API) AnswerTaskAcceptance(taskID string, accepted bool) error {
-	parsed, err := uuid.Parse(taskID)
+	parsed, err := parseID(idTask, taskID)
 	if err != nil {
-		return custom_error.Critical("invalid task id %s: %v", taskID, err)
+		return err
 	}
 
 	return a.sessions.AnswerAcceptance(parsed, accepted)
@@ -708,7 +612,7 @@ func (a *API) SessionDrafts() ([]*output_itf.SessionDraftInfo, error) {
 }
 
 func (a *API) SaveSessionDraft(id string, doc string) error {
-	parsed, err := draftUUID(id)
+	parsed, err := parseID(idDraft, id)
 	if err != nil {
 		return err
 	}
@@ -716,26 +620,17 @@ func (a *API) SaveSessionDraft(id string, doc string) error {
 	return a.drafts.Save(&input_itf.SessionDraftEntity{
 		ID:        parsed,
 		Doc:       doc,
-		UpdatedAt: time.Now(),
+		UpdatedAt: helpers.NewUTC(),
 	})
 }
 
 func (a *API) DeleteSessionDraft(id string) error {
-	parsed, err := draftUUID(id)
+	parsed, err := parseID(idDraft, id)
 	if err != nil {
 		return err
 	}
 
 	return a.drafts.Delete(parsed)
-}
-
-func draftUUID(id string) (uuid.UUID, error) {
-	parsed, err := uuid.Parse(id)
-	if err != nil {
-		return uuid.Nil, custom_error.Critical("invalid session draft id %s: %v", id, err)
-	}
-
-	return parsed, nil
 }
 
 func (a *API) MCPServers() ([]*output_itf.MCPServerInfo, error) {
@@ -758,7 +653,7 @@ func (a *API) MCPServers() ([]*output_itf.MCPServerInfo, error) {
 			Authorized:   server.Authenticated,
 			AuthorizedAt: authorizedAt,
 			Account:      server.Account,
-			Kind:         server.Kind,
+			Kind:         server.Kind.String(),
 		})
 	}
 
@@ -777,15 +672,6 @@ func (a *API) SetMCPCredential(name, secret string) error {
 
 func (a *API) RevokeMCPServer(name string) error {
 	return a.mcpProxy.Revoke(name)
-}
-
-func sessionUUID(id string) (uuid.UUID, error) {
-	parsed, err := uuid.Parse(id)
-	if err != nil {
-		return uuid.Nil, custom_error.Critical("invalid session id %s: %v", id, err)
-	}
-
-	return parsed, nil
 }
 
 func sessionStatusInfo(status *core_itf.SessionStatus) *output_itf.SessionStatusInfo {
@@ -822,6 +708,10 @@ func sessionTaskInfo(taskID uuid.UUID, report *core_itf.TaskReport) *output_itf.
 
 	info.Status = string(report.Status)
 	info.ContextUsage = report.ContextUsage
+
+	if report.AgentID != uuid.Nil {
+		info.AgentID = report.AgentID.String()
+	}
 
 	for _, change := range report.FileChanges {
 		info.FileChanges = append(info.FileChanges, fileChangeInfo(change))

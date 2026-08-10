@@ -31,21 +31,28 @@ import (
 	output_itf "hexago/internal/interface/output"
 )
 
+const httpTimeout = 30 * time.Second
+
+const dataCorruptedWarning = "Task history from the previous session is corrupted or could not be saved. " +
+	"The app will continue without it."
+
 type App struct {
-	Config          input_itf.Config
-	Logger          output_itf.Logger
-	AppBuilder      output_itf.AppBuilder
-	HttpFetcher     input_itf.HttpCli
-	Storage         input_itf.HarnessStorage
-	TaskStore       input_itf.TaskStorage
-	TaskWAL         input_itf.TaskWAL
-	AgentManager    core_itf.AgentManager
-	TemplateManager core_itf.AgentTemplateManager
-	MCPProxy        core_itf.MCPProxyServer
-	ApprovalBroker  core_itf.ApprovalBroker
-	SessionManager  core_itf.SessionManager
-	Coordinator     core_itf.Coordinator
-	UserConfig      output_itf.UserConfig
+	Config     input_itf.Config
+	Logger     output_itf.Logger
+	AppBuilder output_itf.AppBuilder
+}
+
+type harnessBuilder func(
+	cfg input_itf.Config,
+	httpCli input_itf.HttpCli,
+	store input_itf.HarnessStorage,
+	gateway *core_itf.MCPGateway,
+	raw map[string]any,
+) (input_itf.AgentHarness, error)
+
+var harnessBuilders = map[enums.AgentHarness]harnessBuilder{
+	enums.ClaudeCode: claude_code.New,
+	enums.OpenCode:   open_code.New,
 }
 
 func wire(assets fs.FS) (*App, error) {
@@ -56,51 +63,37 @@ func wire(assets fs.FS) (*App, error) {
 
 	appLogger := logger.New(cfg)
 
-	httpCli := http_cli.New(&http_cli.BasicHttpCliCfg{Timeout: 30 * time.Second})
+	httpCli := http_cli.New(&http_cli.BasicHttpCliCfg{Timeout: httpTimeout})
 
-	base, err := os.UserConfigDir()
+	dataDir, err := appDataDir(cfg)
 	if err != nil {
 		return nil, err
 	}
 
-	store, err := storage.New(filepath.Join(base, cfg.Read().App.DataDir,"harness.db"))
+	store, err := storage.New(filepath.Join(dataDir, "harness.db"))
 	if err != nil {
 		return nil, err
 	}
 
-	taskWAL, err := wal.New(filepath.Join(base, cfg.Read().App.DataDir,"task.wal"))
+	taskWAL, err := wal.New(filepath.Join(dataDir, "task.wal"))
 	if err != nil {
 		return nil, err
 	}
 
-	userCfg, err := user_config.InitV1(filepath.Join(base, cfg.Read().App.DataDir,"user_config.json"))
+	userCfg, err := user_config.InitV1(filepath.Join(dataDir, "user_config.json"))
 	if err != nil {
 		return nil, err
 	}
-
-	taskStore := store.TaskStore()
 
 	dataWarning := ""
-	if err := wal_sync.Run(taskWAL, taskStore); err != nil {
+	if err := wal_sync.Run(taskWAL, store.TaskStore()); err != nil {
 		appLogger.Error("wal sync", "err", err)
-		dataWarning = "Task history from the previous session is corrupted or could not be saved. The app will continue without it."
+		dataWarning = dataCorruptedWarning
 	}
 
-	mq := message_queue.InitV1()
-
-	sessionCfg := cfg.Read().Session
-	if sessionCfg == nil {
-		return nil, custom_error.Critical("session config not found")
-	}
-
-	sessionManager, err := session_manager.InitV1(sessionCfg, taskWAL, mq)
+	sessionManager, err := session_manager.InitV1(cfg.Read().Session, taskWAL, message_queue.InitV1())
 	if err != nil {
 		return nil, err
-	}
-
-	mcpCfg := cfg.Read().MCPServers
-	if mcpCfg == nil {
-		return nil, custom_error.Critical("mcp server config not found")
 	}
 
 	approvalBroker, err := manual_approval_broker.InitV1(cfg.Read().ApprovalBroker)
@@ -108,7 +101,7 @@ func wire(assets fs.FS) (*App, error) {
 		return nil, err
 	}
 
-	mcpProxy, err := mcp_proxy.InitV1(mcpCfg, store.MCPStore(), httpCli, approvalBroker, sessionManager)
+	mcpProxy, err := mcp_proxy.InitV1(cfg.Read().MCPServers, store.MCPStore(), httpCli, approvalBroker, sessionManager)
 	if err != nil {
 		return nil, err
 	}
@@ -118,57 +111,33 @@ func wire(assets fs.FS) (*App, error) {
 		return nil, err
 	}
 
-	managerCfg := cfg.Read().AgentManager
-	if managerCfg == nil {
-		mcpProxy.Close()
-		return nil, custom_error.Critical("agent manager config not found")
-	}
+	wired := false
 
-	harnesses := map[enums.AgentHarness]input_itf.AgentHarness{}
-
-	for name, raw := range cfg.Read().AgentHarness {
-		switch name {
-		case enums.ClaudeCode:
-			claudeHarness, err := claude_code.New(cfg, httpCli, store, mcpGateway, raw)
-			if err != nil {
-				mcpProxy.Close()
-				return nil, err
-			}
-
-			harnesses[enums.ClaudeCode] = claudeHarness
-
-		case enums.OpenCode:
-			openCodeHarness, err := open_code.New(cfg, httpCli, store, mcpGateway, raw)
-			if err != nil {
-				mcpProxy.Close()
-				return nil, err
-			}
-
-			harnesses[enums.OpenCode] = openCodeHarness
-
-		default:
+	defer func() {
+		if !wired {
 			mcpProxy.Close()
-			return nil, custom_error.Critical("agent harness %s has no initializer", name)
 		}
+	}()
+
+	harnesses, err := buildHarnesses(cfg, httpCli, store, mcpGateway)
+	if err != nil {
+		return nil, err
 	}
 
-	agentManager, err := agent_manager.InitV1(managerCfg, httpCli, harnesses, approvalBroker)
+	agentManager, err := agent_manager.InitV1(cfg.Read().AgentManager, httpCli, harnesses, approvalBroker)
 	if err != nil {
-		mcpProxy.Close()
 		return nil, err
 	}
 
 	sessionManager.TrackLiveAgents(agentManager)
 
-	sessionCoordinator, err := coordinator.InitV1(sessionCfg, sessionManager, agentManager)
+	sessionCoordinator, err := coordinator.InitV1(cfg.Read().Session, sessionManager, agentManager)
 	if err != nil {
-		mcpProxy.Close()
 		return nil, err
 	}
 
 	templateManager, err := template_manager.InitV1(store.TemplateStore())
 	if err != nil {
-		mcpProxy.Close()
 		return nil, err
 	}
 
@@ -184,22 +153,45 @@ func wire(assets fs.FS) (*App, error) {
 		DataWarning:  dataWarning,
 	})
 
-	appBuilder := app_builder.New(cfg, feAPI, assets)
+	wired = true
 
 	return &App{
-		Config:          cfg,
-		Logger:          appLogger,
-		AppBuilder:      appBuilder,
-		HttpFetcher:     httpCli,
-		Storage:         store,
-		TaskStore:       taskStore,
-		TaskWAL:         taskWAL,
-		AgentManager:    agentManager,
-		TemplateManager: templateManager,
-		MCPProxy:        mcpProxy,
-		ApprovalBroker:  approvalBroker,
-		SessionManager:  sessionManager,
-		Coordinator:     sessionCoordinator,
-		UserConfig:      userCfg,
+		Config:     cfg,
+		Logger:     appLogger,
+		AppBuilder: app_builder.New(cfg, feAPI, assets),
 	}, nil
+}
+
+func appDataDir(cfg input_itf.Config) (string, error) {
+	base, err := os.UserConfigDir()
+	if err != nil {
+		return "", err
+	}
+
+	return filepath.Join(base, cfg.Read().App.DataDir), nil
+}
+
+func buildHarnesses(
+	cfg input_itf.Config,
+	httpCli input_itf.HttpCli,
+	store input_itf.HarnessStorage,
+	gateway *core_itf.MCPGateway,
+) (map[enums.AgentHarness]input_itf.AgentHarness, error) {
+	harnesses := map[enums.AgentHarness]input_itf.AgentHarness{}
+
+	for name, raw := range cfg.Read().AgentHarness {
+		build, found := harnessBuilders[name]
+		if !found {
+			return nil, custom_error.Critical("agent harness %s has no initializer", name)
+		}
+
+		harness, err := build(cfg, httpCli, store, gateway, raw)
+		if err != nil {
+			return nil, err
+		}
+
+		harnesses[name] = harness
+	}
+
+	return harnesses, nil
 }

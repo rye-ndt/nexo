@@ -86,7 +86,6 @@ type CallbackResult struct {
 	Err   error
 }
 
-// where do i authorize user, and how to trade code for token?
 func Discover(httpCli input_itf.HttpCli, serverURL string) (*AuthTarget, error) {
 	target := &AuthTarget{
 		Resource: serverURL,

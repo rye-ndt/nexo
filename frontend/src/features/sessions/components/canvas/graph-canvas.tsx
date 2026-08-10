@@ -1,30 +1,38 @@
-import {useEffect, useMemo, useRef, useState, type MouseEvent} from 'react'
+import {useMemo, useState, type MouseEvent} from 'react'
 import {
     Background,
     BackgroundVariant,
-    Panel,
     ReactFlow,
     ReactFlowProvider,
     useReactFlow,
     type Connection,
     type Edge,
     type HandleType,
-    type NodeChange,
     type OnConnectStartParams,
 } from '@xyflow/react'
-import {Maximize, Minus, Plus} from 'lucide-react'
 
-import {TaskNode, type TaskNodeType} from '@/features/sessions/components/canvas/task-node'
-import {Button} from '@/shared/ui/button'
+import {EmptyCanvas} from '@/features/sessions/components/canvas/empty-canvas'
+import {ZoomCluster} from '@/features/sessions/components/canvas/zoom-cluster'
+import {TaskNode} from '@/features/sessions/components/canvas/task-node'
+import {
+    taskLevels,
+    toFlowEdges,
+    toFlowNodes,
+    type GraphEdge,
+} from '@/features/sessions/components/canvas/flow-graph'
+import {useNodeGestures} from '@/features/sessions/components/canvas/use-node-gestures'
+import {
+    CANVAS_CHROME,
+    FIT_VIEW_OPTIONS,
+    MAX_ZOOM,
+    MIN_ZOOM,
+    NODE_CURSOR_OFFSET,
+    ORIGIN,
+} from '@/features/sessions/components/canvas/view'
 import {useTemplates} from '@/features/templates/use-templates'
-import {TaskState, type TaskLevel} from '@/shared/lib/enums'
 import {createsCycle, unlinkableFrom, unlinkableInto} from '@/features/sessions/graph'
-import {cn} from '@/shared/lib/utils'
+import type {TaskNodeType} from '@/features/sessions/components/canvas/task-node'
 import type {Point, Session} from '@/features/sessions/types'
-
-type GraphEdge = Edge & {pathOptions?: {borderRadius?: number}}
-
-type ConnectionOrigin = {nodeId: string; handleType: HandleType}
 
 type GraphCanvasProps = {
     session: Session
@@ -37,22 +45,9 @@ type GraphCanvasProps = {
     onNewNode: (position: Point) => void
 }
 
+type ConnectionOrigin = {nodeId: string; handleType: HandleType}
+
 const nodeTypes = {task: TaskNode}
-
-const fitViewOptions = {padding: 0.3, maxZoom: 1}
-
-const ORIGIN: Point = {x: 0, y: 0}
-
-const NODE_CURSOR_OFFSET: Point = {x: 130, y: 40}
-
-const NO_DRAG: Record<string, Point> = {}
-
-const EDGE_TONES: Partial<Record<TaskState, string>> = {
-    [TaskState.Running]: 'is-live',
-    [TaskState.Done]: 'is-done',
-}
-
-const CANVAS_CHROME = '.react-flow__node, .react-flow__panel, button'
 
 export function GraphCanvas(props: GraphCanvasProps) {
     return (
@@ -74,13 +69,12 @@ function Canvas({
 }: GraphCanvasProps) {
     const {screenToFlowPosition} = useReactFlow()
     const {templates} = useTemplates()
+
     const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null)
     const [connectingFrom, setConnectingFrom] = useState<ConnectionOrigin | null>(null)
-    const [dragPositions, setDragPositions] = useState<Record<string, Point>>(NO_DRAG)
-    const dragging = useRef(false)
+    const gestures = useNodeGestures(session.tasks, onMoveTask)
 
     const locked = session.finalized
-    const isEmpty = session.tasks.length === 0
 
     const unlinkable = useMemo(() => {
         if (!connectingFrom) return null
@@ -90,88 +84,34 @@ function Canvas({
             : unlinkableInto(session.tasks, connectingFrom.nodeId)
     }, [session.tasks, connectingFrom])
 
-    const levelByTask = useMemo(() => {
-        const levelOf = new Map(templates.map((template) => [template.id, template.taskLevel]))
-
-        return new Map<string, TaskLevel | null>(
-            session.tasks.map((task) => [task.id, levelOf.get(task.templateId ?? '') ?? null]),
-        )
-    }, [session.tasks, templates])
-
-    const nodes = useMemo<TaskNodeType[]>(
-        () =>
-            session.tasks.map((task) => ({
-                id: task.id,
-                type: 'task' as const,
-                position: dragPositions[task.id] ?? task.position,
-                data: {
-                    task,
-                    session,
-                    unlinkable: unlinkable?.has(task.id) ?? false,
-                    needsInput: needsInputIds.has(task.id),
-                    taskLevel: levelByTask.get(task.id) ?? null,
-                },
-                selected: task.id === selectedTaskId,
-                draggable: !locked,
-                deletable: false,
-                className: cn(
-                    'rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-live',
-                    locked && 'is-locked',
-                ),
-            })),
-        [session, locked, selectedTaskId, unlinkable, needsInputIds, levelByTask, dragPositions],
+    const levelByTask = useMemo(
+        () => taskLevels(session.tasks, templates),
+        [session.tasks, templates],
     )
 
-    const edges = useMemo<GraphEdge[]>(() => {
-        const byId = new Map(session.tasks.map((task) => [task.id, task]))
-
-        return session.tasks.flatMap((task) =>
-            task.dependsOn.flatMap((sourceId) => {
-                const source = byId.get(sourceId)
-                if (!source) return []
-
-                const id = `${sourceId}->${task.id}`
-
-                return [
-                    {
-                        id,
-                        source: sourceId,
-                        target: task.id,
-                        type: 'smoothstep',
-                        pathOptions: {borderRadius: 12},
-                        className: EDGE_TONES[source.state],
-                        selected: id === selectedEdgeId,
-                        deletable: !locked,
-                    },
-                ]
+    const nodes = useMemo(
+        () =>
+            toFlowNodes({
+                session,
+                selectedTaskId,
+                needsInputIds,
+                unlinkable,
+                levelByTask,
+                dragPositions: gestures.dragPositions,
+                sizes: gestures.sizes,
             }),
-        )
-    }, [session, locked, selectedEdgeId])
+        [
+            session,
+            selectedTaskId,
+            needsInputIds,
+            unlinkable,
+            levelByTask,
+            gestures.dragPositions,
+            gestures.sizes,
+        ],
+    )
 
-    useEffect(() => {
-        if (dragging.current) return
-        setDragPositions((current) => (current === NO_DRAG ? current : NO_DRAG))
-    }, [session.tasks])
-
-    const trackDrag = (changes: NodeChange<TaskNodeType>[]) => {
-        const moved = changes.flatMap((change) =>
-            change.type === 'position' && change.position
-                ? ([[change.id, change.position]] as const)
-                : [],
-        )
-        if (moved.length === 0) return
-
-        setDragPositions((current) => ({...current, ...Object.fromEntries(moved)}))
-    }
-
-    const liftNode = () => {
-        dragging.current = true
-    }
-
-    const dropNode = (_: unknown, node: TaskNodeType) => {
-        dragging.current = false
-        onMoveTask(node.id, node.position)
-    }
+    const edges = useMemo(() => toFlowEdges(session, selectedEdgeId), [session, selectedEdgeId])
 
     const selectNode = (_: unknown, node: TaskNodeType) => {
         setSelectedEdgeId(null)
@@ -194,10 +134,10 @@ function Canvas({
         if (connection.source && connection.target) onConnect(connection.source, connection.target)
     }
 
-    const canConnect = (connection: Connection | Edge) => {
-        const hasEnds = Boolean(connection.source) && Boolean(connection.target)
-        return hasEnds && !createsCycle(session.tasks, connection.source, connection.target)
-    }
+    const canConnect = (connection: Connection | Edge) =>
+        Boolean(connection.source) &&
+        Boolean(connection.target) &&
+        !createsCycle(session.tasks, connection.source, connection.target)
 
     const disconnectAll = (deleted: Edge[]) => {
         for (const edge of deleted) onDisconnect(edge.source, edge.target)
@@ -206,11 +146,10 @@ function Canvas({
     const addAtOrigin = () => onNewNode(ORIGIN)
 
     const addAtCursor = (event: MouseEvent<HTMLDivElement>) => {
-        const onChrome = (event.target as HTMLElement).closest(CANVAS_CHROME)
-        if (locked || onChrome) return
+        if (locked || (event.target as HTMLElement).closest(CANVAS_CHROME)) return
 
-        const position = screenToFlowPosition({x: event.clientX, y: event.clientY})
-        onNewNode({x: position.x - NODE_CURSOR_OFFSET.x, y: position.y - NODE_CURSOR_OFFSET.y})
+        const at = screenToFlowPosition({x: event.clientX, y: event.clientY})
+        onNewNode({x: at.x - NODE_CURSOR_OFFSET.x, y: at.y - NODE_CURSOR_OFFSET.y})
     }
 
     return (
@@ -220,16 +159,16 @@ function Canvas({
                 edges={edges}
                 nodeTypes={nodeTypes}
                 fitView
-                fitViewOptions={fitViewOptions}
-                minZoom={0.3}
-                maxZoom={1.5}
+                fitViewOptions={FIT_VIEW_OPTIONS}
+                minZoom={MIN_ZOOM}
+                maxZoom={MAX_ZOOM}
                 zoomOnDoubleClick={false}
                 nodesConnectable={!locked}
                 deleteKeyCode={['Backspace', 'Delete']}
                 proOptions={{hideAttribution: true}}
-                onNodesChange={trackDrag}
-                onNodeDragStart={liftNode}
-                onNodeDragStop={dropNode}
+                onNodesChange={gestures.trackChanges}
+                onNodeDragStart={gestures.lift}
+                onNodeDragStop={gestures.drop}
                 onNodeClick={selectNode}
                 onEdgeClick={selectEdge}
                 onPaneClick={clearSelection}
@@ -248,66 +187,7 @@ function Canvas({
                 <ZoomCluster />
             </ReactFlow>
 
-            {isEmpty && (
-                <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-3">
-                    <p className="text-base text-muted-foreground">
-                        {locked ? 'This session has no nodes.' : 'No nodes yet.'}
-                    </p>
-                    {!locked && (
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            className="pointer-events-auto"
-                            onClick={addAtOrigin}
-                        >
-                            <Plus />
-                            New node
-                        </Button>
-                    )}
-                </div>
-            )}
+            {session.tasks.length === 0 && <EmptyCanvas locked={locked} onNewNode={addAtOrigin} />}
         </div>
-    )
-}
-
-function ZoomCluster() {
-    const {zoomIn, zoomOut, fitView} = useReactFlow()
-
-    const zoomInSmoothly = () => zoomIn({duration: 120})
-    const zoomOutSmoothly = () => zoomOut({duration: 120})
-    const fitViewSmoothly = () => fitView({...fitViewOptions, duration: 180})
-
-    return (
-        <Panel position="bottom-left" style={{margin: 12}}>
-            <div className="flex flex-col divide-y divide-border overflow-hidden rounded-lg bg-card shadow-[0_2px_16px_rgba(27,28,30,0.04)] ring-1 ring-border">
-                <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    aria-label="Zoom in"
-                    className="rounded-none"
-                    onClick={zoomInSmoothly}
-                >
-                    <Plus />
-                </Button>
-                <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    aria-label="Zoom out"
-                    className="rounded-none"
-                    onClick={zoomOutSmoothly}
-                >
-                    <Minus />
-                </Button>
-                <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    aria-label="Fit view"
-                    className="rounded-none"
-                    onClick={fitViewSmoothly}
-                >
-                    <Maximize />
-                </Button>
-            </div>
-        </Panel>
     )
 }

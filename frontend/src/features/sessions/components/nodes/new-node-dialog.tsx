@@ -4,6 +4,7 @@ import {ArrowLeft} from 'lucide-react'
 import {DialogShell} from '@/shared/components/dialog-shell'
 import {StepSpine} from '@/shared/components/step-spine'
 import {InheritedAgent} from '@/features/sessions/components/nodes/inherited-agent'
+import {MissingInputsNote} from '@/features/sessions/components/nodes/missing-inputs'
 import {NodeForm} from '@/features/sessions/components/nodes/node-form'
 import {TemplatesPanel} from '@/features/templates/components/templates-panel'
 import {Button} from '@/shared/ui/button'
@@ -14,7 +15,6 @@ import {
     promptFromTemplate,
     toParamValues,
 } from '@/features/templates/template'
-import {pluralize} from '@/shared/lib/format'
 import type {TaskDraft} from '@/features/sessions/types'
 import type {FieldValue, Template} from '@/features/templates/types'
 
@@ -50,10 +50,6 @@ export function NewNodeDialog({
     const changeValue = (key: string, value: FieldValue) =>
         setValues((current) => ({...current, [key]: value}))
 
-    const close = (open: boolean) => {
-        if (!open) onClose()
-    }
-
     const create = () => {
         if (!chosen || !ready) return
 
@@ -67,8 +63,7 @@ export function NewNodeDialog({
 
     return (
         <DialogShell
-            open
-            onOpenChange={close}
+            onClose={onClose}
             title={chosen ? chosen.name : 'New node'}
             aside={<StepSpine total={STEP_COUNT} current={chosen ? 1 : 0} />}
             footer={
@@ -123,12 +118,7 @@ function FillFooter({
                 Templates
             </Button>
             <span className="flex-1" />
-            {missingCount > 0 && (
-                <span className="text-sm text-muted-foreground">
-                    {pluralize(missingCount, 'input')} still empty — fill{' '}
-                    {missingCount === 1 ? 'it' : 'them'} before you run.
-                </span>
-            )}
+            <MissingInputsNote count={missingCount} />
             <Button size="sm" disabled={!ready} onClick={onCreate}>
                 Create node
             </Button>

@@ -18,6 +18,7 @@ import type {
     Session,
     Task,
 } from '@/features/sessions/types'
+import {RemoteChangeType, RemoteTaskStatus} from '@/features/sessions/api/remote-enums'
 import {replaceSession, sessions} from '@/features/sessions/api/store'
 import {mergeActivity} from '@/features/sessions/api/activity'
 import {TICK_MS, timers} from '@/features/sessions/api/timers'
@@ -162,12 +163,12 @@ function loseRun(session: Session): Session {
     }
 }
 
-const REMOTE_STATES: Record<string, TaskState> = {
-    processing: TaskState.Running,
-    awaiting_accept: TaskState.AwaitingAccept,
-    completed: TaskState.Done,
-    failed: TaskState.Failed,
-    cancelled: TaskState.Failed,
+const REMOTE_STATES: Record<RemoteTaskStatus, TaskState> = {
+    [RemoteTaskStatus.Processing]: TaskState.Running,
+    [RemoteTaskStatus.AwaitingAccept]: TaskState.AwaitingAccept,
+    [RemoteTaskStatus.Completed]: TaskState.Done,
+    [RemoteTaskStatus.Failed]: TaskState.Failed,
+    [RemoteTaskStatus.Cancelled]: TaskState.Failed,
 }
 
 function applyRemoteStatus(
@@ -192,7 +193,7 @@ function applyRemoteStatus(
 function applyRemoteTask(task: Task, info: output_itf.SessionTaskInfo, now: string): Task {
     mergeActivity(task.id, (info.activity ?? []).map(toActivityLine))
 
-    const state = REMOTE_STATES[info.status]
+    const state = REMOTE_STATES[info.status as RemoteTaskStatus]
     if (!state) return task
 
     const startedAt = task.run?.startedAt ?? now
@@ -202,6 +203,7 @@ function applyRemoteTask(task: Task, info: output_itf.SessionTaskInfo, now: stri
     return {
         ...task,
         state,
+        agentId: info.agent_id || task.agentId,
         run: {...task.run, startedAt, finishedAt, context},
         report:
             state === TaskState.Running
@@ -214,11 +216,11 @@ function applyRemoteTask(task: Task, info: output_itf.SessionTaskInfo, now: stri
     }
 }
 
-const REMOTE_CHANGE_TYPES: Record<string, FileChangeType> = {
-    added: FileChangeType.Created,
-    modified: FileChangeType.Modified,
-    deleted: FileChangeType.Deleted,
-    renamed: FileChangeType.Renamed,
+const REMOTE_CHANGE_TYPES: Record<RemoteChangeType, FileChangeType> = {
+    [RemoteChangeType.Added]: FileChangeType.Created,
+    [RemoteChangeType.Modified]: FileChangeType.Modified,
+    [RemoteChangeType.Deleted]: FileChangeType.Deleted,
+    [RemoteChangeType.Renamed]: FileChangeType.Renamed,
 }
 
 function toContextUsage(info?: input_itf.ContextUsage): ContextUsage | undefined {
@@ -234,7 +236,8 @@ function toFileChange(info: output_itf.FileChangeInfo): FileChange {
     return {
         path: info.path ?? '',
         oldPath: info.old_path ?? '',
-        changeType: REMOTE_CHANGE_TYPES[info.change_type] ?? FileChangeType.Modified,
+        changeType:
+            REMOTE_CHANGE_TYPES[info.change_type as RemoteChangeType] ?? FileChangeType.Modified,
         additions: info.additions ?? 0,
         deletions: info.deletions ?? 0,
         unifiedDiff: info.unified_diff ?? '',
