@@ -70,8 +70,16 @@ export function RemoveTemplate(arg1) {
   return window['go']['wails_api']['API']['RemoveTemplate'](arg1);
 }
 
+export function ResumeSession(arg1) {
+  return window['go']['wails_api']['API']['ResumeSession'](arg1);
+}
+
 export function RetrySessionTask(arg1) {
   return window['go']['wails_api']['API']['RetrySessionTask'](arg1);
+}
+
+export function RevertSessionTo(arg1, arg2) {
+  return window['go']['wails_api']['API']['RevertSessionTo'](arg1, arg2);
 }
 
 export function RevokeMCPServer(arg1) {
@@ -116,6 +124,10 @@ export function Startup(arg1) {
 
 export function SubmitAuthCode(arg1, arg2) {
   return window['go']['wails_api']['API']['SubmitAuthCode'](arg1, arg2);
+}
+
+export function TaskDiff(arg1, arg2) {
+  return window['go']['wails_api']['API']['TaskDiff'](arg1, arg2);
 }
 
 export function Template(arg1) {

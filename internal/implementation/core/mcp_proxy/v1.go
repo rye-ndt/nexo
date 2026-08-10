@@ -342,11 +342,6 @@ func (s *v1) storeToken(
 		return err
 	}
 
-	encryptedRefresh, err := mcp_helpers.Encrypt(s.aead, token.RefreshToken)
-	if err != nil {
-		return err
-	}
-
 	now := helpers.NewUTC()
 
 	ttl := time.Duration(token.ExpiresIn) * time.Second
@@ -362,15 +357,14 @@ func (s *v1) storeToken(
 	expiredAt := now.Add(ttl)
 
 	if err := s.db.UpsertCredentials(&input_itf.MCPEntity{
-		Name:                name,
-		ClientID:            reg.ClientID,
-		TokenEndpoint:       target.Meta.TokenEndpoint,
-		EncryptedOAuthKey:   encryptedAccess,
-		EncryptedRefreshKey: encryptedRefresh,
-		Account:             mcp_helpers.FetchAccount(s.httpCli, mcp.Account, token.AccessToken),
-		ExpiredAt:           expiredAt,
-		CreatedAt:           now,
-		UpdatedAt:           now,
+		Name:              name,
+		ClientID:          reg.ClientID,
+		TokenEndpoint:     target.Meta.TokenEndpoint,
+		EncryptedOAuthKey: encryptedAccess,
+		Account:           mcp_helpers.FetchAccount(s.httpCli, mcp.Account, token.AccessToken),
+		ExpiredAt:         expiredAt,
+		CreatedAt:         now,
+		UpdatedAt:         now,
 	}); err != nil {
 		return custom_error.TypedCritical(
 			enums.ErrMcpStoreCredentials,
@@ -389,7 +383,7 @@ func (s *v1) storeToken(
 	return nil
 }
 
-func (s *v1) Request(server string, header http.Header, body io.Reader) (*core_itf.MCPResponse, error) {
+func (s *v1) request(server string, header http.Header, body io.Reader) (*input_itf.HttpResponse, error) {
 	mcp, found := s.cfg.SupportedServers[server]
 	if !found {
 		return nil, custom_error.TypedCritical(enums.ErrMcpNotFound, "mcp %s not found", server)
@@ -430,11 +424,7 @@ func (s *v1) Request(server string, header http.Header, body io.Reader) (*core_i
 		)
 	}
 
-	return &core_itf.MCPResponse{
-		StatusCode: res.StatusCode,
-		Header:     res.Header,
-		Body:       res.Body,
-	}, nil
+	return res, nil
 }
 
 func (s *v1) credentials(name string) (*cred, error) {

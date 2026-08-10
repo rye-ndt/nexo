@@ -51,7 +51,6 @@ type approvalArgs struct {
 
 type reportArgs struct {
 	Status            string            `json:"status"`
-	Task              string            `json:"task"`
 	TLDR              string            `json:"tldr"`
 	Outcome           string            `json:"outcome"`
 	Blockers          map[string]string `json:"blockers"`
@@ -112,7 +111,6 @@ func (s *v1) localTools() []*rpcTool {
 					"enum":        []string{string(enums.TaskCompleted), string(enums.TaskFailed)},
 					"description": "completed when the goal is met, failed when you are blocked.",
 				},
-				"task": stringProp("Short name of what was worked on."),
 				"tldr": stringProp("Exactly one sentence, written for a person who has not read the code and knows " +
 					"nothing about this project: what you did and how you did it. Use plain words, " +
 					"no file paths, no identifiers, no jargon. It must make sense on its own."),
@@ -125,7 +123,7 @@ func (s *v1) localTools() []*rpcTool {
 				"must_avoid":         handoverSection("Approaches the next agent must not take, keyed by a short name."),
 				"nuances":            handoverSection("Subtleties the next agent needs, keyed by a short name."),
 				"known_gaps":         handoverSection("Work knowingly left undone, keyed by a short name."),
-			}, "status", "task", "tldr", "outcome"),
+			}, "status", "tldr", "outcome"),
 			call: s.callReport,
 		})
 	}
@@ -187,7 +185,6 @@ func (s *v1) callReport(arguments json.RawMessage, agentID uuid.UUID) *toolResul
 	}
 
 	docs := []*core_itf.HandoverDoc{{
-		Task:              args.Task,
 		TLDR:              args.TLDR,
 		Outcome:           args.Outcome,
 		Blockers:          args.Blockers,

@@ -3,15 +3,14 @@ package input_itf
 import "time"
 
 type MCPEntity struct {
-	Name                string
-	ClientID            string
-	TokenEndpoint       string
-	EncryptedOAuthKey   string
-	EncryptedRefreshKey string
-	Account             string
-	ExpiredAt           time.Time
-	CreatedAt           time.Time
-	UpdatedAt           time.Time
+	Name              string
+	ClientID          string
+	TokenEndpoint     string
+	EncryptedOAuthKey string
+	Account           string
+	ExpiredAt         time.Time
+	CreatedAt         time.Time
+	UpdatedAt         time.Time
 }
 
 type StorageMCP interface {

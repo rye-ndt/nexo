@@ -101,7 +101,6 @@ function rejection(task: Task, fork: Fork, guidance: string): TaskReport {
 
     return {
         status: TaskState.Failed,
-        fileChanges: [],
         handoverDocs: [
             {
                 task: task.title,

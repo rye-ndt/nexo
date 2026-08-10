@@ -40,6 +40,7 @@ type sessionMetadata struct {
 	agentIDToHandle map[uuid.UUID]*AgentHandle
 	taskIDToReport  map[uuid.UUID]*core_itf.TaskReport
 	cancelled       bool
+	run             chan struct{}
 }
 
 type v1 struct {
@@ -124,18 +125,15 @@ func (s *v1) editTask(
 		record: &input_itf.TaskWALRecord{
 			Kind:    kind,
 			TaskID:  taskID,
-			AgentID: agentID,
 			Status:  taskSnapshot.Status,
 			Task:    &taskSnapshot,
 			Session: &infoSnapshot,
 		},
 		progress: &core_itf.SessionProgress{
-			SessionID:  infoSnapshot.ID,
-			TaskID:     taskID,
-			AgentID:    agentID,
-			Event:      kind,
-			Status:     taskSnapshot.Status,
-			RetryCount: taskSnapshot.RetryCount,
+			SessionID: infoSnapshot.ID,
+			TaskID:    taskID,
+			AgentID:   agentID,
+			Event:     kind,
 		},
 		rollback: func() {
 			*task = prevTask
@@ -169,8 +167,6 @@ func (s *v1) commit(c *change, what string) error {
 }
 
 func (s *v1) publish(progress *core_itf.SessionProgress) error {
-	progress.EmittedAt = helpers.NewUTC()
-
 	return s.mq.Emit(progress.SessionID, progress.Event, progress)
 }
 
@@ -239,13 +235,10 @@ func (s *v1) AddTask(sessionID uuid.UUID, task *core_itf.AddTask) (uuid.UUID, er
 		ID:                   uid,
 		SessionID:            sessionID,
 		Name:                 task.Name,
-		AgentRole:            task.AgentSpecs.Role,
 		PreferredModel:       task.AgentSpecs.Name,
 		ThinkingLevel:        task.AgentSpecs.ThinkingLevel,
 		AutoRetry:            task.AutoRetry,
 		ManualAcceptRequired: task.ManualAcceptRequired,
-		FileWriteAllowance:   task.FileWriteAllowance,
-		AllowedFilePaths:     task.AllowedFilePaths,
 		ExtraGuidance:        task.ExtraGuidance,
 		DependsOnTaskIDs:     task.DependsOn,
 		Status:               enums.TaskNotTaken,
@@ -294,11 +287,9 @@ func (s *v1) addTask(sessionID uuid.UUID, t *input_itf.TaskEntity, dependsOn []u
 			Session: &infoSnapshot,
 		},
 		progress: &core_itf.SessionProgress{
-			SessionID:  sessionID,
-			TaskID:     t.ID,
-			Event:      enums.SessionTaskCreated,
-			Status:     t.Status,
-			RetryCount: t.RetryCount,
+			SessionID: sessionID,
+			TaskID:    t.ID,
+			Event:     enums.SessionTaskCreated,
 		},
 		rollback: func() {
 			delete(session.taskIDToTask, t.ID)
@@ -321,6 +312,7 @@ func (s *v1) Assign(taskID, agentID uuid.UUID) error {
 			now := helpers.NewUTC()
 
 			task.Status = enums.TaskProcessing
+			session.info.CompletedAt = time.Time{}
 
 			session.agentIDToHandle[agentID] = &AgentHandle{
 				AgentID:       agentID,
@@ -358,7 +350,92 @@ func (s *v1) RetryTask(taskID uuid.UUID) error {
 		return err
 	}
 
-	return s.commit(c, "task retry")
+	if err := s.commit(c, "task retry"); err != nil {
+		return err
+	}
+
+	s.resume(c.session)
+
+	return nil
+}
+
+func (s *v1) RewindTo(taskID uuid.UUID) error {
+	session, dependents, err := s.dependentsOf(taskID)
+	if err != nil {
+		return err
+	}
+
+	var commitErr error
+
+	for _, dependent := range dependents {
+		c, err := s.editTask(dependent, uuid.Nil, enums.SessionTaskStatusChanged,
+			func(session *sessionMetadata, task *input_itf.TaskEntity) (func(), error) {
+				kept, hadReport := session.taskIDToReport[task.ID]
+
+				task.Status = enums.TaskNotTaken
+				delete(session.taskIDToReport, task.ID)
+				session.info.CompletedAt = time.Time{}
+
+				return func() {
+					if hadReport {
+						session.taskIDToReport[task.ID] = kept
+					}
+				}, nil
+			})
+		if err != nil {
+			return err
+		}
+
+		if err := s.commit(c, "task rewind"); err != nil && commitErr == nil {
+			commitErr = err
+		}
+	}
+
+	s.resume(session)
+
+	return commitErr
+}
+
+func (s *v1) dependentsOf(taskID uuid.UUID) (*sessionMetadata, []uuid.UUID, error) {
+	s.locker.Lock()
+	defer s.locker.Unlock()
+
+	session, _, found := s.findTask(taskID)
+	if !found {
+		return nil, nil, custom_error.Critical("task %v not found", taskID)
+	}
+
+	downstream := map[uuid.UUID]bool{taskID: true}
+
+	for grew := true; grew; {
+		grew = false
+
+		for id, task := range session.taskIDToTask {
+			if downstream[id] {
+				continue
+			}
+
+			for _, dep := range task.DependsOnTaskIDs {
+				if downstream[dep] {
+					downstream[id] = true
+					grew = true
+
+					break
+				}
+			}
+		}
+	}
+
+	delete(downstream, taskID)
+
+	ids := make([]uuid.UUID, 0, len(downstream))
+	for id := range downstream {
+		ids = append(ids, id)
+	}
+
+	sort.Slice(ids, func(i, j int) bool { return ids[i].String() < ids[j].String() })
+
+	return session, ids, nil
 }
 
 func (s *v1) AnswerAcceptance(taskID uuid.UUID, accepted bool) error {
@@ -416,33 +493,18 @@ func (s *v1) Report(agentID uuid.UUID, status enums.TaskStatus, docs []*core_itf
 	report := &core_itf.TaskReport{
 		TaskID:       handle.TaskID,
 		Status:       status,
-		FileChanges:  []*core_itf.FileChange{},
 		HandoverDocs: docs,
 		ContextUsage: s.readContextUsage(agentID),
-	}
-
-	reportRecord := &input_itf.TaskReportEntity{
-		ID:            reportID,
-		TaskID:        handle.TaskID,
-		AgentID:       agentID,
-		AttemptStatus: status,
-		HandoverDocs:  handoverDocEntities(docs),
-		ContextUsage:  report.ContextUsage,
-		StartedAt:     handle.AssignedAt,
-		CompletedAt:   helpers.NewUTC(),
-		CreatedAt:     helpers.NewUTC(),
-		UpdatedAt:     helpers.NewUTC(),
-	}
-
-	fileChangeRecords, err := fileChangeEntities(reportID, report.FileChanges)
-	if err != nil {
-		return err
 	}
 
 	c, err := s.editTask(handle.TaskID, agentID, enums.SessionTaskReported,
 		func(session *sessionMetadata, task *input_itf.TaskEntity) (func(), error) {
 			if task.Status != enums.TaskProcessing {
 				return nil, custom_error.Critical("task %v is %s and cannot be reported", task.ID, task.Status)
+			}
+
+			for _, doc := range docs {
+				doc.Task = task.Name
 			}
 
 			task.Status = status
@@ -466,9 +528,18 @@ func (s *v1) Report(agentID uuid.UUID, status enums.TaskStatus, docs []*core_itf
 		return err
 	}
 
-	c.record.Report = reportRecord
-	c.record.FileChanges = fileChangeRecords
-	c.progress.Report = report
+	c.record.Report = &input_itf.TaskReportEntity{
+		ID:            reportID,
+		TaskID:        handle.TaskID,
+		AgentID:       agentID,
+		AttemptStatus: status,
+		HandoverDocs:  handoverDocEntities(docs),
+		ContextUsage:  report.ContextUsage,
+		StartedAt:     handle.AssignedAt,
+		CompletedAt:   helpers.NewUTC(),
+		CreatedAt:     helpers.NewUTC(),
+		UpdatedAt:     helpers.NewUTC(),
+	}
 
 	if err := s.persist(c, "task report"); err != nil {
 		return err
@@ -514,30 +585,6 @@ func handoverDocEntities(docs []*core_itf.HandoverDoc) []*input_itf.HandoverDocE
 	}
 
 	return entities
-}
-
-func fileChangeEntities(reportID uuid.UUID, changes []*core_itf.FileChange) ([]*input_itf.FileChangeEntity, error) {
-	entities := make([]*input_itf.FileChangeEntity, 0, len(changes))
-
-	for _, fc := range changes {
-		uid, err := uuid.NewV7()
-		if err != nil {
-			return nil, custom_error.Critical("cannot generate uuid: %v", err)
-		}
-
-		entities = append(entities, &input_itf.FileChangeEntity{
-			ID:          uid,
-			ReportID:    reportID,
-			Path:        fc.Path,
-			OldPath:     fc.OldPath,
-			ChangeType:  fc.ChangeType,
-			Additions:   fc.Additions,
-			Deletions:   fc.Deletions,
-			UnifiedDiff: fc.UnifiedDiff,
-		})
-	}
-
-	return entities, nil
 }
 
 func (s *v1) Cancel(sessionID uuid.UUID) ([]uuid.UUID, error) {
@@ -610,18 +657,15 @@ func (s *v1) cancelSession(sessionID uuid.UUID) ([]*change, []uuid.UUID, error) 
 			record: &input_itf.TaskWALRecord{
 				Kind:    kind,
 				TaskID:  taskID,
-				AgentID: agentID,
 				Status:  taskSnapshot.Status,
 				Task:    &taskSnapshot,
 				Session: &infoSnapshot,
 			},
 			progress: &core_itf.SessionProgress{
-				SessionID:  sessionID,
-				TaskID:     taskID,
-				AgentID:    agentID,
-				Event:      kind,
-				Status:     taskSnapshot.Status,
-				RetryCount: taskSnapshot.RetryCount,
+				SessionID: sessionID,
+				TaskID:    taskID,
+				AgentID:   agentID,
+				Event:     kind,
 			},
 			rollback: func() {
 				*task = prevTask
@@ -644,6 +688,13 @@ func (s *v1) cancelSession(sessionID uuid.UUID) ([]*change, []uuid.UUID, error) 
 	session.cancelled = true
 
 	return changes, agentIDs, nil
+}
+
+func (s *v1) resume(session *sessionMetadata) {
+	s.locker.Lock()
+	defer s.locker.Unlock()
+
+	session.cancelled = false
 }
 
 func (s *v1) drainIfDone(session *sessionMetadata) error {
@@ -682,12 +733,8 @@ func (s *v1) stageDrain(session *sessionMetadata) (*change, bool) {
 			Session: &infoSnapshot,
 		},
 		progress: &core_itf.SessionProgress{
-			SessionID:   infoSnapshot.ID,
-			Event:       enums.SessionDrained,
-			TotalTasks:  infoSnapshot.TotalTask,
-			TotalRetry:  infoSnapshot.TotalRetry,
-			StartedAt:   infoSnapshot.StartedAt,
-			CompletedAt: infoSnapshot.CompletedAt,
+			SessionID: infoSnapshot.ID,
+			Event:     enums.SessionDrained,
 		},
 		rollback: func() { *session.info = prevInfo },
 	}, true
@@ -714,7 +761,7 @@ func (s *v1) ReadyTasks(sessionID uuid.UUID) ([]*core_itf.TaskSpec, error) {
 				continue
 			}
 
-			specs = append(specs, taskSpec(sessionID, taskID, task))
+			specs = append(specs, taskSpec(taskID, task))
 		}
 	}
 
@@ -727,22 +774,15 @@ func (s *v1) ReadyTasks(sessionID uuid.UUID) ([]*core_itf.TaskSpec, error) {
 	return specs, nil
 }
 
-func taskSpec(sessionID, taskID uuid.UUID, t *input_itf.TaskEntity) *core_itf.TaskSpec {
+func taskSpec(taskID uuid.UUID, t *input_itf.TaskEntity) *core_itf.TaskSpec {
 	return &core_itf.TaskSpec{
 		TaskID:               taskID,
-		SessionID:            sessionID,
 		Name:                 t.Name,
-		Status:               t.Status,
-		RetryCount:           t.RetryCount,
-		AutoRetry:            t.AutoRetry,
 		ManualAcceptRequired: t.ManualAcceptRequired,
-		FileWriteAllowance:   t.FileWriteAllowance,
-		AllowedFilePaths:     t.AllowedFilePaths,
 		ExtraGuidance:        t.ExtraGuidance,
 		DependsOn:            t.DependsOnTaskIDs,
 		AgentSpecs: &core_itf.AgentRequest{
 			Name:          t.PreferredModel,
-			Role:          t.AgentRole,
 			ThinkingLevel: t.ThinkingLevel,
 			SystemPrompts: t.SystemPrompts,
 		},
@@ -769,12 +809,10 @@ func (s *v1) Status(id uuid.UUID) (*core_itf.SessionStatus, error) {
 		report := &core_itf.TaskReport{
 			TaskID:       taskID,
 			Status:       task.Status,
-			FileChanges:  []*core_itf.FileChange{},
 			HandoverDocs: []*core_itf.HandoverDoc{},
 		}
 
 		if reported, found := session.taskIDToReport[taskID]; found {
-			report.FileChanges = append(report.FileChanges, reported.FileChanges...)
 			report.HandoverDocs = append(report.HandoverDocs, reported.HandoverDocs...)
 			report.ContextUsage = reported.ContextUsage
 		}
@@ -812,9 +850,12 @@ func (s *v1) Status(id uuid.UUID) (*core_itf.SessionStatus, error) {
 }
 
 func (s *v1) Execute(sessionID uuid.UUID) (<-chan *core_itf.SessionProgress, error) {
-	if _, found := s.session(sessionID); !found {
+	session, found := s.session(sessionID)
+	if !found {
 		return nil, custom_error.Critical("session %v not found", sessionID)
 	}
+
+	s.retireRun(sessionID, session)
 
 	events := enums.SessionEvents()
 	streams := make([]<-chan any, 0, len(events))
@@ -832,6 +873,10 @@ func (s *v1) Execute(sessionID uuid.UUID) (<-chan *core_itf.SessionProgress, err
 		streams = append(streams, stream)
 	}
 
+	s.resume(session)
+
+	running := s.beginRun(session)
+
 	out := make(chan *core_itf.SessionProgress, progressBufferSize)
 
 	wg := sync.WaitGroup{}
@@ -842,7 +887,7 @@ func (s *v1) Execute(sessionID uuid.UUID) (<-chan *core_itf.SessionProgress, err
 		go func(stream <-chan any) {
 			defer wg.Done()
 
-			s.forward(stream, out)
+			s.forward(stream, out, running)
 		}(stream)
 	}
 
@@ -854,10 +899,38 @@ func (s *v1) Execute(sessionID uuid.UUID) (<-chan *core_itf.SessionProgress, err
 	return out, nil
 }
 
-func (s *v1) forward(stream <-chan any, out chan<- *core_itf.SessionProgress) {
+func (s *v1) retireRun(sessionID uuid.UUID, session *sessionMetadata) {
+	s.locker.Lock()
+	running := session.run
+	session.run = nil
+	s.locker.Unlock()
+
+	if running == nil {
+		return
+	}
+
+	close(running)
+
+	for _, event := range enums.SessionEvents() {
+		s.mq.Unsubscribe(sessionID, event)
+	}
+}
+
+func (s *v1) beginRun(session *sessionMetadata) <-chan struct{} {
+	s.locker.Lock()
+	defer s.locker.Unlock()
+
+	session.run = make(chan struct{})
+
+	return session.run
+}
+
+func (s *v1) forward(stream <-chan any, out chan<- *core_itf.SessionProgress, running <-chan struct{}) {
 	for {
 		select {
 		case <-s.stop:
+			return
+		case <-running:
 			return
 		case data, open := <-stream:
 			if !open {
@@ -871,6 +944,8 @@ func (s *v1) forward(stream <-chan any, out chan<- *core_itf.SessionProgress) {
 
 			select {
 			case out <- progress:
+			case <-running:
+				return
 			case <-s.stop:
 				return
 			}
@@ -1077,7 +1152,6 @@ func (m *sessionMetadata) keepReport(report *core_itf.TaskReport) {
 	if !found {
 		kept = &core_itf.TaskReport{
 			TaskID:       report.TaskID,
-			FileChanges:  []*core_itf.FileChange{},
 			HandoverDocs: []*core_itf.HandoverDoc{},
 		}
 
@@ -1085,7 +1159,6 @@ func (m *sessionMetadata) keepReport(report *core_itf.TaskReport) {
 	}
 
 	kept.Status = report.Status
-	kept.FileChanges = append(kept.FileChanges, report.FileChanges...)
 	kept.HandoverDocs = append(kept.HandoverDocs, report.HandoverDocs...)
 
 	if report.ContextUsage != nil {

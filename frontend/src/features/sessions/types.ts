@@ -43,7 +43,6 @@ export type ActivityLine = {
 
 export type TaskReport = {
     status: TaskState
-    fileChanges: FileChange[]
     handoverDocs: HandoverDoc[]
 }
 

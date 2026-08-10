@@ -3,27 +3,27 @@ package core_itf
 import (
 	"hexago/internal/helpers/enums"
 	input_itf "hexago/internal/interface/input"
-	"time"
 
 	"github.com/google/uuid"
 )
 
 type AgentRequest struct {
 	Name          enums.ModelName
-	Role          string
 	ThinkingLevel enums.ThinkingLevel
 	SystemPrompts []string
 	WorkingDir    string
 }
 
 type Agent struct {
-	ID            uuid.UUID
-	Name          enums.ModelName
-	Role          string
-	ThinkingLevel enums.ThinkingLevel
-	HealthStatus  enums.AgentInstanceStatus
-	SpawnedAt     time.Time
-	TerminatedAt  time.Time
+	ID           uuid.UUID
+	HealthStatus enums.AgentInstanceStatus
+}
+
+// ApprovalWaitReader tells whether an agent is parked on a question a human has not
+// answered yet. ApprovalBroker satisfies it; the agent manager takes only this method
+// because a silent agent waiting on a person is not a frozen one.
+type ApprovalWaitReader interface {
+	Awaiting(agentID uuid.UUID) bool
 }
 
 type AgentManager interface {

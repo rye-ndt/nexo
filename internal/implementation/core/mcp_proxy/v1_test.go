@@ -1,16 +1,22 @@
 package mcp_proxy
 
 import (
+	"encoding/json"
 	"io"
 	"net/http"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	"hexago/internal/helpers"
+	"hexago/internal/helpers/enums"
 	mcp_helpers "hexago/internal/implementation/core/mcp_proxy/helpers"
+	core_itf "hexago/internal/interface/core"
 	input_itf "hexago/internal/interface/input"
+
+	"github.com/google/uuid"
 )
 
 type fakeMCPStore struct {
@@ -257,6 +263,95 @@ func TestFetchAccountSendsABareTokenWhenNoSchemeIsConfigured(t *testing.T) {
 
 	if got := httpCli.gotHeader.Get("X-Figma-Token"); got != "figd_abc" {
 		t.Fatalf("X-Figma-Token = %q, want the bare token", got)
+	}
+}
+
+type fakeReporter struct {
+	status enums.TaskStatus
+	docs   []*core_itf.HandoverDoc
+}
+
+func (r *fakeReporter) Report(_ uuid.UUID, status enums.TaskStatus, docs []*core_itf.HandoverDoc) error {
+	r.status = status
+	r.docs = docs
+
+	return nil
+}
+
+func reportSchema(t *testing.T, proxy *v1) map[string]any {
+	t.Helper()
+
+	for _, tool := range proxy.localTools() {
+		if tool.name == reportTool {
+			return tool.input
+		}
+	}
+
+	t.Fatalf("the local server does not expose %s", reportTool)
+
+	return nil
+}
+
+func TestReportToolDoesNotAskForTheTaskName(t *testing.T) {
+	proxy := newTestProxy(t, newFakeMCPStore(), &fakeHttpCli{})
+	proxy.reporter = &fakeReporter{}
+
+	schema := reportSchema(t, proxy)
+
+	properties, ok := schema["properties"].(map[string]any)
+	if !ok {
+		t.Fatal("the report tool has no properties")
+	}
+
+	if _, found := properties["task"]; found {
+		t.Error("the report tool still asks the agent for a task name")
+	}
+
+	required, ok := schema["required"].([]string)
+	if !ok {
+		t.Fatal("the report tool has no required list")
+	}
+
+	if slices.Contains(required, "task") {
+		t.Error("the report tool still requires a task name")
+	}
+
+	for _, field := range []string{"status", "tldr", "outcome"} {
+		if !slices.Contains(required, field) {
+			t.Errorf("the report tool no longer requires %q", field)
+		}
+	}
+}
+
+func TestReportLeavesTheTaskNameToTheSessionManager(t *testing.T) {
+	proxy := newTestProxy(t, newFakeMCPStore(), &fakeHttpCli{})
+	reporter := &fakeReporter{}
+	proxy.reporter = reporter
+
+	arguments, err := json.Marshal(map[string]any{
+		"status":  string(enums.TaskCompleted),
+		"task":    "whatever the agent felt like calling it",
+		"tldr":    "one sentence",
+		"outcome": "the work is done",
+	})
+	if err != nil {
+		t.Fatalf("encode arguments: %v", err)
+	}
+
+	if result := proxy.callReport(arguments, uuid.New()); result.IsError {
+		t.Fatalf("report call failed: %v", result.Content)
+	}
+
+	if len(reporter.docs) != 1 {
+		t.Fatalf("reported %d handover docs, want 1", len(reporter.docs))
+	}
+
+	if got := reporter.docs[0].Task; got != "" {
+		t.Errorf("handover doc task = %q, want it left empty for the session manager to fill", got)
+	}
+
+	if got := reporter.docs[0].Outcome; got != "the work is done" {
+		t.Errorf("handover doc outcome = %q, want the reported outcome", got)
 	}
 }
 

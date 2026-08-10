@@ -29,13 +29,10 @@ mcp_servers:
   client_name: nexo
   callback_path: /callback
   shutdown_grace: 2s
-  verifier_bytes: 32
+  verifier_bytes: 32 # must be >= the rfc 7636 floor in helpers/constances
   state_bytes: 16
-  min_verifier_bytes: 32 # rfc 7636 floor
-  min_state_bytes: 16
   default_token_ttl: 1h
-  challenge_method: S256
-  supported_challenge_method: S256 # the only method implemented; anything else is rejected at startup
+  challenge_method: S256 # the only method implemented; anything else is rejected at startup
   supported_servers:
     atlassian:
       name: atlassian

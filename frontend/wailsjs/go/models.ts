@@ -44,12 +44,6 @@ export namespace input_itf {
 	export class ContextUsage {
 	    total: number;
 	    used: number;
-	    input: number;
-	    output: number;
-	    cache_read: number;
-	    cache_write: number;
-	    // Go type: time
-	    updated_at: any;
 	
 	    static createFrom(source: any = {}) {
 	        return new ContextUsage(source);
@@ -59,30 +53,7 @@ export namespace input_itf {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.total = source["total"];
 	        this.used = source["used"];
-	        this.input = source["input"];
-	        this.output = source["output"];
-	        this.cache_read = source["cache_read"];
-	        this.cache_write = source["cache_write"];
-	        this.updated_at = this.convertValues(source["updated_at"], null);
 	    }
-	
-		convertValues(a: any, classs: any, asMap: boolean = false): any {
-		    if (!a) {
-		        return a;
-		    }
-		    if (a.slice && a.map) {
-		        return (a as any[]).map(elem => this.convertValues(elem, classs));
-		    } else if ("object" === typeof a) {
-		        if (asMap) {
-		            for (const key of Object.keys(a)) {
-		                a[key] = new classs(a[key]);
-		            }
-		            return a;
-		        }
-		        return new classs(a);
-		    }
-		    return a;
-		}
 	}
 
 }
@@ -330,7 +301,6 @@ export namespace output_itf {
 	    client_id: string;
 	    name: string;
 	    prompt: string;
-	    role: string;
 	    task_level: string;
 	    system_prompts: string[];
 	    depends_on: string[];
@@ -346,7 +316,6 @@ export namespace output_itf {
 	        this.client_id = source["client_id"];
 	        this.name = source["name"];
 	        this.prompt = source["prompt"];
-	        this.role = source["role"];
 	        this.task_level = source["task_level"];
 	        this.system_prompts = source["system_prompts"];
 	        this.depends_on = source["depends_on"];
@@ -425,7 +394,6 @@ export namespace output_itf {
 	    task_id: string;
 	    agent_id: string;
 	    status: string;
-	    file_changes: FileChangeInfo[];
 	    handover_docs: HandoverDocInfo[];
 	    context_usage?: input_itf.ContextUsage;
 	    activity: TaskActivityInfo[];
@@ -439,7 +407,6 @@ export namespace output_itf {
 	        this.task_id = source["task_id"];
 	        this.agent_id = source["agent_id"];
 	        this.status = source["status"];
-	        this.file_changes = this.convertValues(source["file_changes"], FileChangeInfo);
 	        this.handover_docs = this.convertValues(source["handover_docs"], HandoverDocInfo);
 	        this.context_usage = this.convertValues(source["context_usage"], input_itf.ContextUsage);
 	        this.activity = this.convertValues(source["activity"], TaskActivityInfo);

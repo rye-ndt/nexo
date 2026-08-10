@@ -8,20 +8,33 @@ export function TaskDialog({
     session,
     task,
     savingInputs,
+    reverting,
     onSave,
     onSaveInputs,
+    onRevert,
     onDelete,
     onClose,
 }: {
     session: Session
     task: Task
     savingInputs: boolean
+    reverting: boolean
     onSave: (patch: Partial<Task>) => void
     onSaveInputs: (values: Record<string, ParamValue>) => void
+    onRevert: () => void
     onDelete: () => void
     onClose: () => void
 }) {
-    if (session.started) return <TaskStatusDialog task={task} onClose={onClose} />
+    if (session.started)
+        return (
+            <TaskStatusDialog
+                session={session}
+                task={task}
+                reverting={reverting}
+                onRevert={onRevert}
+                onClose={onClose}
+            />
+        )
 
     if (session.finalized)
         return (

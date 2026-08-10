@@ -23,13 +23,8 @@ type AgentStatus struct {
 }
 
 type ContextUsage struct {
-	Total      int       `json:"total"`
-	Used       int       `json:"used"`
-	Input      int       `json:"input"`
-	Output     int       `json:"output"`
-	CacheRead  int       `json:"cache_read"`
-	CacheWrite int       `json:"cache_write"`
-	UpdatedAt  time.Time `json:"updated_at"`
+	Total int `json:"total"`
+	Used  int `json:"used"`
 }
 
 type Activity struct {

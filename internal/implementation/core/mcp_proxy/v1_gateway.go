@@ -119,7 +119,7 @@ func (s *v1) forward(w http.ResponseWriter, r *http.Request) {
 
 	r.Header.Del(constances.GatewayAgentHeader)
 
-	res, err := s.Request(name, r.Header, r.Body)
+	res, err := s.request(name, r.Header, r.Body)
 	if err != nil {
 		http.Error(w, err.Error(), gatewayStatus(err))
 		return

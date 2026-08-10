@@ -37,7 +37,11 @@ export function PendingApprovals():Promise<Array<output_itf.ApprovalInfo>>;
 
 export function RemoveTemplate(arg1:string):Promise<void>;
 
+export function ResumeSession(arg1:string):Promise<void>;
+
 export function RetrySessionTask(arg1:string):Promise<void>;
+
+export function RevertSessionTo(arg1:string,arg2:string):Promise<void>;
 
 export function RevokeMCPServer(arg1:string):Promise<void>;
 
@@ -60,6 +64,8 @@ export function Shutdown(arg1:context.Context):Promise<void>;
 export function Startup(arg1:context.Context):Promise<void>;
 
 export function SubmitAuthCode(arg1:string,arg2:string):Promise<void>;
+
+export function TaskDiff(arg1:string,arg2:string):Promise<Array<output_itf.FileChangeInfo>>;
 
 export function Template(arg1:string):Promise<output_itf.TemplateInfo>;
 

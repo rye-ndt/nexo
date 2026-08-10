@@ -98,8 +98,10 @@ export function SessionWorkspace({
                     session={session}
                     task={selectedTask}
                     savingInputs={store.savingTaskInputs}
+                    reverting={store.revertingToTask}
                     onSave={(patch) => active.updateTask(selectedTask.id, patch)}
                     onSaveInputs={(values) => active.saveTaskInputs(selectedTask.id, values)}
+                    onRevert={() => active.revertToTask(selectedTask.id, closeTask)}
                     onDelete={() => active.removeTask(selectedTask.id)}
                     onClose={closeTask}
                 />

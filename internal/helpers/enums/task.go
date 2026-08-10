@@ -78,13 +78,6 @@ const (
 	SessionCompleted  SessionStatus = "completed"
 )
 
-type FileAllowance string
-
-const (
-	FileAllowAll FileAllowance = "all"
-	Restricted   FileAllowance = "restricted"
-)
-
 type FileChangeType string
 
 const (

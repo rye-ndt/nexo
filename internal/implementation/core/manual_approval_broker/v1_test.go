@@ -129,10 +129,6 @@ func TestApproveWithOneOptionReleasesTheCaller(t *testing.T) {
 		t.Fatalf("answer = %+v, want approved with option sqlite", got.answer)
 	}
 
-	if got.answer.AnsweredAt.IsZero() {
-		t.Fatal("answer has no answered at stamp")
-	}
-
 	waitPending(t, broker, 0)
 }
 

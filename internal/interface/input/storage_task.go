@@ -19,17 +19,6 @@ type SessionEntity struct {
 	UpdatedAt      time.Time
 }
 
-type FileChangeEntity struct {
-	ID          uuid.UUID
-	ReportID    uuid.UUID
-	Path        string
-	OldPath     string
-	ChangeType  enums.FileChangeType
-	Additions   int
-	Deletions   int
-	UnifiedDiff string
-}
-
 type HandoverDocEntity struct {
 	Task              string            `json:"task_name"`
 	TLDR              string            `json:"tldr"`
@@ -61,14 +50,11 @@ type TaskEntity struct {
 	ID                   uuid.UUID
 	SessionID            uuid.UUID
 	Name                 string
-	AgentRole            string
 	PreferredModel       enums.ModelName
 	ThinkingLevel        enums.ThinkingLevel
 	SystemPrompts        []string
 	AutoRetry            bool
 	ManualAcceptRequired bool
-	FileWriteAllowance   enums.FileAllowance
-	AllowedFilePaths     []string
 	ExtraGuidance        string
 	RetryCount           int
 	Status               enums.TaskStatus
@@ -79,11 +65,9 @@ type TaskEntity struct {
 }
 
 type TaskStorage interface {
-	Find(taskID uuid.UUID) (*TaskEntity, error)
 	SaveTaskHistory(
 		sessions []*SessionEntity,
 		tasks []*TaskEntity,
 		reports []*TaskReportEntity,
-		fileChanges []*FileChangeEntity,
 	) error
 }

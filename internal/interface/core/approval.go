@@ -26,11 +26,10 @@ type ApprovalRequest struct {
 }
 
 type ApprovalAnswer struct {
-	RequestID  uuid.UUID `json:"request_id"`
-	Approved   bool      `json:"approved"`
-	OptionIDs  []string  `json:"option_ids"`
-	Guidance   string    `json:"guidance"`
-	AnsweredAt time.Time `json:"answered_at"`
+	RequestID uuid.UUID `json:"request_id"`
+	Approved  bool      `json:"approved"`
+	OptionIDs []string  `json:"option_ids"`
+	Guidance  string    `json:"guidance"`
 }
 
 type ApprovalBroker interface {

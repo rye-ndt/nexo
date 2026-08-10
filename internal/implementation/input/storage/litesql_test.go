@@ -119,43 +119,6 @@ func TestMigrationsAreIdempotentAcrossReopen(t *testing.T) {
 	}
 }
 
-func TestTaskRoundTripsManualAcceptRequired(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "harness.db")
-
-	store, err := New(path)
-	if err != nil {
-		t.Fatalf("open storage: %v", err)
-	}
-
-	tasks := store.TaskStore()
-
-	task := &input_itf.TaskEntity{
-		ID:                   uuid.New(),
-		SessionID:            uuid.New(),
-		Name:                 "plan",
-		PreferredModel:       enums.Sonnet,
-		ManualAcceptRequired: true,
-		Status:               enums.TaskAwaitingAccept,
-	}
-
-	if err := tasks.SaveTaskHistory(nil, []*input_itf.TaskEntity{task}, nil, nil); err != nil {
-		t.Fatalf("save task: %v", err)
-	}
-
-	found, err := tasks.Find(task.ID)
-	if err != nil {
-		t.Fatalf("find task: %v", err)
-	}
-
-	if !found.ManualAcceptRequired {
-		t.Fatal("task lost manual_accept_required on the round trip")
-	}
-
-	if found.Status != enums.TaskAwaitingAccept {
-		t.Fatalf("task status = %s, want %s", found.Status, enums.TaskAwaitingAccept)
-	}
-}
-
 func TestMCPCredentialsRoundTripAccountAndDelete(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "harness.db")
 

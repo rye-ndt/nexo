@@ -169,6 +169,14 @@ export function useSessions() {
             ),
     )
 
+    const revert = useSessionMutation(
+        'Could not revert to this step',
+        (args: {sessionId: string; taskId: string}) =>
+            api.revertSessionTo(args.sessionId, args.taskId),
+        (sessions, {sessionId, taskId}) =>
+            editSession(sessions, sessionId, (session) => graph.rewindTo(session, taskId)),
+    )
+
     const deleteTask = useSessionMutation(
         'Could not delete the node',
         (args: {sessionId: string; taskId: string}) => api.deleteTask(args.sessionId, args.taskId),
@@ -214,6 +222,8 @@ export function useSessions() {
         savingTaskInputs: saveInputs.isPending,
         answerTaskAcceptance: answerAcceptance.mutate,
         answeringTaskAcceptance: answerAcceptance.isPending,
+        revertToTask: revert.mutate,
+        revertingToTask: revert.isPending,
         deleteTask: deleteTask.mutate,
         connectTasks: connect.mutate,
         disconnectTasks: disconnect.mutate,

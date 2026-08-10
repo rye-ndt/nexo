@@ -9,3 +9,9 @@ const (
 	FigmaLocalServer        = "figma"
 	GatewayMCPPath          = "/mcp/"
 )
+
+const (
+	PKCEMinVerifierBytes         = 32
+	PKCEMinStateBytes            = 16
+	PKCESupportedChallengeMethod = "S256"
+)

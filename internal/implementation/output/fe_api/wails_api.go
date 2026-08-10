@@ -36,6 +36,7 @@ type API struct {
 	templates    core_itf.AgentTemplateManager
 	sessions     core_itf.SessionManager
 	coordinator  core_itf.Coordinator
+	history      input_itf.WorkspaceHistory
 	userConfig   output_itf.UserConfig
 	drafts       input_itf.DraftStorage
 	dataWarning  string
@@ -50,6 +51,7 @@ type Deps struct {
 	Templates    core_itf.AgentTemplateManager
 	Sessions     core_itf.SessionManager
 	Coordinator  core_itf.Coordinator
+	History      input_itf.WorkspaceHistory
 	UserConfig   output_itf.UserConfig
 	Drafts       input_itf.DraftStorage
 	DataWarning  string
@@ -63,6 +65,7 @@ func New(deps *Deps) *API {
 		templates:    deps.Templates,
 		sessions:     deps.Sessions,
 		coordinator:  deps.Coordinator,
+		history:      deps.History,
 		userConfig:   deps.UserConfig,
 		drafts:       deps.Drafts,
 		dataWarning:  deps.DataWarning,
@@ -524,12 +527,10 @@ func (a *API) addSessionTask(sessionID uuid.UUID, task *output_itf.RunTaskSpec, 
 		Name:                 task.Name,
 		AutoRetry:            task.AutoRetry,
 		ManualAcceptRequired: task.ManualAcceptRequired && !autopilot,
-		FileWriteAllowance:   enums.FileAllowAll,
 		ExtraGuidance:        task.Prompt,
 		DependsOn:            deps,
 		AgentSpecs: &core_itf.AgentRequest{
 			Name:          agentDefault.Model,
-			Role:          task.Role,
 			ThinkingLevel: agentDefault.ThinkingLevel,
 			SystemPrompts: task.SystemPrompts,
 		},
@@ -565,6 +566,15 @@ func (a *API) SessionStatus(sessionID string) (*output_itf.SessionStatusInfo, er
 	return sessionStatusInfo(status), nil
 }
 
+func (a *API) ResumeSession(sessionID string) error {
+	parsed, err := parseID(idSession, sessionID)
+	if err != nil {
+		return err
+	}
+
+	return a.coordinator.Run(parsed)
+}
+
 func (a *API) CancelSession(sessionID string) error {
 	parsed, err := parseID(idSession, sessionID)
 	if err != nil {
@@ -572,6 +582,56 @@ func (a *API) CancelSession(sessionID string) error {
 	}
 
 	return a.coordinator.Cancel(parsed)
+}
+
+func (a *API) TaskDiff(sessionID, taskID string) ([]*output_itf.FileChangeInfo, error) {
+	parsedSession, err := parseID(idSession, sessionID)
+	if err != nil {
+		return nil, err
+	}
+
+	parsedTask, err := parseID(idTask, taskID)
+	if err != nil {
+		return nil, err
+	}
+
+	changes, err := a.history.Diff(parsedSession, parsedTask)
+	if err != nil {
+		return nil, err
+	}
+
+	return fileChangeInfos(changes), nil
+}
+
+func (a *API) RevertSessionTo(sessionID, taskID string) error {
+	parsedSession, err := parseID(idSession, sessionID)
+	if err != nil {
+		return err
+	}
+
+	parsedTask, err := parseID(idTask, taskID)
+	if err != nil {
+		return err
+	}
+
+	return a.coordinator.RevertTo(parsedSession, parsedTask)
+}
+
+func fileChangeInfos(changes []*input_itf.FileChange) []*output_itf.FileChangeInfo {
+	infos := make([]*output_itf.FileChangeInfo, 0, len(changes))
+
+	for _, change := range changes {
+		infos = append(infos, &output_itf.FileChangeInfo{
+			Path:        change.Path,
+			OldPath:     change.OldPath,
+			ChangeType:  change.ChangeType.String(),
+			Additions:   change.Additions,
+			Deletions:   change.Deletions,
+			UnifiedDiff: change.UnifiedDiff,
+		})
+	}
+
+	return infos
 }
 
 func (a *API) RetrySessionTask(taskID string) error {
@@ -697,7 +757,6 @@ func sessionStatusInfo(status *core_itf.SessionStatus) *output_itf.SessionStatus
 func sessionTaskInfo(taskID uuid.UUID, report *core_itf.TaskReport) *output_itf.SessionTaskInfo {
 	info := &output_itf.SessionTaskInfo{
 		TaskID:       taskID.String(),
-		FileChanges:  []*output_itf.FileChangeInfo{},
 		HandoverDocs: []*output_itf.HandoverDocInfo{},
 		Activity:     []*output_itf.TaskActivityInfo{},
 	}
@@ -713,10 +772,6 @@ func sessionTaskInfo(taskID uuid.UUID, report *core_itf.TaskReport) *output_itf.
 		info.AgentID = report.AgentID.String()
 	}
 
-	for _, change := range report.FileChanges {
-		info.FileChanges = append(info.FileChanges, fileChangeInfo(change))
-	}
-
 	for _, doc := range report.HandoverDocs {
 		info.HandoverDocs = append(info.HandoverDocs, handoverDocInfo(doc))
 	}
@@ -730,21 +785,6 @@ func sessionTaskInfo(taskID uuid.UUID, report *core_itf.TaskReport) *output_itf.
 	}
 
 	return info
-}
-
-func fileChangeInfo(change *core_itf.FileChange) *output_itf.FileChangeInfo {
-	if change == nil {
-		return nil
-	}
-
-	return &output_itf.FileChangeInfo{
-		Path:        change.Path,
-		OldPath:     change.OldPath,
-		ChangeType:  change.ChangeType.String(),
-		Additions:   change.Additions,
-		Deletions:   change.Deletions,
-		UnifiedDiff: change.UnifiedDiff,
-	}
 }
 
 func handoverDocInfo(doc *core_itf.HandoverDoc) *output_itf.HandoverDocInfo {

@@ -98,6 +98,24 @@ export function cancelRun(session: Session): Session {
     }
 }
 
+/** Reverting to a task keeps it and everything upstream; the run stops and every step after it is back to not started. */
+export function rewindTo(session: Session, taskId: string): Session {
+    const undone = descendantsOf(session.tasks, taskId)
+
+    return {
+        ...session,
+        started: false,
+        tasks: session.tasks.map((task) => {
+            const kept =
+                task.id === taskId || (!undone.has(task.id) && KEPT_ON_CANCEL.has(task.state))
+
+            if (kept) return task
+
+            return {...task, state: TaskState.Idle, run: undefined, report: undefined}
+        }),
+    }
+}
+
 export function isCancellable(session: Session): boolean {
     if (!session.started || session.cancelled) return false
     return session.tasks.some(

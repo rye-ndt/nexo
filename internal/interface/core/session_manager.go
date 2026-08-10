@@ -3,7 +3,6 @@ package core_itf
 import (
 	"hexago/internal/helpers/enums"
 	input_itf "hexago/internal/interface/input"
-	"time"
 
 	"github.com/google/uuid"
 )
@@ -12,8 +11,6 @@ type AddTask struct {
 	Name                 string
 	AutoRetry            bool
 	ManualAcceptRequired bool
-	FileWriteAllowance   enums.FileAllowance
-	AllowedFilePaths     []string
 	ExtraGuidance        string
 	DependsOn            []uuid.UUID
 	AgentSpecs           *AgentRequest
@@ -21,26 +18,11 @@ type AddTask struct {
 
 type TaskSpec struct {
 	TaskID               uuid.UUID
-	SessionID            uuid.UUID
 	Name                 string
-	Status               enums.TaskStatus
-	RetryCount           int
-	AutoRetry            bool
 	ManualAcceptRequired bool
-	FileWriteAllowance   enums.FileAllowance
-	AllowedFilePaths     []string
 	ExtraGuidance        string
 	DependsOn            []uuid.UUID
 	AgentSpecs           *AgentRequest
-}
-
-type FileChange struct {
-	Path        string
-	OldPath     string
-	ChangeType  enums.FileChangeType
-	Additions   int
-	Deletions   int
-	UnifiedDiff string
 }
 
 type HandoverDoc struct {
@@ -61,25 +43,16 @@ type TaskReport struct {
 	TaskID       uuid.UUID
 	AgentID      uuid.UUID
 	Status       enums.TaskStatus
-	FileChanges  []*FileChange
 	HandoverDocs []*HandoverDoc
 	ContextUsage *input_itf.ContextUsage
 	Activity     []input_itf.Activity
 }
 
 type SessionProgress struct {
-	SessionID   uuid.UUID
-	TaskID      uuid.UUID
-	AgentID     uuid.UUID
-	Event       enums.SessionEvent
-	Status      enums.TaskStatus
-	RetryCount  int
-	Report      *TaskReport
-	TotalTasks  int
-	TotalRetry  int
-	StartedAt   time.Time
-	CompletedAt time.Time
-	EmittedAt   time.Time
+	SessionID uuid.UUID
+	TaskID    uuid.UUID
+	AgentID   uuid.UUID
+	Event     enums.SessionEvent
 }
 
 type SessionStatus struct {
@@ -117,6 +90,7 @@ type SessionManager interface {
 	Assign(taskID, agentID uuid.UUID) error
 	Execute(session uuid.UUID) (<-chan *SessionProgress, error)
 	RetryTask(taskID uuid.UUID) error
+	RewindTo(taskID uuid.UUID) error
 	AnswerAcceptance(taskID uuid.UUID, accepted bool) error
 	Cancel(session uuid.UUID) ([]uuid.UUID, error)
 	Status(id uuid.UUID) (*SessionStatus, error)

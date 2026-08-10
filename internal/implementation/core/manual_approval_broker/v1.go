@@ -117,7 +117,6 @@ func (b *v1) Answer(answer *core_itf.ApprovalAnswer) error {
 
 	delete(b.waiting, answer.RequestID)
 
-	answer.AnsweredAt = helpers.NewUTC()
 	waiter.answer <- answer
 
 	return nil

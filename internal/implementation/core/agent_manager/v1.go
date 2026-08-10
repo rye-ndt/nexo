@@ -29,7 +29,7 @@ type agentManagerV1 struct {
 	httpCli        input_itf.HttpCli
 	harnesses      map[enums.AgentHarness]input_itf.AgentHarness
 	instances      map[uuid.UUID]*instance
-	approvalBroker core_itf.ApprovalBroker
+	approvalBroker core_itf.ApprovalWaitReader
 	online         connectivity
 }
 
@@ -37,7 +37,7 @@ func InitV1(
 	cfg *input_itf.AgentManagerConfig,
 	httpCli input_itf.HttpCli,
 	harnesses map[enums.AgentHarness]input_itf.AgentHarness,
-	approvalBroker core_itf.ApprovalBroker,
+	approvalBroker core_itf.ApprovalWaitReader,
 ) (core_itf.AgentManager, error) {
 	if cfg == nil {
 		return nil, custom_error.Critical("agent manager config not found")
@@ -83,12 +83,8 @@ func (m *agentManagerV1) RequestInstance(specs *core_itf.AgentRequest) (*core_it
 	}
 
 	agent := &core_itf.Agent{
-		ID:            agentID,
-		Name:          specs.Name,
-		Role:          specs.Role,
-		ThinkingLevel: specs.ThinkingLevel,
-		HealthStatus:  enums.Healthy,
-		SpawnedAt:     helpers.NewUTC(),
+		ID:           agentID,
+		HealthStatus: enums.Healthy,
 	}
 
 	clone := *agent
@@ -248,10 +244,6 @@ func (m *agentManagerV1) setHealth(agentID uuid.UUID, status enums.AgentInstance
 	}
 
 	live.agent.HealthStatus = status
-
-	if status == enums.Terminated {
-		live.agent.TerminatedAt = helpers.NewUTC()
-	}
 }
 
 func (m *agentManagerV1) harnessFor(model enums.ModelName) (input_itf.AgentHarness, bool) {

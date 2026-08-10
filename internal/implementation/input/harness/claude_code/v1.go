@@ -186,13 +186,8 @@ func (a *agentProc) trackUsage(event *claudeEvent) {
 
 	a.usageMu.Lock()
 	a.usage = input_itf.ContextUsage{
-		Total:      a.ctxWindow,
-		Used:       used,
-		Input:      reported.InputTokens,
-		Output:     reported.OutputTokens,
-		CacheRead:  reported.CacheReadInputTokens,
-		CacheWrite: reported.CacheCreationInputTokens,
-		UpdatedAt:  helpers.NewUTC(),
+		Total: a.ctxWindow,
+		Used:  used,
 	}
 	a.usageMu.Unlock()
 }

@@ -46,7 +46,6 @@ type RunTaskSpec struct {
 	ClientID             string   `json:"client_id"`
 	Name                 string   `json:"name"`
 	Prompt               string   `json:"prompt"`
-	Role                 string   `json:"role"`
 	TaskLevel            string   `json:"task_level"`
 	SystemPrompts        []string `json:"system_prompts"`
 	DependsOn            []string `json:"depends_on"`
@@ -98,7 +97,6 @@ type SessionTaskInfo struct {
 	TaskID       string                  `json:"task_id"`
 	AgentID      string                  `json:"agent_id"`
 	Status       string                  `json:"status"`
-	FileChanges  []*FileChangeInfo       `json:"file_changes"`
 	HandoverDocs []*HandoverDocInfo      `json:"handover_docs"`
 	ContextUsage *input_itf.ContextUsage `json:"context_usage"`
 	Activity     []*TaskActivityInfo     `json:"activity"`
@@ -168,7 +166,10 @@ type FEAPI interface {
 	SetAutopilot(on bool) error
 	RunSession(spec *RunSessionSpec) (*RunSessionResult, error)
 	SessionStatus(sessionID string) (*SessionStatusInfo, error)
+	ResumeSession(sessionID string) error
 	CancelSession(sessionID string) error
+	TaskDiff(sessionID string, taskID string) ([]*FileChangeInfo, error)
+	RevertSessionTo(sessionID string, taskID string) error
 	RetrySessionTask(taskID string) error
 	AnswerTaskAcceptance(taskID string, accepted bool) error
 	SessionDrafts() ([]*SessionDraftInfo, error)

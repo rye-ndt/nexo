@@ -121,6 +121,11 @@ var migrations = []string{
 	`ALTER TABLE tasks DROP COLUMN template_file_paths`,
 	`ALTER TABLE task_reports DROP COLUMN snapshot_id`,
 	`ALTER TABLE sessions DROP COLUMN revert_count`,
+	`DROP TABLE IF EXISTS file_changes`,
+	`ALTER TABLE tasks DROP COLUMN agent_role`,
+	`ALTER TABLE tasks DROP COLUMN file_write_allowance`,
+	`ALTER TABLE tasks DROP COLUMN allowed_file_paths`,
+	`ALTER TABLE mcp_credentials DROP COLUMN encrypted_refresh_key`,
 }
 
 const templateColumns = `id, name, role, task_level, retryable, manual_accept_required, params, system_prompts, created_at, updated_at`
@@ -389,7 +394,7 @@ func scanTemplate(scan func(dest ...any) error) (*input_itf.TemplateEntity, erro
 
 func (s *mcpStore) ListAuthenticated() ([]*input_itf.MCPEntity, error) {
 	rows, err := s.db.Query(`SELECT name, client_id, token_endpoint, encrypted_oauth_key,
-		encrypted_refresh_key, account, expired_at, created_at, updated_at
+		account, expired_at, created_at, updated_at
 		FROM mcp_credentials WHERE encrypted_oauth_key != ''`)
 	if err != nil {
 		return nil, err
@@ -403,7 +408,7 @@ func (s *mcpStore) ListAuthenticated() ([]*input_itf.MCPEntity, error) {
 		var expiredAt, createdAt, updatedAt string
 
 		if err := rows.Scan(&m.Name, &m.ClientID, &m.TokenEndpoint, &m.EncryptedOAuthKey,
-			&m.EncryptedRefreshKey, &m.Account, &expiredAt, &createdAt, &updatedAt); err != nil {
+			&m.Account, &expiredAt, &createdAt, &updatedAt); err != nil {
 			return nil, err
 		}
 
@@ -419,14 +424,13 @@ func (s *mcpStore) ListAuthenticated() ([]*input_itf.MCPEntity, error) {
 
 func (s *mcpStore) UpsertCredentials(mcp *input_itf.MCPEntity) error {
 	_, err := s.db.Exec(`INSERT INTO mcp_credentials
-		(name, client_id, token_endpoint, encrypted_oauth_key, encrypted_refresh_key,
+		(name, client_id, token_endpoint, encrypted_oauth_key,
 		account, expired_at, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(name) DO UPDATE SET
 			client_id = excluded.client_id,
 			token_endpoint = excluded.token_endpoint,
 			encrypted_oauth_key = excluded.encrypted_oauth_key,
-			encrypted_refresh_key = excluded.encrypted_refresh_key,
 			account = excluded.account,
 			expired_at = excluded.expired_at,
 			updated_at = excluded.updated_at`,
@@ -434,7 +438,6 @@ func (s *mcpStore) UpsertCredentials(mcp *input_itf.MCPEntity) error {
 		mcp.ClientID,
 		mcp.TokenEndpoint,
 		mcp.EncryptedOAuthKey,
-		mcp.EncryptedRefreshKey,
 		mcp.Account,
 		formatTime(mcp.ExpiredAt),
 		formatTime(mcp.CreatedAt),
@@ -448,10 +451,10 @@ func (s *mcpStore) GetCredentials(name string) (*input_itf.MCPEntity, error) {
 	var expiredAt, createdAt, updatedAt string
 
 	err := s.db.QueryRow(`SELECT name, client_id, token_endpoint, encrypted_oauth_key,
-		encrypted_refresh_key, account, expired_at, created_at, updated_at
+		account, expired_at, created_at, updated_at
 		FROM mcp_credentials WHERE name = ?`, name).
 		Scan(&m.Name, &m.ClientID, &m.TokenEndpoint, &m.EncryptedOAuthKey,
-			&m.EncryptedRefreshKey, &m.Account, &expiredAt, &createdAt, &updatedAt)
+			&m.Account, &expiredAt, &createdAt, &updatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
@@ -471,58 +474,10 @@ func (s *mcpStore) DeleteCredentials(name string) error {
 	return err
 }
 
-func (s *taskStore) Find(taskID uuid.UUID) (*input_itf.TaskEntity, error) {
-	t := &input_itf.TaskEntity{}
-
-	var id, sessionID, model, thinkingLevel, allowance string
-	var systemPrompts, allowedPaths, dependsOnIDs string
-	var status, lastReportID string
-	var createdAt, updatedAt string
-
-	err := s.db.QueryRow(`SELECT id, session_id, name, agent_role, preferred_model,
-		thinking_level, system_prompts, auto_retry, manual_accept_required,
-		file_write_allowance, allowed_file_paths, extra_guidance,
-		retry_count, status, depends_on_task_ids, last_report_id, created_at, updated_at
-		FROM tasks WHERE id = ?`, taskID.String()).
-		Scan(&id, &sessionID, &t.Name, &t.AgentRole, &model,
-			&thinkingLevel, &systemPrompts, &t.AutoRetry, &t.ManualAcceptRequired,
-			&allowance, &allowedPaths, &t.ExtraGuidance,
-			&t.RetryCount, &status, &dependsOnIDs, &lastReportID, &createdAt, &updatedAt)
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-
-	t.ID = parseUUID(id)
-	t.SessionID = parseUUID(sessionID)
-	t.PreferredModel = enums.ModelName(model)
-	t.ThinkingLevel = enums.ThinkingLevel(thinkingLevel)
-	t.FileWriteAllowance = enums.FileAllowance(allowance)
-	t.Status = enums.TaskStatus(status)
-	t.LastReportID = parseUUID(lastReportID)
-	t.CreatedAt = parseTime(createdAt)
-	t.UpdatedAt = parseTime(updatedAt)
-
-	if err := json.Unmarshal([]byte(systemPrompts), &t.SystemPrompts); err != nil {
-		return nil, err
-	}
-	if err := json.Unmarshal([]byte(allowedPaths), &t.AllowedFilePaths); err != nil {
-		return nil, err
-	}
-	if err := json.Unmarshal([]byte(dependsOnIDs), &t.DependsOnTaskIDs); err != nil {
-		return nil, err
-	}
-
-	return t, nil
-}
-
 func (s *taskStore) SaveTaskHistory(
 	sessions []*input_itf.SessionEntity,
 	tasks []*input_itf.TaskEntity,
 	reports []*input_itf.TaskReportEntity,
-	fileChanges []*input_itf.FileChangeEntity,
 ) error {
 	tx, err := s.db.Begin()
 	if err != nil {
@@ -544,12 +499,6 @@ func (s *taskStore) SaveTaskHistory(
 
 	for _, r := range reports {
 		if err := saveReport(tx, r); err != nil {
-			return err
-		}
-	}
-
-	for _, fc := range fileChanges {
-		if err := saveFileChange(tx, fc); err != nil {
 			return err
 		}
 	}
@@ -581,33 +530,25 @@ func saveTask(e execer, t *input_itf.TaskEntity) error {
 		return err
 	}
 
-	allowedPaths, err := json.Marshal(t.AllowedFilePaths)
-	if err != nil {
-		return err
-	}
-
 	dependsOnIDs, err := json.Marshal(t.DependsOnTaskIDs)
 	if err != nil {
 		return err
 	}
 
 	_, err = e.Exec(`INSERT OR REPLACE INTO tasks
-		(id, session_id, name, agent_role, preferred_model, thinking_level, system_prompts,
-		auto_retry, manual_accept_required, file_write_allowance,
-		allowed_file_paths, extra_guidance, retry_count, status, depends_on_task_ids,
+		(id, session_id, name, preferred_model, thinking_level, system_prompts,
+		auto_retry, manual_accept_required,
+		extra_guidance, retry_count, status, depends_on_task_ids,
 		last_report_id, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		t.ID.String(),
 		t.SessionID.String(),
 		t.Name,
-		t.AgentRole,
 		string(t.PreferredModel),
 		string(t.ThinkingLevel),
 		string(systemPrompts),
 		t.AutoRetry,
 		t.ManualAcceptRequired,
-		string(t.FileWriteAllowance),
-		string(allowedPaths),
 		t.ExtraGuidance,
 		t.RetryCount,
 		string(t.Status),
@@ -650,22 +591,6 @@ func saveReport(e execer, r *input_itf.TaskReportEntity) error {
 		formatTime(r.CompletedAt),
 		formatTime(r.CreatedAt),
 		formatTime(r.UpdatedAt),
-	)
-	return err
-}
-
-func saveFileChange(e execer, fc *input_itf.FileChangeEntity) error {
-	_, err := e.Exec(`INSERT OR REPLACE INTO file_changes
-		(id, report_id, path, old_path, change_type, additions, deletions, unified_diff)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-		fc.ID.String(),
-		fc.ReportID.String(),
-		fc.Path,
-		fc.OldPath,
-		fc.ChangeType.String(),
-		fc.Additions,
-		fc.Deletions,
-		fc.UnifiedDiff,
 	)
 	return err
 }

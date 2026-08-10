@@ -1,7 +1,8 @@
 import {ContextDonut} from '@/features/sessions/components/inspector/context-donut'
-import {FileChanges} from '@/features/sessions/components/inspector/file-changes'
 import {HandoverDocs} from '@/features/sessions/components/inspector/handover-docs'
-import type {Task} from '@/features/sessions/types'
+import {RevertStepDialog} from '@/features/sessions/components/inspector/revert-step-dialog'
+import {TaskDiff} from '@/features/sessions/components/inspector/task-diff'
+import type {Session, Task} from '@/features/sessions/types'
 import {agentDefaultFor} from '@/features/settings/agent-default'
 import type {AgentDefault} from '@/features/settings/types'
 import {useAgentDefaults} from '@/features/settings/use-agent-defaults'
@@ -12,9 +13,13 @@ import {useTemplate} from '@/features/templates/use-templates'
 import {DialogShell} from '@/shared/components/dialog-shell'
 import {StateBadge} from '@/shared/components/task-state'
 import {useElapsed} from '@/shared/hooks/use-elapsed'
+import {useToggle} from '@/shared/hooks/use-toggle'
 import {TASK_LEVEL_LABELS, TaskState, THINKING_LEVEL_LABELS} from '@/shared/lib/enums'
 import {formatMoment, formatPercent} from '@/shared/lib/format'
 import {Button} from '@/shared/ui/button'
+
+/** A step only has a snapshot to go back to once it has reported. */
+const REVERTABLE = new Set<TaskState>([TaskState.Done, TaskState.Failed])
 
 function summarize(template?: Template, agentDefault?: AgentDefault) {
     return [
@@ -66,82 +71,126 @@ function Stat({label, value}: {label: string; value: string}) {
     )
 }
 
-export function TaskStatusDialog({task, onClose}: {task: Task; onClose: () => void}) {
+export function TaskStatusDialog({
+    session,
+    task,
+    reverting,
+    onRevert,
+    onClose,
+}: {
+    session: Session
+    task: Task
+    reverting: boolean
+    onRevert: () => void
+    onClose: () => void
+}) {
     const {defaults} = useAgentDefaults()
     const template = useTemplate(task.templateId)
     const agentDefault = agentDefaultFor(defaults, template?.taskLevel)
+    const confirm = useToggle()
 
     const run = task.run
     const context = run?.context
     const elapsed = useElapsed(run?.startedAt, run?.finishedAt)
     const retried = run?.retryCount !== undefined && run.retryCount > 0
 
+    const revert = () => {
+        confirm.close()
+        onRevert()
+    }
+
     return (
-        <DialogShell
-            onClose={onClose}
-            title={task.title || 'Untitled node'}
-            description={summarize(template, agentDefault)}
-            aside={<StateBadge state={task.state} />}
-            footer={
-                <>
-                    <span className="min-w-0 flex-1 truncate font-mono text-xs text-muted-foreground">
-                        {task.id}
-                    </span>
-                    <Button variant="outline" size="sm" onClick={onClose}>
-                        Close
-                    </Button>
-                </>
-            }
-        >
-            <div className="divide-y divide-border">
-                {run ? (
+        <>
+            <DialogShell
+                onClose={onClose}
+                title={task.title || 'Untitled node'}
+                description={summarize(template, agentDefault)}
+                aside={<StateBadge state={task.state} />}
+                footer={
                     <>
-                        <div className="grid grid-cols-2 gap-2 px-4 py-4">
-                            <Stat label="Started" value={formatMoment(run.startedAt)} />
-                            <Stat
-                                label={task.state === TaskState.Cancelled ? 'Stopped' : 'Finished'}
-                                value={formatMoment(run.finishedAt)}
-                            />
-                            <Stat label="Elapsed" value={elapsed ?? '—'} />
-                            {retried && <Stat label="Retries" value={String(run.retryCount)} />}
-                        </div>
-
-                        {context && (
-                            <div className="flex items-center gap-4 px-4 py-4">
-                                <ContextDonut used={context.used} total={context.total} />
-                                <div className="flex min-w-0 flex-col gap-2">
-                                    <span className="micro-label">Context</span>
-                                    <span className="font-mono text-lg leading-none">
-                                        {formatPercent(context.used, context.total)}% used
-                                    </span>
-                                </div>
-                            </div>
+                        <span className="min-w-0 flex-1 truncate font-mono text-xs text-muted-foreground">
+                            {task.id}
+                        </span>
+                        {REVERTABLE.has(task.state) && (
+                            <Button
+                                variant="destructive"
+                                size="sm"
+                                disabled={reverting}
+                                onClick={confirm.open}
+                            >
+                                {reverting ? 'Reverting…' : 'Revert to this step'}
+                            </Button>
                         )}
+                        <Button variant="outline" size="sm" onClick={onClose}>
+                            Close
+                        </Button>
                     </>
-                ) : (
-                    <p className="px-4 py-4 text-base text-muted-foreground">{emptyLine(task)}</p>
-                )}
-
-                {template && template.params.length > 0 && (
-                    <ReadOnlyInputs template={template} task={task} />
-                )}
-
-                {run &&
-                    (task.report ? (
+                }
+            >
+                <div className="divide-y divide-border">
+                    {run ? (
                         <>
-                            <div className="px-4 py-4">
-                                <FileChanges changes={task.report.fileChanges} />
+                            <div className="grid grid-cols-2 gap-2 px-4 py-4">
+                                <Stat label="Started" value={formatMoment(run.startedAt)} />
+                                <Stat
+                                    label={
+                                        task.state === TaskState.Cancelled ? 'Stopped' : 'Finished'
+                                    }
+                                    value={formatMoment(run.finishedAt)}
+                                />
+                                <Stat label="Elapsed" value={elapsed ?? '—'} />
+                                {retried && <Stat label="Retries" value={String(run.retryCount)} />}
                             </div>
-                            <div className="px-4 py-4">
-                                <HandoverDocs docs={task.report.handoverDocs} />
-                            </div>
+
+                            {context && (
+                                <div className="flex items-center gap-4 px-4 py-4">
+                                    <ContextDonut used={context.used} total={context.total} />
+                                    <div className="flex min-w-0 flex-col gap-2">
+                                        <span className="micro-label">Context</span>
+                                        <span className="font-mono text-lg leading-none">
+                                            {formatPercent(context.used, context.total)}% used
+                                        </span>
+                                    </div>
+                                </div>
+                            )}
                         </>
                     ) : (
                         <p className="px-4 py-4 text-base text-muted-foreground">
-                            {pendingLine(task)}
+                            {emptyLine(task)}
                         </p>
-                    ))}
-            </div>
-        </DialogShell>
+                    )}
+
+                    {template && template.params.length > 0 && (
+                        <ReadOnlyInputs template={template} task={task} />
+                    )}
+
+                    {run &&
+                        (task.report ? (
+                            <>
+                                <div className="px-4 py-4">
+                                    <TaskDiff sessionId={session.id} taskId={task.id} />
+                                </div>
+                                <div className="px-4 py-4">
+                                    <HandoverDocs docs={task.report.handoverDocs} />
+                                </div>
+                            </>
+                        ) : (
+                            <p className="px-4 py-4 text-base text-muted-foreground">
+                                {pendingLine(task)}
+                            </p>
+                        ))}
+                </div>
+            </DialogShell>
+
+            {confirm.on && (
+                <RevertStepDialog
+                    session={session}
+                    task={task}
+                    busy={reverting}
+                    onConfirm={revert}
+                    onClose={confirm.close}
+                />
+            )}
+        </>
     )
 }

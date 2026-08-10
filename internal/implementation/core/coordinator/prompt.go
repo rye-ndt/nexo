@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"hexago/internal/helpers/constances"
-	"hexago/internal/helpers/enums"
 	core_itf "hexago/internal/interface/core"
 )
 
@@ -50,7 +49,6 @@ func buildPrompt(spec *core_itf.TaskSpec, status *core_itf.SessionStatus) string
 
 	b.WriteString("\nYou are already running inside " + status.WorkingDirPath + "; all work happens there.\n")
 
-	writeWriteAllowance(b, spec)
 	writeHandovers(b, spec, status)
 
 	if spec.ManualAcceptRequired {
@@ -62,18 +60,6 @@ func buildPrompt(spec *core_itf.TaskSpec, status *core_itf.SessionStatus) string
 	b.WriteString(tldrInstruction)
 
 	return b.String()
-}
-
-func writeWriteAllowance(b *strings.Builder, spec *core_itf.TaskSpec) {
-	if spec.FileWriteAllowance != enums.Restricted || len(spec.AllowedFilePaths) == 0 {
-		return
-	}
-
-	b.WriteString("\nYou may only write these paths:\n")
-
-	for _, path := range spec.AllowedFilePaths {
-		b.WriteString("- " + path + "\n")
-	}
 }
 
 func writeHandovers(b *strings.Builder, spec *core_itf.TaskSpec, status *core_itf.SessionStatus) {

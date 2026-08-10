@@ -21,6 +21,7 @@ import (
 	"hexago/internal/implementation/input/http_cli"
 	"hexago/internal/implementation/input/storage"
 	"hexago/internal/implementation/input/wal"
+	"hexago/internal/implementation/input/workspace_history"
 	"hexago/internal/implementation/output/app_builder"
 	wails_api "hexago/internal/implementation/output/fe_api"
 	"hexago/internal/implementation/output/logger"
@@ -80,6 +81,11 @@ func wire(assets fs.FS) (*App, error) {
 		return nil, err
 	}
 
+	history, err := workspace_history.InitV1(filepath.Join(dataDir, "sessions"))
+	if err != nil {
+		return nil, err
+	}
+
 	userCfg, err := user_config.InitV1(filepath.Join(dataDir, "user_config.json"))
 	if err != nil {
 		return nil, err
@@ -131,7 +137,7 @@ func wire(assets fs.FS) (*App, error) {
 
 	sessionManager.TrackLiveAgents(agentManager)
 
-	sessionCoordinator, err := coordinator.InitV1(cfg.Read().Session, sessionManager, agentManager)
+	sessionCoordinator, err := coordinator.InitV1(cfg.Read().Session, sessionManager, agentManager, history, appLogger)
 	if err != nil {
 		return nil, err
 	}
@@ -148,6 +154,7 @@ func wire(assets fs.FS) (*App, error) {
 		Templates:    templateManager,
 		Sessions:     sessionManager,
 		Coordinator:  sessionCoordinator,
+		History:      history,
 		UserConfig:   userCfg,
 		Drafts:       store.DraftStore(),
 		DataWarning:  dataWarning,

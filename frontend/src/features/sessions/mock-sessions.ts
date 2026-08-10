@@ -1,5 +1,5 @@
 import type {TaskState} from '@/shared/lib/enums'
-import type {FileChange, HandoverDoc, Session, Task, TaskReport} from '@/features/sessions/types'
+import type {HandoverDoc, Session, Task, TaskReport} from '@/features/sessions/types'
 
 const secondsAgo = (seconds: number) => new Date(Date.now() - seconds * 1000).toISOString()
 
@@ -25,186 +25,6 @@ function handover(
         ...doc,
     }
 }
-
-const CHANGES: Record<string, FileChange> = {
-    proxyDeadline: {
-        path: 'internal/implementation/mcp_proxy/v1.go',
-        oldPath: '',
-        changeType: 'modified',
-        additions: 11,
-        deletions: 4,
-        unifiedDiff: `--- a/internal/implementation/mcp_proxy/v1.go
-+++ b/internal/implementation/mcp_proxy/v1.go
-@@ -38,10 +38,17 @@ func (p *proxyV1) Forward(req *output_itf.MCPRequest) (*output_itf.MCPResponse,
-     if req == nil {
-         return nil, custom_error.Critical("forward called with no request")
-     }
-
--    resp, err := p.client.Do(req.HTTP())
--    if err != nil {
--        return nil, err
--    }
-+    ctx, cancel := context.WithTimeout(p.ctx, p.deadline)
-+    defer cancel()
-+
-+    resp, err := p.client.Do(req.HTTP().WithContext(ctx))
-+    if err != nil {
-+        if errors.Is(err, context.DeadlineExceeded) {
-+            return nil, custom_error.TypedCritical(enums.ErrorTypeUpstream, err)
-+        }
-+        return nil, custom_error.Critical(err.Error())
-+    }
-
-     return output_itf.ReadMCPResponse(resp)
- }`,
-    },
-    proxyConfig: {
-        path: 'internal/implementation/config/v1.go',
-        oldPath: '',
-        changeType: 'modified',
-        additions: 6,
-        deletions: 0,
-        unifiedDiff: `--- a/internal/implementation/config/v1.go
-+++ b/internal/implementation/config/v1.go
-@@ -22,6 +22,12 @@ type Config struct {
-     Agents   AgentsConfig   \`mapstructure:"agents"\`
-     Database DatabaseConfig \`mapstructure:"database"\`
-+    MCPProxy MCPProxyConfig \`mapstructure:"mcp_proxy"\`
- }
-+
-+type MCPProxyConfig struct {
-+    ForwardDeadline time.Duration \`mapstructure:"forward_deadline"\`
-+}`,
-    },
-    proxyYaml: {
-        path: 'config.yaml',
-        oldPath: '',
-        changeType: 'modified',
-        additions: 3,
-        deletions: 0,
-        unifiedDiff: `--- a/config.yaml
-+++ b/config.yaml
-@@ -9,3 +9,6 @@ database:
-   path: ./harness.db
-
-+mcp_proxy:
-+  forward_deadline: 20s
-+`,
-    },
-    proxyDocs: {
-        path: 'README.md',
-        oldPath: '',
-        changeType: 'modified',
-        additions: 2,
-        deletions: 1,
-        unifiedDiff: `--- a/README.md
-+++ b/README.md
-@@ -74,7 +74,8 @@ The proxy sits between the agent and every MCP server it may reach.
--Forwarded calls inherit the agent's lifetime, so a hung server hangs the node.
-+Forwarded calls carry a deadline from \`mcp_proxy.forward_deadline\`, so a hung
-+server fails one call instead of stalling the node that made it.`,
-    },
-    walReplay: {
-        path: 'internal/implementation/wal/replay.go',
-        oldPath: '',
-        changeType: 'modified',
-        additions: 9,
-        deletions: 1,
-        unifiedDiff: `--- a/internal/implementation/wal/replay.go
-+++ b/internal/implementation/wal/replay.go
-@@ -55,7 +55,15 @@ func (w *walV1) Replay(from uint64) ([]*output_itf.Record, error) {
-     for offset < size {
-         record, err := decode(chunk)
-         if err != nil {
--            return nil, err
-+            if errors.Is(err, errTornRecord) {
-+                w.log.Warn("torn record, stopping replay", "offset", offset)
-+                break
-+            }
-+
-+            return nil, custom_error.TypedCritical(enums.ErrorTypeCorrupt, err)
-         }
-
-         records = append(records, record)`,
-    },
-    walProbe: {
-        path: 'internal/implementation/wal/torn_record.go',
-        oldPath: '',
-        changeType: 'created',
-        additions: 24,
-        deletions: 0,
-        unifiedDiff: `--- /dev/null
-+++ b/internal/implementation/wal/torn_record.go
-@@ -0,0 +1,24 @@
-+package wal
-+
-+import "errors"
-+
-+var errTornRecord = errors.New("record ends before its declared length")
-+
-+// a torn record is the last write the process did not finish, so it can only
-+// ever be the tail of the log
-+func isTorn(chunk []byte, declared int) bool {
-+    return len(chunk) < declared
-+}`,
-    },
-    sessionRename: {
-        path: 'internal/implementation/session_manager/v1.go',
-        oldPath: 'internal/implementation/task_manager/v1.go',
-        changeType: 'renamed',
-        additions: 5,
-        deletions: 5,
-        unifiedDiff: `--- a/internal/implementation/task_manager/v1.go
-+++ b/internal/implementation/session_manager/v1.go
-@@ -1,10 +1,10 @@
--package task_manager
-+package session_manager
-
- import (
-     "hexago/internal/interface/core"
- )
-
--type taskManagerV1 struct {
-+type sessionManagerV1 struct {
-     retry RetryPolicy
- }`,
-    },
-    retryTable: {
-        path: 'internal/implementation/session_manager/retry.go',
-        oldPath: '',
-        changeType: 'created',
-        additions: 18,
-        deletions: 0,
-        unifiedDiff: `--- /dev/null
-+++ b/internal/implementation/session_manager/retry.go
-@@ -0,0 +1,18 @@
-+package session_manager
-+
-+import "time"
-+
-+var backoff = []time.Duration{
-+    2 * time.Second,
-+    8 * time.Second,
-+    30 * time.Second,
-+}
-+
-+func (s *sessionManagerV1) waitBefore(attempt int) time.Duration {
-+    if attempt >= len(backoff) {
-+        return backoff[len(backoff)-1]
-+    }
-+
-+    return backoff[attempt]
-+}`,
-    },
-}
-
-const GENERATED_CHANGES = [
-    CHANGES.proxyDeadline,
-    CHANGES.retryTable,
-    CHANGES.walReplay,
-    CHANGES.proxyDocs,
-    CHANGES.sessionRename,
-]
 
 export const MOCK_SESSIONS: Session[] = [
     {
@@ -365,7 +185,6 @@ export const MOCK_SESSIONS: Session[] = [
                 },
                 report: {
                     status: 'awaiting_accept',
-                    fileChanges: [CHANGES.proxyDeadline, CHANGES.proxyConfig],
                     handoverDocs: [
                         handover({
                             task: 'Review the proxy deadline change',
@@ -444,7 +263,6 @@ export const MOCK_SESSIONS: Session[] = [
                 },
                 report: {
                     status: 'done',
-                    fileChanges: [CHANGES.sessionRename],
                     handoverDocs: [
                         handover({
                             task: 'Read the retry paths',
@@ -517,7 +335,6 @@ export const MOCK_SESSIONS: Session[] = [
                 },
                 report: {
                     status: 'done',
-                    fileChanges: [],
                     handoverDocs: [
                         handover({
                             task: 'Audit the forwarding path',
@@ -562,7 +379,6 @@ export const MOCK_SESSIONS: Session[] = [
                 },
                 report: {
                     status: 'done',
-                    fileChanges: [CHANGES.proxyDeadline, CHANGES.proxyConfig, CHANGES.proxyYaml],
                     handoverDocs: [
                         handover({
                             task: 'Add timeouts',
@@ -615,7 +431,6 @@ export const MOCK_SESSIONS: Session[] = [
                 },
                 report: {
                     status: 'done',
-                    fileChanges: [CHANGES.proxyDocs],
                     handoverDocs: [
                         handover({
                             task: 'Say so in the README',
@@ -661,7 +476,6 @@ export const MOCK_SESSIONS: Session[] = [
                 },
                 report: {
                     status: 'done',
-                    fileChanges: [CHANGES.walProbe, CHANGES.walReplay],
                     handoverDocs: [
                         handover({
                             task: 'Replay a truncated log',
@@ -704,7 +518,6 @@ export const MOCK_SESSIONS: Session[] = [
                 },
                 report: {
                     status: 'failed',
-                    fileChanges: [CHANGES.walProbe],
                     handoverDocs: [
                         handover({
                             task: 'Recover from a torn record mid-log',
@@ -769,7 +582,6 @@ export const MOCK_SESSIONS: Session[] = [
                 },
                 report: {
                     status: 'done',
-                    fileChanges: [],
                     handoverDocs: [
                         handover({
                             task: 'Trace the heartbeat path',
@@ -840,13 +652,6 @@ export type MockOutcome = {
 export function mockOutcome(task: Task): MockOutcome {
     const seed = seedOf(task.id)
     const failed = seed % 5 === 4
-    const first = seed % GENERATED_CHANGES.length
-    const count = failed ? 1 : 1 + (seed % 3)
-
-    const fileChanges = Array.from(
-        {length: count},
-        (_, index) => GENERATED_CHANGES[(first + index) % GENERATED_CHANGES.length],
-    )
 
     const doc = failed
         ? handover({
@@ -866,8 +671,8 @@ export function mockOutcome(task: Task): MockOutcome {
           })
         : handover({
               task: task.title,
-              tldr: `I made the change this step asked for, editing ${fileChanges.length} file${fileChanges.length === 1 ? '' : 's'} to do it.`,
-              outcome: `Finished. ${fileChanges.length} file${fileChanges.length === 1 ? '' : 's'} changed.`,
+              tldr: 'I made the change this step asked for, and left the working directory with the files it names.',
+              outcome: 'Finished. Open Files changed to read what landed on disk.',
               approvedDecisions: {
                   scope: 'Stayed inside the paths the prompt named.',
               },
@@ -886,7 +691,6 @@ export function mockOutcome(task: Task): MockOutcome {
         contextPeak: 0.42 + (seed % 47) / 100,
         report: {
             status: failed ? 'failed' : 'done',
-            fileChanges,
             handoverDocs: [doc],
         },
     }

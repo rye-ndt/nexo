@@ -121,6 +121,9 @@ export function useSessionStore() {
         answerTaskAcceptance: onActive((sessionId, taskId: string, accepted: boolean) =>
             store.answerTaskAcceptance({sessionId, taskId, accepted}),
         ),
+        revertToTask: onActive((sessionId, taskId: string, onSettled?: () => void) =>
+            store.revertToTask({sessionId, taskId}, {onSettled}),
+        ),
 
         connectTasks: onActive((sessionId, sourceId: string, targetId: string) =>
             connectTasks(sessionId, sourceId, targetId),
@@ -146,6 +149,7 @@ export function useSessionStore() {
         cancelling: store.cancellingSession,
         savingTaskInputs: store.savingTaskInputs,
         answeringTaskAcceptance: store.answeringTaskAcceptance,
+        revertingToTask: store.revertingToTask,
     }
 }
 

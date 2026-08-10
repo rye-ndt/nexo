@@ -104,13 +104,8 @@ func (p *openCodeProc) trackUsage(line []byte) {
 
 	p.usageMu.Lock()
 	p.usage = input_itf.ContextUsage{
-		Total:      p.ctxWindow,
-		Used:       used,
-		Input:      reported.Input,
-		Output:     reported.Output,
-		CacheRead:  reported.Cache.Read,
-		CacheWrite: reported.Cache.Write,
-		UpdatedAt:  helpers.NewUTC(),
+		Total: p.ctxWindow,
+		Used:  used,
 	}
 	p.usageMu.Unlock()
 }

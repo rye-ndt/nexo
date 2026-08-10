@@ -19,7 +19,6 @@ func Run(wal input_itf.TaskWAL, db input_itf.TaskStorage) error {
 	sessions := map[uuid.UUID]*input_itf.SessionEntity{}
 	tasks := map[uuid.UUID]*input_itf.TaskEntity{}
 	reports := []*input_itf.TaskReportEntity{}
-	fileChanges := []*input_itf.FileChangeEntity{}
 
 	for _, r := range records {
 		if r.Session != nil {
@@ -51,7 +50,6 @@ func Run(wal input_itf.TaskWAL, db input_itf.TaskStorage) error {
 			}
 			tasks[r.Task.ID] = r.Task
 			reports = append(reports, r.Report)
-			fileChanges = append(fileChanges, r.FileChanges...)
 		default:
 			corrupted = true
 		}
@@ -67,7 +65,7 @@ func Run(wal input_itf.TaskWAL, db input_itf.TaskStorage) error {
 		taskList = append(taskList, t)
 	}
 
-	if err := db.SaveTaskHistory(sessionList, taskList, reports, fileChanges); err != nil {
+	if err := db.SaveTaskHistory(sessionList, taskList, reports); err != nil {
 		return custom_error.Critical("cannot save wal history to db: %v", err)
 	}
 
