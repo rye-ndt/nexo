@@ -142,41 +142,12 @@ type AgentDefaultOptionsInfo struct {
 	ThinkingLevels []string           `json:"thinking_levels"`
 }
 
+// FEAPI is the lifecycle the app builder drives. The methods JavaScript actually
+// calls are not listed here on purpose: the builder hands the value to Wails as
+// `any`, so Wails reflects the concrete type and binds every exported method on
+// it. Re-declaring that surface here bound nothing — it only meant each new
+// screen's method had to be written twice and could drift.
 type FEAPI interface {
 	Startup(ctx context.Context)
 	Shutdown(ctx context.Context)
-	AgentStatuses() ([]AgentInfo, error)
-	InstallAgent(id string) error
-	AuthAgent(id string) (string, error)
-	SubmitAuthCode(id string, code string) error
-	PendingApprovals() ([]*ApprovalInfo, error)
-	AnswerApproval(requestID string, approved bool, optionIDs []string, guidance string) error
-	Templates() ([]*TemplateInfo, error)
-	Template(id string) (*TemplateInfo, error)
-	UpsertTemplate(template *TemplateInfo) (string, error)
-	RemoveTemplate(id string) error
-	UninstallAgent(id string) error
-	ChooseDirectory(title string) (string, error)
-	AgentDefaults() ([]*AgentDefaultInfo, error)
-	SetAgentDefault(taskLevel string, model string, thinkingLevel string) error
-	AgentDefaultOptions() (*AgentDefaultOptionsInfo, error)
-	Onboarded() bool
-	CompleteOnboarding() error
-	Autopilot() bool
-	SetAutopilot(on bool) error
-	RunSession(spec *RunSessionSpec) (*RunSessionResult, error)
-	SessionStatus(sessionID string) (*SessionStatusInfo, error)
-	ResumeSession(sessionID string) error
-	CancelSession(sessionID string) error
-	TaskDiff(sessionID string, taskID string) ([]*FileChangeInfo, error)
-	RevertSessionTo(sessionID string, taskID string) error
-	RetrySessionTask(taskID string) error
-	AnswerTaskAcceptance(taskID string, accepted bool) error
-	SessionDrafts() ([]*SessionDraftInfo, error)
-	SaveSessionDraft(id string, doc string) error
-	DeleteSessionDraft(id string) error
-	MCPServers() ([]*MCPServerInfo, error)
-	AuthorizeMCPServer(name string) error
-	SetMCPCredential(name string, secret string) error
-	RevokeMCPServer(name string) error
 }
