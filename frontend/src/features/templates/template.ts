@@ -1,4 +1,5 @@
 import {ParamType, TaskLevel} from '@/shared/lib/enums'
+import {structureIssues} from '@/features/templates/output-structure'
 import type {
     FieldValue,
     ParamValue,
@@ -22,6 +23,7 @@ export function emptyTemplate(): TemplateDraft {
         manualAcceptRequired: false,
         params: [emptyParam()],
         systemPrompts: [{key: 'base', value: ''}],
+        outputStructure: '',
     }
 }
 
@@ -91,6 +93,7 @@ export function templateIssues(draft: TemplateDraft) {
     if (draft.systemPrompts.length === 0) issues.push(NO_PROMPTS_ISSUE)
     if (draft.systemPrompts.some((prompt) => !prompt.key.trim()))
         issues.push('Every prompt needs a key.')
+    if (draft.outputStructure.trim()) issues.push(...structureIssues(draft.outputStructure))
 
     return issues
 }

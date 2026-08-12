@@ -303,6 +303,7 @@ export namespace output_itf {
 	    prompt: string;
 	    task_level: string;
 	    system_prompts: string[];
+	    output_structure: string;
 	    depends_on: string[];
 	    auto_retry: boolean;
 	    manual_accept_required: boolean;
@@ -318,6 +319,7 @@ export namespace output_itf {
 	        this.prompt = source["prompt"];
 	        this.task_level = source["task_level"];
 	        this.system_prompts = source["system_prompts"];
+	        this.output_structure = source["output_structure"];
 	        this.depends_on = source["depends_on"];
 	        this.auto_retry = source["auto_retry"];
 	        this.manual_accept_required = source["manual_accept_required"];
@@ -495,6 +497,7 @@ export namespace output_itf {
 	    manual_accept_required: boolean;
 	    params: Record<string, TemplateParamInfo>;
 	    system_prompts: Record<string, string>;
+	    output_structure: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new TemplateInfo(source);
@@ -510,6 +513,7 @@ export namespace output_itf {
 	        this.manual_accept_required = source["manual_accept_required"];
 	        this.params = this.convertValues(source["params"], TemplateParamInfo, true);
 	        this.system_prompts = source["system_prompts"];
+	        this.output_structure = source["output_structure"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

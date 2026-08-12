@@ -127,9 +127,10 @@ var migrations = []string{
 	`ALTER TABLE tasks DROP COLUMN file_write_allowance`,
 	`ALTER TABLE tasks DROP COLUMN allowed_file_paths`,
 	`ALTER TABLE mcp_credentials DROP COLUMN encrypted_refresh_key`,
+	`ALTER TABLE agent_templates ADD COLUMN output_structure TEXT NOT NULL DEFAULT ''`,
 }
 
-const templateColumns = `id, name, role, task_level, retryable, manual_accept_required, params, system_prompts, created_at, updated_at`
+const templateColumns = `id, name, role, task_level, retryable, manual_accept_required, params, system_prompts, output_structure, created_at, updated_at`
 
 type litesql struct {
 	db *sql.DB
@@ -318,7 +319,7 @@ func (s *templateStore) Upsert(t *input_itf.TemplateEntity) error {
 	}
 
 	_, err = s.db.Exec(`INSERT INTO agent_templates (`+templateColumns+`)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(id) DO UPDATE SET
 			name = excluded.name,
 			role = excluded.role,
@@ -327,6 +328,7 @@ func (s *templateStore) Upsert(t *input_itf.TemplateEntity) error {
 			manual_accept_required = excluded.manual_accept_required,
 			params = excluded.params,
 			system_prompts = excluded.system_prompts,
+			output_structure = excluded.output_structure,
 			updated_at = excluded.updated_at`,
 		t.ID.String(),
 		t.Name,
@@ -336,6 +338,7 @@ func (s *templateStore) Upsert(t *input_itf.TemplateEntity) error {
 		t.ManualAcceptRequired,
 		string(params),
 		string(prompts),
+		t.OutputStructure,
 		formatTime(t.CreatedAt),
 		formatTime(t.UpdatedAt),
 	)
@@ -388,7 +391,7 @@ func scanTemplate(scan func(dest ...any) error) (*input_itf.TemplateEntity, erro
 	var id, taskLevel, params, prompts, createdAt, updatedAt string
 
 	if err := scan(&id, &t.Name, &t.Role, &taskLevel, &t.Retryable, &t.ManualAcceptRequired,
-		&params, &prompts, &createdAt, &updatedAt); err != nil {
+		&params, &prompts, &t.OutputStructure, &createdAt, &updatedAt); err != nil {
 		return nil, err
 	}
 

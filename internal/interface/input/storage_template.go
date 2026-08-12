@@ -24,6 +24,7 @@ type TemplateEntity struct {
 	ManualAcceptRequired bool
 	Params               map[string]*TemplateParamEntity `validate:"dive,keys,required,endkeys,required"`
 	SystemPrompts        map[string]string               `validate:"required,gt=0,dive,keys,required,endkeys,required"`
+	OutputStructure      string
 	CreatedAt            time.Time
 	UpdatedAt            time.Time
 }

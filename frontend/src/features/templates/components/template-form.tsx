@@ -17,6 +17,16 @@ import type {SystemPrompt, TemplateDraft, TemplateParam} from '@/features/templa
 
 const EMPTY_PROMPT: SystemPrompt = {key: '', value: ''}
 
+const STRUCTURE_EXAMPLE = `summary: one paragraph a non-programmer can follow
+findings:
+  - title: short label for this finding
+    severity: high | medium | low
+    detail: what was found and where
+next_steps: what should happen now`
+
+const STRUCTURE_HINT =
+    'One field per line, written as name: what goes in it. Indent two spaces to nest, and start a line with a dash to describe one element of a list. Leave this empty and the node reports in its own words.'
+
 function replaceAt<T>(list: T[], index: number, fields: Partial<T>) {
     return list.map((item, at) => (at === index ? {...item, ...fields} : item))
 }
@@ -40,6 +50,8 @@ export function TemplateForm({
     const changeLevel = (value: string) => patch({taskLevel: value as TaskLevel})
     const changeRetryable = (retryable: boolean) => patch({retryable})
     const changeManualAccept = (manualAcceptRequired: boolean) => patch({manualAcceptRequired})
+    const changeStructure = (event: ChangeEvent<HTMLTextAreaElement>) =>
+        patch({outputStructure: event.target.value})
 
     const addParam = () => patch({params: [...draft.params, emptyParam()]})
     const changeParam = (index: number, fields: Partial<TemplateParam>) =>
@@ -164,6 +176,17 @@ export function TemplateForm({
                     />
                 ))}
             </Section>
+
+            <Field htmlFor="template-structure" label="Output" hint={STRUCTURE_HINT}>
+                <Textarea
+                    id="template-structure"
+                    value={draft.outputStructure}
+                    placeholder={STRUCTURE_EXAMPLE}
+                    spellCheck={false}
+                    className="min-h-44 font-mono"
+                    onChange={changeStructure}
+                />
+            </Field>
         </div>
     )
 }

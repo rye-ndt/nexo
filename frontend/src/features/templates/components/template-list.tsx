@@ -3,6 +3,7 @@ import {Pencil, Plus, Trash2} from 'lucide-react'
 
 import {Button} from '@/shared/ui/button'
 import {ConfirmDialog} from '@/shared/components/confirm-dialog'
+import {StatusChip} from '@/shared/components/status-chip'
 import {TaskLevelTag} from '@/shared/components/task-level-tag'
 import {paramSignature} from '@/features/templates/template'
 import type {Template} from '@/features/templates/types'
@@ -83,6 +84,9 @@ function TemplateCard({
                 <span className="flex items-center gap-2 pr-16">
                     <span className="truncate text-base font-medium">{template.name}</span>
                     <TaskLevelTag taskLevel={template.taskLevel} />
+                    {template.outputStructure.trim() && (
+                        <StatusChip tone="info">Structured</StatusChip>
+                    )}
                     {!template.retryable && (
                         <span className="shrink-0 text-xs text-muted-foreground">no retry</span>
                     )}

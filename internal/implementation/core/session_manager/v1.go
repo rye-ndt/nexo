@@ -257,6 +257,7 @@ func (s *v1) AddTask(sessionID uuid.UUID, task *core_itf.AddTask) (uuid.UUID, er
 		Name:                 task.Name,
 		PreferredModel:       task.AgentSpecs.Name,
 		ThinkingLevel:        task.AgentSpecs.ThinkingLevel,
+		SystemPrompts:        withOutputStructure(task.AgentSpecs.SystemPrompts, task.OutputStructure),
 		AutoRetry:            task.AutoRetry,
 		ManualAcceptRequired: task.ManualAcceptRequired,
 		ExtraGuidance:        task.ExtraGuidance,

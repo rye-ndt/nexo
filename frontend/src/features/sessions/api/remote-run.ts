@@ -82,6 +82,7 @@ async function buildRunSpec(session: Session): Promise<output_itf.RunSessionSpec
                 prompt: resolvedPrompt(task),
                 task_level: template?.taskLevel ?? TaskLevel.Daily,
                 system_prompts: template?.systemPrompts.map((prompt) => prompt.value) ?? [],
+                output_structure: template?.outputStructure ?? '',
                 depends_on: [...task.dependsOn],
                 auto_retry: false,
                 manual_accept_required: template?.manualAcceptRequired ?? false,

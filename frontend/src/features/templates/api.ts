@@ -55,6 +55,7 @@ function toTemplate(info: output_itf.TemplateInfo): Template {
         systemPrompts: Object.entries(info.system_prompts ?? {})
             .sort(byKey)
             .map(([key, value]) => ({key, value})),
+        outputStructure: info.output_structure ?? '',
     }
 }
 
@@ -81,6 +82,7 @@ function toInfo(draft: TemplateDraft): output_itf.TemplateInfo {
         system_prompts: Object.fromEntries(
             draft.systemPrompts.map((prompt) => [prompt.key, prompt.value]),
         ),
+        output_structure: draft.outputStructure,
     })
 }
 

@@ -52,6 +52,7 @@ func (m *v1) Upsert(template *core_itf.Template) (uuid.UUID, error) {
 		ManualAcceptRequired: template.ManualAcceptRequired,
 		Params:               paramEntities(template.Params),
 		SystemPrompts:        prompts(template.SystemPrompts),
+		OutputStructure:      strings.TrimSpace(template.OutputStructure),
 		CreatedAt:            now,
 		UpdatedAt:            now,
 	}
@@ -173,5 +174,6 @@ func template(entity *input_itf.TemplateEntity) *core_itf.Template {
 		ManualAcceptRequired: entity.ManualAcceptRequired,
 		Params:               params,
 		SystemPrompts:        prompts(entity.SystemPrompts),
+		OutputStructure:      entity.OutputStructure,
 	}
 }

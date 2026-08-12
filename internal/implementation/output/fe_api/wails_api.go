@@ -320,6 +320,7 @@ func (a *API) UpsertTemplate(template *output_itf.TemplateInfo) (string, error) 
 		ManualAcceptRequired: template.ManualAcceptRequired,
 		Params:               params,
 		SystemPrompts:        template.SystemPrompts,
+		OutputStructure:      template.OutputStructure,
 	})
 	if err != nil {
 		return "", err
@@ -363,6 +364,7 @@ func templateInfo(template *core_itf.Template) *output_itf.TemplateInfo {
 		ManualAcceptRequired: template.ManualAcceptRequired,
 		Params:               params,
 		SystemPrompts:        template.SystemPrompts,
+		OutputStructure:      template.OutputStructure,
 	}
 }
 
@@ -515,6 +517,7 @@ func (a *API) addSessionTask(sessionID uuid.UUID, task *output_itf.RunTaskSpec, 
 		AutoRetry:            task.AutoRetry,
 		ManualAcceptRequired: task.ManualAcceptRequired && !autopilot,
 		ExtraGuidance:        task.Prompt,
+		OutputStructure:      task.OutputStructure,
 		DependsOn:            deps,
 		AgentSpecs: &core_itf.AgentRequest{
 			Name:          agentDefault.Model,

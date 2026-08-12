@@ -12,6 +12,7 @@ type AddTask struct {
 	AutoRetry            bool
 	ManualAcceptRequired bool
 	ExtraGuidance        string
+	OutputStructure      string
 	DependsOn            []uuid.UUID
 	AgentSpecs           *AgentRequest
 }

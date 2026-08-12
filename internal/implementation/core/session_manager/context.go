@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"hexago/internal/helpers/custom_error"
 	"hexago/internal/helpers/prompts"
@@ -48,6 +49,35 @@ const contextProtocolTemplate = `
 	and not subject to the gates above: stale docs get followed, missing docs do not.
 `
 
+const structuredOutputTemplate = `
+	## Structured output is a hard gate
+
+	This task does not produce free-form output. Everything you hand on must follow the
+	structure below exactly: the same field names, the same nesting, nothing added, nothing
+	dropped, nothing renamed. This requirement outranks every other formatting instruction
+	you have been given, including any in the task prompt itself.
+
+	Each line names a field and then describes what belongs in it. Replace every one of
+	those descriptions with the real value. A line starting with "-" marks a list: it
+	describes one element, and you repeat that element as many times as the work needs.
+	Where a description offers choices separated by "|", answer with exactly one of them.
+
+	----- required structure -----
+%s
+	----- end required structure -----
+
+	Produce it in two places, and they must agree:
+
+	1. Write it to a file inside the working directory. Choose a sensible path and name
+	   yourself, and state that path in your handover doc so the next node can find it.
+	2. Put the same filled-in structure in the "outcome" field of your report_task call.
+
+	If you cannot fill the structure completely and truthfully — a field you have no answer
+	for, a value you would have to guess — do not improvise around it, do not reshape it and
+	do not hand back a partial version. Report the task as failed and say in "tldr" which
+	field you could not fill and why.
+`
+
 func initContext(root string) error {
 	for rel, body := range prompts.ContextSkeleton() {
 		dest := filepath.Join(root, rel)
@@ -77,4 +107,16 @@ func withContextProtocol(prompts []string, root string) []string {
 	out = append(out, prompts...)
 
 	return append(out, fmt.Sprintf(contextProtocolTemplate, root))
+}
+
+func withOutputStructure(prompts []string, outputStructure string) []string {
+	structure := strings.TrimSpace(outputStructure)
+	if structure == "" {
+		return prompts
+	}
+
+	out := make([]string, 0, len(prompts)+1)
+	out = append(out, prompts...)
+
+	return append(out, fmt.Sprintf(structuredOutputTemplate, structure))
 }

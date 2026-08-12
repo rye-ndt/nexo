@@ -23,6 +23,7 @@ type Template struct {
 	ManualAcceptRequired bool
 	Params               map[string]*TemplateParams
 	SystemPrompts        map[string]string
+	OutputStructure      string
 }
 
 type AgentTemplateManager interface {

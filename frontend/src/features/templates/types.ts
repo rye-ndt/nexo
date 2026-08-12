@@ -23,6 +23,8 @@ export type Template = {
     manualAcceptRequired: boolean
     params: TemplateParam[]
     systemPrompts: SystemPrompt[]
+    /** The fields every node must return, or empty for a free handover. */
+    outputStructure: string
 }
 
 export type TemplateDraft = Omit<Template, 'id'> & {id?: string}

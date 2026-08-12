@@ -40,6 +40,7 @@ type TemplateInfo struct {
 	ManualAcceptRequired bool                          `json:"manual_accept_required"`
 	Params               map[string]*TemplateParamInfo `json:"params"`
 	SystemPrompts        map[string]string             `json:"system_prompts"`
+	OutputStructure      string                        `json:"output_structure"`
 }
 
 type RunTaskSpec struct {
@@ -48,6 +49,7 @@ type RunTaskSpec struct {
 	Prompt               string   `json:"prompt"`
 	TaskLevel            string   `json:"task_level"`
 	SystemPrompts        []string `json:"system_prompts"`
+	OutputStructure      string   `json:"output_structure"`
 	DependsOn            []string `json:"depends_on"`
 	AutoRetry            bool     `json:"auto_retry"`
 	ManualAcceptRequired bool     `json:"manual_accept_required"`

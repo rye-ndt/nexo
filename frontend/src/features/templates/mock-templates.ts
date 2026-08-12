@@ -15,6 +15,12 @@ export const MOCK_TEMPLATES: Template[] = [
                 value: 'You review code. Report only defects you can point to a line for, ranked by severity. Say nothing about style.',
             },
         ],
+        outputStructure: `verdict: ship | fix first | needs a rewrite
+defects:
+  - file: path and line the defect sits on
+    severity: high | medium | low
+    proof: what makes this wrong rather than unusual
+recommendation: what the next node should do about it`,
     },
     {
         id: '0192f3a1-0002-7000-8000-000000000002',
@@ -50,6 +56,7 @@ export const MOCK_TEMPLATES: Template[] = [
                 value: 'You write tests. Cover the branches a reader would doubt, run them, and report failures verbatim.',
             },
         ],
+        outputStructure: '',
     },
     {
         id: '0192f3a1-0004-7000-8000-000000000004',
@@ -79,6 +86,7 @@ export const MOCK_TEMPLATES: Template[] = [
                 value: 'Fetch the ticket at https://atlassian/tickets/{{ticket_id}} and restate it as a task with a definition of done. Quote the acceptance criteria verbatim.',
             },
         ],
+        outputStructure: '',
     },
     {
         id: '0192f3a1-0003-7000-8000-000000000003',
@@ -102,5 +110,6 @@ export const MOCK_TEMPLATES: Template[] = [
                 value: 'You keep documentation honest. Fix what the code contradicts and leave the voice alone.',
             },
         ],
+        outputStructure: '',
     },
 ]
