@@ -154,5 +154,3 @@ export function useSessionStore() {
 }
 
 export type SessionStore = ReturnType<typeof useSessionStore>
-
-export type ActiveSession = SessionStore['active']

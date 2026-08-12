@@ -6,7 +6,7 @@ import type {TaskLevel, ThinkingLevel} from '@/shared/lib/enums'
 const AGENT_DEFAULTS_KEY = ['agent-defaults']
 const AGENT_DEFAULT_OPTIONS_KEY = ['agent-default-options']
 
-export type AgentDefaultEdit = {
+type AgentDefaultEdit = {
     taskLevel: TaskLevel
     model: string
     thinkingLevel: ThinkingLevel

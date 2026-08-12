@@ -74,8 +74,3 @@ export function forgetMockApprovals(agentIds: Iterable<string>): void {
 
     pending = pending.filter((approval) => !dropped.has(approval.agentId))
 }
-
-export function clearMockApprovals(): void {
-    pending = []
-    answers.clear()
-}

@@ -33,7 +33,7 @@ export function overallRatio(dependencies: Dependency[]): number {
     return clampRatio(total / dependencies.length)
 }
 
-export function formatBytes(bytes: number): string {
+function formatBytes(bytes: number): string {
     if (bytes < 1024) return `${bytes} B`
 
     const kilobytes = bytes / 1024

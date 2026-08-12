@@ -17,7 +17,7 @@ const WAITING_STATES = new Set<TaskState>([TaskState.Idle, TaskState.Queued, Tas
 
 const NODE_STAGGER = 40
 
-export function isSettled(state: TaskState) {
+function isSettled(state: TaskState) {
     return SETTLED_STATES.has(state)
 }
 
@@ -248,10 +248,6 @@ export function upstreamOf(session: Session, task: Task) {
         .filter((candidate): candidate is Task => Boolean(candidate))
 }
 
-export function downstreamOf(session: Session, task: Task) {
-    return session.tasks.filter((other) => other.dependsOn.includes(task.id))
-}
-
 function reachable(adjacency: Map<string, string[]>, from: string) {
     const seen = new Set<string>()
     const stack = [...(adjacency.get(from) ?? [])]
@@ -266,7 +262,7 @@ function reachable(adjacency: Map<string, string[]>, from: string) {
     return seen
 }
 
-export function ancestorsOf(tasks: Task[], taskId: string) {
+function ancestorsOf(tasks: Task[], taskId: string) {
     return reachable(new Map(tasks.map((task) => [task.id, task.dependsOn])), taskId)
 }
 

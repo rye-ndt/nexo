@@ -1,6 +1,6 @@
 import {useCallback, useState} from 'react'
 
-export type Toggle = {
+type Toggle = {
     on: boolean
     open: () => void
     close: () => void

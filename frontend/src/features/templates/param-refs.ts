@@ -10,7 +10,7 @@ const REFERENCE = /\{\{\s*([\w.-]+)\s*\}\}/g
 
 export const PARAM_REF_HINT = 'Wrap an input key in {{ }} to drop its value into the text.'
 
-export type PromptSegment = {
+type PromptSegment = {
     text: string
     key: string | null
 }

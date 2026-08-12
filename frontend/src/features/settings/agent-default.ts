@@ -15,7 +15,7 @@ export function taskLevelWeight(taskLevel: TaskLevel) {
     return TASK_LEVELS.indexOf(taskLevel) + 1
 }
 
-export type HarnessDemand = {
+type HarnessDemand = {
     harness: string
     modelLabels: string[]
 }

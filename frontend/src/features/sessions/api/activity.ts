@@ -42,7 +42,7 @@ export async function taskActivity(taskId: string): Promise<ActivityLine[]> {
     return linesByTask.get(taskId) ?? NO_LINES
 }
 
-export function forgetActivity(taskId: string) {
+function forgetActivity(taskId: string) {
     linesByTask.delete(taskId)
 }
 

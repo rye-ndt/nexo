@@ -12,7 +12,7 @@ import {upstreamOf} from '@/features/sessions/graph'
 import {cn} from '@/shared/lib/utils'
 import type {Session, Task} from '@/features/sessions/types'
 
-export type TaskNodeData = {
+type TaskNodeData = {
     task: Task
     session: Session
     unlinkable: boolean

@@ -641,7 +641,7 @@ function seedOf(id: string) {
     return seed
 }
 
-export type MockOutcome = {
+type MockOutcome = {
     state: TaskState
     durationMs: number
     contextTotal: number

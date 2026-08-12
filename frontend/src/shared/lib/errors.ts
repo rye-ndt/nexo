@@ -1,4 +1,4 @@
-export type ErrorSeverity = 'critical' | 'bypass' | 'unknown'
+type ErrorSeverity = 'critical' | 'bypass' | 'unknown'
 
 export type AppError = {
     id: string
@@ -72,7 +72,7 @@ const READINGS: Record<string, Reading> = {
     },
 }
 
-export function errorMessage(error: unknown): string {
+function errorMessage(error: unknown): string {
     if (!error) return ''
     return error instanceof Error ? error.message : String(error)
 }

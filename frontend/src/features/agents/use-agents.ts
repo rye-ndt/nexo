@@ -107,5 +107,3 @@ export function useAgents() {
         openAuthUrl: api.openExternalURL,
     }
 }
-
-export type AgentRoster = ReturnType<typeof useAgents>

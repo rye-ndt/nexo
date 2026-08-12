@@ -13,7 +13,7 @@ const EDGE_TONES: Partial<Record<TaskState, string>> = {
     [TaskState.Done]: 'is-done',
 }
 
-export type FlowContext = {
+type FlowContext = {
     session: Session
     selectedTaskId: string | null
     needsInputIds: Set<string>

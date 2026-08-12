@@ -14,14 +14,14 @@ import type {Approval, ApprovalAnswer} from '@/features/approvals/types'
 import type {Session, Task} from '@/features/sessions/types'
 import type {SessionStore} from '@/features/sessions/use-session-store'
 
-export type Interrupt<TSubject> = {
+type Interrupt<TSubject> = {
     subject: TSubject
     waiting: number
     busy: boolean
     dismiss: () => void
 }
 
-export type Interrupts = {
+type Interrupts = {
     /** The session as drawn: nodes whose agent is blocked read as awaiting approval. */
     session: Session | null
     gate: (Interrupt<Task> & {answer: (accepted: boolean) => void}) | null

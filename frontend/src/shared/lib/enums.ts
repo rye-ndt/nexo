@@ -78,13 +78,6 @@ export const TASK_LEVEL_LABELS: Record<TaskLevel, string> = {
     [TaskLevel.MaximumEffort]: 'Maximum effort',
 }
 
-export const TASK_LEVEL_HINTS: Record<TaskLevel, string> = {
-    [TaskLevel.Lightweight]: 'A quick edit the agent should finish in one pass.',
-    [TaskLevel.Daily]: 'Ordinary work. The default for most nodes.',
-    [TaskLevel.Heavy]: 'Multi-file work worth a slower, more careful agent.',
-    [TaskLevel.MaximumEffort]: 'Give the agent room to explore before it commits.',
-}
-
 export const ThinkingLevel = {
     Low: 'low',
     Medium: 'medium',
