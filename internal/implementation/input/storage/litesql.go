@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"time"
@@ -159,7 +160,7 @@ func New(path string) (input_itf.Storage, error) {
 		return nil, err
 	}
 
-	db, err := sql.Open(driverName, path)
+	db, err := sql.Open(driverName, dsn(path))
 	if err != nil {
 		return nil, err
 	}
@@ -170,6 +171,20 @@ func New(path string) (input_itf.Storage, error) {
 	}
 
 	return &litesql{db: db}, nil
+}
+
+// dsn asks for WAL journalling and a busy timeout. database/sql hands out several
+// connections, and task writes now come from the coordinator, the heartbeat
+// watcher and every MCP report at once; without these two pragmas the second
+// writer of any overlapping pair fails instantly with SQLITE_BUSY instead of
+// waiting its turn. The path is escaped because the macOS data dir has a space in it.
+func dsn(path string) string {
+	uri := url.URL{Scheme: "file", Path: path}
+	uri.RawQuery = url.Values{
+		"_pragma": {"busy_timeout(5000)", "journal_mode(WAL)"},
+	}.Encode()
+
+	return uri.String()
 }
 
 func migrate(db *sql.DB) error {

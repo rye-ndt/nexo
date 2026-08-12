@@ -46,21 +46,21 @@ type sessionMetadata struct {
 type v1 struct {
 	locker   sync.Mutex
 	cfg      *input_itf.SessionConfig
-	wal      input_itf.TaskWAL
+	db       input_itf.TaskStorage
 	mq       output_itf.MessageQ
 	live     core_itf.LiveAgentReader
 	sessions map[uuid.UUID]*sessionMetadata
 	stop     chan struct{}
 }
 
-func InitV1(cfg *input_itf.SessionConfig, wal input_itf.TaskWAL, mq output_itf.MessageQ) (core_itf.SessionManager, error) {
+func InitV1(cfg *input_itf.SessionConfig, db input_itf.TaskStorage, mq output_itf.MessageQ) (core_itf.SessionManager, error) {
 	if err := helpers.ValidateStruct(cfg); err != nil {
 		return nil, custom_error.Critical("invalid session manager config: %v", err)
 	}
 
 	s := &v1{
 		cfg:      cfg,
-		wal:      wal,
+		db:       db,
 		mq:       mq,
 		sessions: map[uuid.UUID]*sessionMetadata{},
 		stop:     make(chan struct{}),
@@ -84,7 +84,9 @@ func (s *v1) TrackLiveAgents(reader core_itf.LiveAgentReader) {
 
 type change struct {
 	session  *sessionMetadata
-	record   *input_itf.TaskWALRecord
+	info     *input_itf.SessionEntity
+	task     *input_itf.TaskEntity
+	report   *input_itf.TaskReportEntity
 	progress *core_itf.SessionProgress
 	rollback func()
 }
@@ -122,13 +124,8 @@ func (s *v1) editTask(
 
 	return &change{
 		session: session,
-		record: &input_itf.TaskWALRecord{
-			Kind:    kind,
-			TaskID:  taskID,
-			Status:  taskSnapshot.Status,
-			Task:    &taskSnapshot,
-			Session: &infoSnapshot,
-		},
+		info:    &infoSnapshot,
+		task:    &taskSnapshot,
 		progress: &core_itf.SessionProgress{
 			SessionID: infoSnapshot.ID,
 			TaskID:    taskID,
@@ -147,15 +144,41 @@ func (s *v1) editTask(
 }
 
 func (s *v1) persist(c *change, what string) error {
-	if err := s.wal.Append(c.record); err != nil {
+	if err := s.save(c); err != nil {
 		s.locker.Lock()
 		c.rollback()
 		s.locker.Unlock()
 
-		return custom_error.Critical("cannot append %s to wal: %v", what, err)
+		return custom_error.Critical("cannot save %s: %v", what, err)
 	}
 
 	return nil
+}
+
+// save writes every change in one transaction. Changes staged together share a
+// session snapshot, so the session is deduplicated on the way in.
+func (s *v1) save(changes ...*change) error {
+	sessions := make([]*input_itf.SessionEntity, 0, 1)
+	tasks := make([]*input_itf.TaskEntity, 0, len(changes))
+	reports := make([]*input_itf.TaskReportEntity, 0, len(changes))
+	seen := map[uuid.UUID]bool{}
+
+	for _, c := range changes {
+		if c.info != nil && !seen[c.info.ID] {
+			seen[c.info.ID] = true
+			sessions = append(sessions, c.info)
+		}
+
+		if c.task != nil {
+			tasks = append(tasks, c.task)
+		}
+
+		if c.report != nil {
+			reports = append(reports, c.report)
+		}
+	}
+
+	return s.db.SaveTaskHistory(sessions, tasks, reports)
 }
 
 func (s *v1) commit(c *change, what string) error {
@@ -200,11 +223,8 @@ func (s *v1) NewSession(p *core_itf.InitSession) (uuid.UUID, error) {
 		UpdatedAt:      now,
 	}
 
-	if err := s.wal.Append(&input_itf.TaskWALRecord{
-		Kind:    enums.SessionCreated,
-		Session: info,
-	}); err != nil {
-		return uuid.Nil, custom_error.Critical("cannot append session info to wal: %v", err)
+	if err := s.db.SaveTaskHistory([]*input_itf.SessionEntity{info}, nil, nil); err != nil {
+		return uuid.Nil, custom_error.Critical("cannot save session info: %v", err)
 	}
 
 	s.locker.Lock()
@@ -281,11 +301,8 @@ func (s *v1) addTask(sessionID uuid.UUID, t *input_itf.TaskEntity, dependsOn []u
 
 	return &change{
 		session: session,
-		record: &input_itf.TaskWALRecord{
-			Kind:    enums.SessionTaskCreated,
-			Task:    t,
-			Session: &infoSnapshot,
-		},
+		info:    &infoSnapshot,
+		task:    t,
 		progress: &core_itf.SessionProgress{
 			SessionID: sessionID,
 			TaskID:    t.ID,
@@ -528,7 +545,7 @@ func (s *v1) Report(agentID uuid.UUID, status enums.TaskStatus, docs []*core_itf
 		return err
 	}
 
-	c.record.Report = &input_itf.TaskReportEntity{
+	c.report = &input_itf.TaskReportEntity{
 		ID:            reportID,
 		TaskID:        handle.TaskID,
 		AgentID:       agentID,
@@ -556,7 +573,7 @@ func (s *v1) Report(agentID uuid.UUID, status enums.TaskStatus, docs []*core_itf
 	return publishErr
 }
 
-// Runs after the WAL write, so a failed write leaves the agent still holding its task.
+// Runs after the database write, so a failed write leaves the agent still holding its task.
 func (s *v1) closeHandle(session *sessionMetadata, agentID uuid.UUID, report *core_itf.TaskReport) {
 	s.locker.Lock()
 	defer s.locker.Unlock()
@@ -593,19 +610,19 @@ func (s *v1) Cancel(sessionID uuid.UUID) ([]uuid.UUID, error) {
 		return nil, err
 	}
 
+	if err := s.save(changes...); err != nil {
+		s.locker.Lock()
+		for _, c := range changes {
+			c.rollback()
+		}
+		s.locker.Unlock()
+
+		return nil, custom_error.Critical("cannot save task cancel: %v", err)
+	}
+
 	var publishErr error
 
-	for i, c := range changes {
-		if err := s.wal.Append(c.record); err != nil {
-			s.locker.Lock()
-			for _, pending := range changes[i:] {
-				pending.rollback()
-			}
-			s.locker.Unlock()
-
-			return nil, custom_error.Critical("cannot append task cancel to wal: %v", err)
-		}
-
+	for _, c := range changes {
 		if err := s.publish(c.progress); err != nil && publishErr == nil {
 			publishErr = err
 		}
@@ -654,13 +671,8 @@ func (s *v1) cancelSession(sessionID uuid.UUID) ([]*change, []uuid.UUID, error) 
 
 		changes = append(changes, &change{
 			session: session,
-			record: &input_itf.TaskWALRecord{
-				Kind:    kind,
-				TaskID:  taskID,
-				Status:  taskSnapshot.Status,
-				Task:    &taskSnapshot,
-				Session: &infoSnapshot,
-			},
+			info:    &infoSnapshot,
+			task:    &taskSnapshot,
 			progress: &core_itf.SessionProgress{
 				SessionID: sessionID,
 				TaskID:    taskID,
@@ -728,10 +740,7 @@ func (s *v1) stageDrain(session *sessionMetadata) (*change, bool) {
 
 	return &change{
 		session: session,
-		record: &input_itf.TaskWALRecord{
-			Kind:    enums.SessionDrained,
-			Session: &infoSnapshot,
-		},
+		info:    &infoSnapshot,
 		progress: &core_itf.SessionProgress{
 			SessionID: infoSnapshot.ID,
 			Event:     enums.SessionDrained,

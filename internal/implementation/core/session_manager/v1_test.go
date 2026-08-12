@@ -14,55 +14,50 @@ import (
 	"github.com/google/uuid"
 )
 
-type fakeWAL struct {
+type fakeStore struct {
 	mu      sync.Mutex
-	records []*input_itf.TaskWALRecord
+	tasks   []*input_itf.TaskEntity
+	reports []*input_itf.TaskReportEntity
 }
 
-func (w *fakeWAL) Append(record *input_itf.TaskWALRecord) error {
-	w.mu.Lock()
-	defer w.mu.Unlock()
+func (s *fakeStore) SaveTaskHistory(
+	_ []*input_itf.SessionEntity,
+	tasks []*input_itf.TaskEntity,
+	reports []*input_itf.TaskReportEntity,
+) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
-	w.records = append(w.records, record)
+	s.tasks = append(s.tasks, tasks...)
+	s.reports = append(s.reports, reports...)
 
 	return nil
 }
 
-func (w *fakeWAL) Replay() ([]*input_itf.TaskWALRecord, error) {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-
-	return w.records, nil
-}
-
-func (w *fakeWAL) Reset() error { return nil }
-
-func (w *fakeWAL) Close() error { return nil }
-
-func (w *fakeWAL) lastStatusFor(taskID uuid.UUID) enums.TaskStatus {
-	w.mu.Lock()
-	defer w.mu.Unlock()
+func (s *fakeStore) lastStatusFor(taskID uuid.UUID) enums.TaskStatus {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
 	status := enums.TaskStatus("")
 
-	for _, record := range w.records {
-		if record.TaskID == taskID {
-			status = record.Status
+	for _, task := range s.tasks {
+		if task.ID == taskID {
+			status = task.Status
 		}
 	}
 
 	return status
 }
 
-func (w *fakeWAL) lastReportFor(taskID uuid.UUID) *input_itf.TaskReportEntity {
-	w.mu.Lock()
-	defer w.mu.Unlock()
+func (s *fakeStore) lastReportFor(taskID uuid.UUID) *input_itf.TaskReportEntity {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
 	var report *input_itf.TaskReportEntity
 
-	for _, record := range w.records {
-		if record.TaskID == taskID && record.Report != nil {
-			report = record.Report
+	for _, r := range s.reports {
+		if r.TaskID == taskID {
+			report = r
 		}
 	}
 
@@ -81,29 +76,29 @@ func (fakeMQ) Unsubscribe(uuid.UUID, output_itf.MQEvent) error {
 	return nil
 }
 
-func newManager(t *testing.T) (core_itf.SessionManager, *fakeWAL) {
+func newManager(t *testing.T) (core_itf.SessionManager, *fakeStore) {
 	t.Helper()
 
 	return newManagerWith(t, fakeMQ{})
 }
 
-func newManagerWith(t *testing.T, mq output_itf.MessageQ) (core_itf.SessionManager, *fakeWAL) {
+func newManagerWith(t *testing.T, mq output_itf.MessageQ) (core_itf.SessionManager, *fakeStore) {
 	t.Helper()
 
-	w := &fakeWAL{}
+	store := &fakeStore{}
 
 	manager, err := InitV1(&input_itf.SessionConfig{
 		HeartbeatTimeout:       30 * time.Minute,
 		HeartbeatScanInterval:  time.Minute,
 		AgentHeartbeatInterval: time.Minute,
-	}, w, mq)
+	}, store, mq)
 	if err != nil {
 		t.Fatalf("init session manager: %v", err)
 	}
 
 	t.Cleanup(manager.Stop)
 
-	return manager, w
+	return manager, store
 }
 
 func addTask(t *testing.T, manager core_itf.SessionManager, session uuid.UUID, name string, gated bool, deps ...uuid.UUID) uuid.UUID {
@@ -180,7 +175,7 @@ func reportDone(t *testing.T, manager core_itf.SessionManager, taskID, agentID u
 }
 
 func TestGatedTaskHoldsDownstreamUntilAccepted(t *testing.T) {
-	manager, w := newManager(t)
+	manager, store := newManager(t)
 	session := newSession(t, manager)
 
 	gate := addTask(t, manager, session, "plan", true)
@@ -193,8 +188,8 @@ func TestGatedTaskHoldsDownstreamUntilAccepted(t *testing.T) {
 		t.Fatalf("gated task status = %s, want %s", got, enums.TaskAwaitingAccept)
 	}
 
-	if got := w.lastStatusFor(gate); got != enums.TaskAwaitingAccept {
-		t.Fatalf("wal status = %s, want %s", got, enums.TaskAwaitingAccept)
+	if got := store.lastStatusFor(gate); got != enums.TaskAwaitingAccept {
+		t.Fatalf("stored status = %s, want %s", got, enums.TaskAwaitingAccept)
 	}
 
 	if ready := readyIDs(t, manager, session); ready[downstream] {
@@ -271,7 +266,7 @@ func TestGatedFailureIsNotHeld(t *testing.T) {
 }
 
 func TestReportNamesTheHandoverAfterTheTaskNotTheAgent(t *testing.T) {
-	manager, w := newManager(t)
+	manager, store := newManager(t)
 	session := newSession(t, manager)
 
 	task := addTask(t, manager, session, "wire the proxy", false)
@@ -304,13 +299,13 @@ func TestReportNamesTheHandoverAfterTheTaskNotTheAgent(t *testing.T) {
 		t.Fatalf("kept handover doc task = %q, want the task name", kept[0].Task)
 	}
 
-	record := w.lastReportFor(task)
+	record := store.lastReportFor(task)
 	if record == nil {
-		t.Fatal("the report never reached the wal")
+		t.Fatal("the report never reached the database")
 	}
 
 	if len(record.HandoverDocs) != 1 || record.HandoverDocs[0].Task != "wire the proxy" {
-		t.Fatalf("wal handover docs = %+v, want one named after the task", record.HandoverDocs)
+		t.Fatalf("stored handover docs = %+v, want one named after the task", record.HandoverDocs)
 	}
 }
 

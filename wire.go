@@ -14,13 +14,11 @@ import (
 	"hexago/internal/implementation/core/mcp_proxy"
 	"hexago/internal/implementation/core/session_manager"
 	"hexago/internal/implementation/core/template_manager"
-	"hexago/internal/implementation/core/wal_sync"
 	"hexago/internal/implementation/input/config"
 	"hexago/internal/implementation/input/harness/claude_code"
 	"hexago/internal/implementation/input/harness/open_code"
 	"hexago/internal/implementation/input/http_cli"
 	"hexago/internal/implementation/input/storage"
-	"hexago/internal/implementation/input/wal"
 	"hexago/internal/implementation/input/workspace_history"
 	"hexago/internal/implementation/output/app_builder"
 	wails_api "hexago/internal/implementation/output/fe_api"
@@ -33,9 +31,6 @@ import (
 )
 
 const httpTimeout = 30 * time.Second
-
-const dataCorruptedWarning = "Task history from the previous session is corrupted or could not be saved. " +
-	"The app will continue without it."
 
 type App struct {
 	Config     input_itf.Config
@@ -76,11 +71,6 @@ func wire(assets fs.FS) (*App, error) {
 		return nil, err
 	}
 
-	taskWAL, err := wal.New(filepath.Join(dataDir, "task.wal"))
-	if err != nil {
-		return nil, err
-	}
-
 	history, err := workspace_history.InitV1(filepath.Join(dataDir, "sessions"))
 	if err != nil {
 		return nil, err
@@ -91,13 +81,7 @@ func wire(assets fs.FS) (*App, error) {
 		return nil, err
 	}
 
-	dataWarning := ""
-	if err := wal_sync.Run(taskWAL, store.TaskStore()); err != nil {
-		appLogger.Error("wal sync", "err", err)
-		dataWarning = dataCorruptedWarning
-	}
-
-	sessionManager, err := session_manager.InitV1(cfg.Read().Session, taskWAL, message_queue.InitV1())
+	sessionManager, err := session_manager.InitV1(cfg.Read().Session, store.TaskStore(), message_queue.InitV1())
 	if err != nil {
 		return nil, err
 	}
@@ -157,7 +141,6 @@ func wire(assets fs.FS) (*App, error) {
 		History:      history,
 		UserConfig:   userCfg,
 		Drafts:       store.DraftStore(),
-		DataWarning:  dataWarning,
 	})
 
 	wired = true

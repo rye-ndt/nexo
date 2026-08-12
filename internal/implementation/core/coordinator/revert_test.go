@@ -16,7 +16,7 @@ import (
 	"hexago/internal/helpers/enums"
 	"hexago/internal/implementation/core/coordinator"
 	"hexago/internal/implementation/core/session_manager"
-	"hexago/internal/implementation/input/wal"
+	"hexago/internal/implementation/input/storage"
 	"hexago/internal/implementation/input/workspace_history"
 	"hexago/internal/implementation/output/message_queue"
 	core_itf "hexago/internal/interface/core"
@@ -185,12 +185,10 @@ func newHarness(t *testing.T) *harness {
 
 	h := &harness{t: t, dir: t.TempDir(), ids: map[string]uuid.UUID{}}
 
-	taskWAL, err := wal.New(filepath.Join(t.TempDir(), "tasks.wal"))
+	store, err := storage.New(filepath.Join(t.TempDir(), "harness.db"))
 	if err != nil {
-		t.Fatalf("init wal: %v", err)
+		t.Fatalf("init storage: %v", err)
 	}
-
-	t.Cleanup(func() { _ = taskWAL.Close() })
 
 	cfg := &input_itf.SessionConfig{
 		HeartbeatTimeout:       time.Hour,
@@ -198,7 +196,7 @@ func newHarness(t *testing.T) *harness {
 		AgentHeartbeatInterval: time.Hour,
 	}
 
-	sessions, err := session_manager.InitV1(cfg, taskWAL, message_queue.InitV1())
+	sessions, err := session_manager.InitV1(cfg, store.TaskStore(), message_queue.InitV1())
 	if err != nil {
 		t.Fatalf("init session manager: %v", err)
 	}

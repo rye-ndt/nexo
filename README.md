@@ -68,10 +68,10 @@ what blocked it, what got approved, what got _rejected_, what to avoid, and
 what's still broken. That doc becomes the next node's context. Telling the next
 agent what **not** to do matters as much as telling it what happened.
 
-**It assumes agents fail.** Every write hits a WAL before it commits and replays
-into SQLite on restart. Agents send heartbeats — go quiet and your task drops
-back into the pool. Every file change is stored as a unified diff, so you can
-revert without depending on git.
+**It assumes agents fail.** Every task write commits to SQLite as it happens, so
+a crash costs you nothing that was already reported. Agents send heartbeats — go
+quiet and your task drops back into the pool. Every file change is stored as a
+unified diff, so you can revert without depending on git.
 
 **Agents never see your secrets.** Nexo does the OAuth once, encrypts the token,
 and hands agents a placeholder name. The proxy swaps in the real key on the way

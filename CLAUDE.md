@@ -9,7 +9,7 @@ authored as a **graph of nodes**; each node is a scoped task assigned to an
 agent, nodes chain together, and a `HandoverDoc` carries what one node learned
 into the next node's prompt. Read `README.md` before designing anything — the
 section "Is this an another LLM wrapper?" explains why pieces that look
-over-engineered (the WAL, heartbeats, unified diffs, the MCP proxy) exist.
+over-engineered (heartbeats, unified diffs, the MCP proxy) exist.
 
 Two things to hold onto:
 
@@ -101,11 +101,12 @@ reader separately, after construction, via `TrackLiveAgents` (a narrow
 
 ## Durability
 
-Every task write hits the WAL (`input/wal`) before SQLite (`input/storage`),
-and `core/wal_sync` replays it at startup — a failed replay degrades to a
-warning banner rather than a failed boot. Agents send heartbeats; one that goes
-quiet past the deadline has its task dropped back into the pool. File changes
-are stored as unified diffs so a revert never depends on git.
+Every task write goes straight to SQLite (`input/storage`) in one transaction,
+inside `SessionManager.persist` — a failed write rolls the in-memory change back
+and surfaces as an error on the call that made it, so memory and disk never
+disagree. Agents send heartbeats; one that goes quiet past the deadline has its
+task dropped back into the pool. File changes are stored as unified diffs so a
+revert never depends on git.
 
 # Conventions
 
@@ -182,6 +183,11 @@ Inspector against the WebContent process for the frontend.
 - Run from the repo root; `config.yaml` is read from the working directory.
 - `go run .` fails with a Wails build-tag error — use `make dev`.
 - The SQLite driver name is `sqlite` (modernc), not `sqlite3`.
+- `storage.New` opens the DB through `dsn()`, which sets `busy_timeout` and
+  `journal_mode(WAL)`. Do not drop those. `database/sql` pools connections and
+  modernc installs no default busy handler, so without them the second writer of
+  any overlapping pair fails instantly with `SQLITE_BUSY` — and a failed task
+  write makes `SessionManager` roll back a report that already happened.
 - `viper.Read()` returns nil on unmarshal error, so a config typo surfaces as a
   nil dereference rather than a clear error.
 - `config.yaml`'s `app.data_dir` is the storage key for every on-disk path.

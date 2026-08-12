@@ -39,7 +39,6 @@ type API struct {
 	history      input_itf.WorkspaceHistory
 	userConfig   output_itf.UserConfig
 	drafts       input_itf.DraftStorage
-	dataWarning  string
 }
 
 var _ output_itf.FEAPI = (*API)(nil)
@@ -54,7 +53,6 @@ type Deps struct {
 	History      input_itf.WorkspaceHistory
 	UserConfig   output_itf.UserConfig
 	Drafts       input_itf.DraftStorage
-	DataWarning  string
 }
 
 func New(deps *Deps) *API {
@@ -68,23 +66,12 @@ func New(deps *Deps) *API {
 		history:      deps.History,
 		userConfig:   deps.UserConfig,
 		drafts:       deps.Drafts,
-		dataWarning:  deps.DataWarning,
 	}
 }
 
 // Startup is wired to Wails OnStartup; it is not meant to be called from JS.
 func (a *API) Startup(ctx context.Context) {
 	a.ctx = ctx
-
-	if a.dataWarning != "" {
-		go func() {
-			_, _ = runtime.MessageDialog(ctx, runtime.MessageDialogOptions{
-				Type:    runtime.WarningDialog,
-				Title:   "Data corrupted",
-				Message: a.dataWarning,
-			})
-		}()
-	}
 }
 
 // Shutdown is wired to Wails OnShutdown; it is not meant to be called from JS.

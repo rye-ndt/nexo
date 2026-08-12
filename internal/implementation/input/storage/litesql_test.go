@@ -1,7 +1,9 @@
 package storage
 
 import (
+	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -173,5 +175,75 @@ func TestMCPCredentialsRoundTripAccountAndDelete(t *testing.T) {
 
 	if err := mcps.DeleteCredentials(entity.Name); err != nil {
 		t.Fatalf("second delete should be a no-op, got: %v", err)
+	}
+}
+
+// Task writes arrive concurrently from the coordinator, the heartbeat watcher and
+// every agent's report. On the default rollback journal with no busy timeout the
+// second writer of an overlapping pair fails immediately with SQLITE_BUSY, which
+// makes SessionManager roll back a report that already happened.
+func TestOverlappingTaskWritesDoNotHitSQLiteBusy(t *testing.T) {
+	// A space, matching the real macOS "Application Support" data dir.
+	dir := filepath.Join(t.TempDir(), "Application Support")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatalf("make data dir: %v", err)
+	}
+
+	store, err := New(filepath.Join(dir, "harness.db"))
+	if err != nil {
+		t.Fatalf("open storage: %v", err)
+	}
+
+	tasks := store.TaskStore()
+	session := &input_itf.SessionEntity{ID: uuid.New(), CreatedAt: time.Now()}
+
+	const writers, each = 8, 50
+
+	errs := make(chan error, writers*each)
+	start := make(chan struct{})
+
+	var wg sync.WaitGroup
+
+	for i := 0; i < writers; i++ {
+		wg.Add(1)
+
+		go func() {
+			defer wg.Done()
+
+			task := &input_itf.TaskEntity{
+				ID:        uuid.New(),
+				SessionID: session.ID,
+				Status:    enums.TaskProcessing,
+			}
+
+			<-start
+
+			for j := 0; j < each; j++ {
+				if err := tasks.SaveTaskHistory(
+					[]*input_itf.SessionEntity{session},
+					[]*input_itf.TaskEntity{task},
+					nil,
+				); err != nil {
+					errs <- err
+				}
+			}
+		}()
+	}
+
+	close(start)
+	wg.Wait()
+	close(errs)
+
+	failed := 0
+	for err := range errs {
+		if failed == 0 {
+			t.Errorf("concurrent write failed: %v", err)
+		}
+
+		failed++
+	}
+
+	if failed > 0 {
+		t.Fatalf("%d of %d concurrent writes failed", failed, writers*each)
 	}
 }
