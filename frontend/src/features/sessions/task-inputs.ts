@@ -1,8 +1,8 @@
 /**
- * A node needs every input it asks for: the required ones, plus any input its
- * prompt embeds as `{{key}}`. Inputs stay editable on the node until the run
- * starts; pressing Run checks the whole graph first, and once the session is
- * started they are frozen — no prompt ever goes out with a hole in it.
+ * A node asks for inputs: the required ones, plus any input its prompt embeds
+ * as `{{key}}`. Inputs stay editable on the node until the run starts, and
+ * pressing Run points out the empty ones, but none of them block it — a
+ * reference left unfilled reaches the agent as the literal `{{key}}`.
  */
 
 import {ParamType} from '@/shared/lib/enums'
@@ -27,9 +27,6 @@ export function pendingParams(task: Task, template: Template | undefined): Templ
         return String(values[param.key] ?? '') === ''
     })
 }
-
-export const MISSING_INPUTS_MESSAGE =
-    'Some nodes are missing inputs. Fill them before the run starts.'
 
 export type MissingNodeInputs = {task: Task; params: TemplateParam[]}
 

@@ -6,22 +6,27 @@ import type {MissingNodeInputs} from '@/features/sessions/task-inputs'
 export function MissingInputsDialog({
     entries,
     onSelectTask,
+    onRunAnyway,
     onClose,
 }: {
     entries: MissingNodeInputs[]
     onSelectTask: (taskId: string) => void
+    onRunAnyway: () => void
     onClose: () => void
 }) {
     return (
         <DialogShell
             onClose={onClose}
-            title="Fill inputs before the run"
-            description={`Inputs are missing on ${pluralize(entries.length, 'node')}. Pick one to fill them, then run.`}
+            title="Some inputs are empty"
+            description={`Empty inputs on ${pluralize(entries.length, 'node')}. Pick one to fill, or run as is — the agent gets the prompt as written.`}
             footer={
                 <>
                     <span className="flex-1" />
                     <Button variant="outline" size="sm" onClick={onClose}>
-                        Close
+                        Cancel
+                    </Button>
+                    <Button size="sm" onClick={onRunAnyway}>
+                        Run anyway
                     </Button>
                 </>
             }

@@ -47,6 +47,11 @@ export function SessionWorkspace({
         store.selectTask(taskId)
     }
 
+    const runAnyway = () => {
+        blockedRun.close()
+        active.start()
+    }
+
     const closeNewNode = () => setNewNodeAt(null)
 
     const createTask = (draft: TaskDraft) => {
@@ -111,6 +116,7 @@ export function SessionWorkspace({
                 <MissingInputsDialog
                     entries={missing.entries}
                     onSelectTask={fillBlockedNode}
+                    onRunAnyway={runAnyway}
                     onClose={blockedRun.close}
                 />
             )}

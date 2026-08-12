@@ -140,7 +140,7 @@ export function TemplateForm({
 
             <Section
                 title="Inputs"
-                hint="What a node must supply before this template can run."
+                hint="What a node fills in. An input left empty reaches the agent as the reference itself."
                 onAdd={addParam}
                 addLabel="Add input"
             >
@@ -160,7 +160,7 @@ export function TemplateForm({
                 hint={
                     draft.systemPrompts.length === 0
                         ? NO_PROMPTS_ISSUE
-                        : `${PARAM_REF_HINT} A node cannot run until every embedded input has a value.`
+                        : `${PARAM_REF_HINT} An input left empty reaches the agent as the reference itself.`
                 }
                 onAdd={addPrompt}
                 addLabel="Add prompt"

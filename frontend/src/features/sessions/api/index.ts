@@ -22,8 +22,7 @@ import {
     withoutDependency,
     withoutTask,
 } from '@/features/sessions/graph'
-import {MISSING_INPUTS_MESSAGE, missingInputs} from '@/features/sessions/task-inputs'
-import {cachedTemplates, listTemplates} from '@/features/templates/api'
+import {listTemplates} from '@/features/templates/api'
 import type {ParamValue} from '@/features/templates/types'
 import type {Point, Session, SessionDraft, Task, TaskDraft} from '@/features/sessions/types'
 import {
@@ -109,10 +108,6 @@ export async function updateSession(
     }
 
     await listTemplates()
-
-    if (missingInputs(session, cachedTemplates()).length > 0)
-        throw new Error(MISSING_INPUTS_MESSAGE)
-
     await startRun(label({...session, ...patch}))
 
     return structuredClone(findSession(sessionId))

@@ -12,8 +12,7 @@ export function MissingInputsNote({count}: {count: number}) {
 
     return (
         <span className="text-sm text-muted-foreground">
-            {pluralize(count, 'input')} still empty — fill {count === 1 ? 'it' : 'them'} before you
-            run.
+            {pluralize(count, 'input')} still empty — the run goes ahead with the prompt as written.
         </span>
     )
 }
