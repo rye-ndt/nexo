@@ -66,6 +66,8 @@ function SessionNameInput({name, onRename}: {name: string; onRename: (name: stri
         <input
             value={draft}
             aria-label="Session name"
+            autoCapitalize="off"
+            autoCorrect="off"
             onChange={change}
             onBlur={commit}
             onKeyDown={handleKeys}
