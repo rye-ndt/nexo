@@ -35,8 +35,10 @@ export function ParamEditor({
         change({type: value as ParamType, default: undefined, options: undefined})
 
     const changeOptions = (options: string[]) => change({options})
-    const changeToggleDefault = (on: boolean) => change({default: on ? 'true' : 'false'})
+    const changeBooleanDefault = (value: string) => change({default: value})
     const changeRequired = (required: boolean) => change({required})
+
+    const booleanDefault = param.default === 'true' ? 'true' : 'false'
 
     return (
         <div className="flex flex-col gap-2 rounded-xl border border-border bg-muted/40 p-3">
@@ -80,13 +82,18 @@ export function ParamEditor({
 
             <div className="flex items-center gap-2">
                 {isBoolean ? (
-                    <label className="flex h-8 flex-1 items-center gap-3 rounded-lg border border-border bg-background px-3 text-base">
-                        <span>Starts on</span>
-                        <Switch
-                            checked={param.default === 'true'}
-                            onCheckedChange={changeToggleDefault}
-                        />
-                    </label>
+                    <Select value={booleanDefault} onValueChange={changeBooleanDefault}>
+                        <SelectTrigger
+                            aria-label="Default value"
+                            className="h-8 flex-1 bg-background font-mono"
+                        >
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="false">false</SelectItem>
+                            <SelectItem value="true">true</SelectItem>
+                        </SelectContent>
+                    </Select>
                 ) : (
                     <Input
                         value={param.default ?? ''}

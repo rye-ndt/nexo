@@ -99,9 +99,8 @@ recommendation: what the next node should do about it`,
             {
                 key: 'doc_path',
                 label: 'File to update',
-                type: 'text',
+                type: 'file',
                 required: true,
-                default: 'README.md',
             },
         ],
         systemPrompts: [

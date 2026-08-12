@@ -1,8 +1,8 @@
 import {useState} from 'react'
 
 import {DeleteSessionDialog} from '@/features/sessions/components/delete-session-dialog'
-import {DirectoryPickerHost} from '@/shared/components/directory-picker'
 import {NewSessionDialog} from '@/features/sessions/components/new-session-dialog'
+import {PathPickerHost} from '@/shared/components/path-picker'
 import {SessionWorkspace} from '@/features/sessions/components/session-workspace'
 import {SessionsRail} from '@/features/sessions/components/sessions-rail'
 import {SettingsDialog} from '@/features/settings/components/settings-dialog'
@@ -70,7 +70,7 @@ function App() {
 
             <SettingsDialog open={settings.on} onOpenChange={settings.set} />
 
-            <DirectoryPickerHost />
+            <PathPickerHost />
 
             {dependencies.ready && dependencies.required && (
                 <WelcomeDialog

@@ -23,6 +23,8 @@ export function CancelSession(arg1:string):Promise<void>;
 
 export function ChooseDirectory(arg1:string):Promise<string>;
 
+export function ChooseFile(arg1:string):Promise<string>;
+
 export function CompleteOnboarding():Promise<void>;
 
 export function DeleteSessionDraft(arg1:string):Promise<void>;

@@ -442,6 +442,12 @@ func (a *API) ChooseDirectory(title string) (string, error) {
 	})
 }
 
+func (a *API) ChooseFile(title string) (string, error) {
+	return runtime.OpenFileDialog(a.ctx, runtime.OpenDialogOptions{
+		Title: title,
+	})
+}
+
 func (a *API) AgentDefaults() ([]*output_itf.AgentDefaultInfo, error) {
 	stored := a.userConfig.AgentDefaults()
 

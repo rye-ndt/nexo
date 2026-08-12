@@ -181,6 +181,7 @@ export const ParamType = {
     Number: 'number',
     Boolean: 'boolean',
     Select: 'select',
+    File: 'file',
 } as const
 
 export type ParamType = (typeof ParamType)[keyof typeof ParamType]
@@ -191,12 +192,14 @@ export const PARAM_TYPES: ParamType[] = [
     ParamType.Number,
     ParamType.Boolean,
     ParamType.Select,
+    ParamType.File,
 ]
 
 export const PARAM_TYPE_LABELS: Record<ParamType, string> = {
     [ParamType.Text]: 'Text',
     [ParamType.Textarea]: 'Long text',
     [ParamType.Number]: 'Number',
-    [ParamType.Boolean]: 'Toggle',
+    [ParamType.Boolean]: 'Boolean',
     [ParamType.Select]: 'Choice',
+    [ParamType.File]: 'File',
 }

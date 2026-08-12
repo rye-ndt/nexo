@@ -1,11 +1,10 @@
-/** Enough of a tree for the stand-in directory picker to feel like a real one. */
+/** Enough of a tree for the stand-in path picker to feel like a real one. */
 
 import {joinPath} from '@/shared/lib/path'
 
 export const MOCK_HOME = '/Users/rye'
 
 const CHILDREN: Record<string, string[]> = {
-    '/Users/rye/dev/agent-harness/.harness/context': [],
     '/': ['Users', 'opt', 'tmp'],
     '/Users': ['rye'],
     '/Users/rye': ['dev', 'Documents', 'Downloads'],
@@ -22,10 +21,23 @@ const CHILDREN: Record<string, string[]> = {
     '/Users/rye/Downloads/agent-harness/.harness': ['context'],
 }
 
+const FILES: Record<string, string[]> = {
+    '/Users/rye': ['.zshrc'],
+    '/Users/rye/dev/agent-harness': ['README.md', 'config.yaml', 'go.mod'],
+    '/Users/rye/dev/agent-harness/.harness/context': ['handover.json', 'session.log'],
+    '/Users/rye/dev/agent-harness/docs': ['architecture.md', 'diagram.png'],
+    '/Users/rye/Documents/notes': ['brief.pdf', 'roadmap.md'],
+    '/Users/rye/Downloads': ['export.csv', 'screenshot.png'],
+}
+
 const ILLEGAL_NAME = /[/\\]/
 
 export function mockChildDirectories(path: string): string[] {
     return CHILDREN[path] ?? []
+}
+
+export function mockChildFiles(path: string): string[] {
+    return FILES[path] ?? []
 }
 
 /** Mirrors what the OS dialog's New Folder button does, and fails the same ways. */

@@ -1,39 +1,60 @@
 /**
- * The directory-chooser seam. Inside the Wails webview this is the real native
- * folder dialog — ChooseDirectory wraps runtime.OpenDirectoryDialog with
- * CanCreateDirectories, so creating a folder comes from the OS, and it returns
- * an absolute path or "" when the user cancels. Under the plain vite dev server
- * there is no runtime and the File System Access API refuses to disclose
- * absolute paths, so a stand-in picker answers the same contract instead.
+ * The path-chooser seam. Inside the Wails webview these are the real native
+ * dialogs — ChooseDirectory wraps runtime.OpenDirectoryDialog with
+ * CanCreateDirectories, so creating a folder comes from the OS, and ChooseFile
+ * wraps runtime.OpenFileDialog with no filter, so any format can be picked.
+ * Both return an absolute path or "" when the user cancels. Under the plain
+ * vite dev server there is no runtime and the File System Access API refuses to
+ * disclose absolute paths, so a stand-in picker answers the same contract.
  */
 
 import {hasWailsRuntime} from '@/shared/api/bridge'
-import {mockChildDirectories, mockCreateDirectory, MOCK_HOME} from '@/shared/api/mock-fs'
-import {ChooseDirectory} from '@wailsjs/go/wails_api/API'
+import {
+    mockChildDirectories,
+    mockChildFiles,
+    mockCreateDirectory,
+    MOCK_HOME,
+} from '@/shared/api/mock-fs'
+import {ChooseDirectory, ChooseFile} from '@wailsjs/go/wails_api/API'
 
-export type DirectoryChooser = (title: string) => Promise<string>
+export type PathKind = 'directory' | 'file'
 
-let standIn: DirectoryChooser | null = null
+type PathChooser = (kind: PathKind, title: string) => Promise<string>
 
-export function registerDirectoryChooser(next: DirectoryChooser | null) {
+let standIn: PathChooser | null = null
+
+export function registerPathChooser(next: PathChooser | null) {
     standIn = next
 }
 
-/** True when the OS dialog answers this, so the stand-in never needs to mount. */
-export function hasNativeDirectoryPicker() {
+/** True when the OS dialogs answer these, so the stand-in never needs to mount. */
+export function hasNativePathPicker() {
     return hasWailsRuntime()
 }
 
 /** Resolves to the chosen absolute path, or an empty string if the user cancels. */
-export async function chooseDirectory(title: string): Promise<string> {
-    if (hasNativeDirectoryPicker()) return ChooseDirectory(title)
-    if (!standIn) throw new Error('No directory picker is available right now.')
+async function choosePath(kind: PathKind, title: string): Promise<string> {
+    if (hasNativePathPicker()) return kind === 'file' ? ChooseFile(title) : ChooseDirectory(title)
 
-    return standIn(title)
+    if (!standIn) throw new Error('No path picker is available right now.')
+
+    return standIn(kind, title)
+}
+
+export async function chooseDirectory(title: string): Promise<string> {
+    return choosePath('directory', title)
+}
+
+export async function chooseFile(title: string): Promise<string> {
+    return choosePath('file', title)
 }
 
 export async function listDirectories(path: string): Promise<string[]> {
     return mockChildDirectories(path)
+}
+
+export async function listFiles(path: string): Promise<string[]> {
+    return mockChildFiles(path)
 }
 
 export async function createDirectory(parent: string, name: string): Promise<string> {

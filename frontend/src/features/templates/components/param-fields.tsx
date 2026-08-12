@@ -1,9 +1,12 @@
 import type {ChangeEvent} from 'react'
+import {File} from 'lucide-react'
 
+import {Button} from '@/shared/ui/button'
 import {Input} from '@/shared/ui/input'
 import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from '@/shared/ui/select'
-import {Switch} from '@/shared/ui/switch'
 import {Textarea} from '@/shared/ui/textarea'
+import {chooseFile} from '@/shared/api/dialogs'
+import {reportError} from '@/shared/lib/error-bus'
 import {ParamType} from '@/shared/lib/enums'
 import type {FieldValue, TemplateParam} from '@/features/templates/types'
 
@@ -52,24 +55,6 @@ function ParamField({
     const changeEvent = (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
         change(event.target.value)
 
-    if (param.type === ParamType.Boolean)
-        return (
-            <div className="flex items-center justify-between gap-3 rounded-xl border border-border px-3 py-2">
-                <label htmlFor={id} className="flex min-w-0 flex-col gap-1">
-                    <span className="text-base font-medium">{label}</span>
-                    <span className="truncate font-mono text-sm text-muted-foreground">
-                        {param.key}
-                    </span>
-                </label>
-                <Switch
-                    id={id}
-                    checked={value === true}
-                    disabled={disabled}
-                    onCheckedChange={change}
-                />
-            </div>
-        )
-
     return (
         <div className="flex flex-col gap-2">
             <div className="flex items-baseline justify-between gap-3">
@@ -92,6 +77,22 @@ function ParamField({
                 />
             )}
 
+            {param.type === ParamType.Boolean && (
+                <Select
+                    value={value === true ? 'true' : 'false'}
+                    disabled={disabled}
+                    onValueChange={(next) => change(next === 'true')}
+                >
+                    <SelectTrigger id={id}>
+                        <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="true">true</SelectItem>
+                        <SelectItem value="false">false</SelectItem>
+                    </SelectContent>
+                </Select>
+            )}
+
             {param.type === ParamType.Select && (
                 <Select value={text} disabled={disabled} onValueChange={change}>
                     <SelectTrigger id={id}>
@@ -107,6 +108,16 @@ function ParamField({
                 </Select>
             )}
 
+            {param.type === ParamType.File && (
+                <FileField
+                    id={id}
+                    label={label}
+                    value={text}
+                    disabled={disabled}
+                    onChange={change}
+                />
+            )}
+
             {(param.type === ParamType.Text || param.type === ParamType.Number) && (
                 <Input
                     id={id}
@@ -117,6 +128,55 @@ function ParamField({
                     onChange={changeEvent}
                 />
             )}
+        </div>
+    )
+}
+
+function FileField({
+    id,
+    label,
+    value,
+    disabled,
+    onChange,
+}: {
+    id: string
+    label: string
+    value: string
+    disabled: boolean
+    onChange: (path: string) => void
+}) {
+    const choose = async () => {
+        try {
+            const path = await chooseFile(`Choose a file for ${label}`)
+            if (path) onChange(path)
+        } catch (cause) {
+            reportError(cause, 'Could not open the file picker')
+        }
+    }
+
+    return (
+        <div className="flex items-center gap-2">
+            <span
+                className={
+                    value
+                        ? 'min-w-0 flex-1 truncate rounded-lg border border-input px-3 py-2 font-mono text-base'
+                        : 'min-w-0 flex-1 truncate rounded-lg border border-dashed border-input px-3 py-2 text-base text-muted-foreground'
+                }
+            >
+                {value || 'No file chosen'}
+            </span>
+
+            <Button
+                id={id}
+                variant="outline"
+                size="sm"
+                className="shrink-0"
+                disabled={disabled}
+                onClick={choose}
+            >
+                <File />
+                {value ? 'Change' : 'Choose'}
+            </Button>
         </div>
     )
 }

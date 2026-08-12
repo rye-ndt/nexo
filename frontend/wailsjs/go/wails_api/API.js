@@ -42,6 +42,10 @@ export function ChooseDirectory(arg1) {
   return window['go']['wails_api']['API']['ChooseDirectory'](arg1);
 }
 
+export function ChooseFile(arg1) {
+  return window['go']['wails_api']['API']['ChooseFile'](arg1);
+}
+
 export function CompleteOnboarding() {
   return window['go']['wails_api']['API']['CompleteOnboarding']();
 }
