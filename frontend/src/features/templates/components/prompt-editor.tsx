@@ -41,7 +41,7 @@ export function PromptEditor({
                 </Button>
             </div>
             <PromptField
-                rows={3}
+                className="max-h-72 min-h-56"
                 value={prompt.value}
                 params={params}
                 ariaLabel="Prompt text"

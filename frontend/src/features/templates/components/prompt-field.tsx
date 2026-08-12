@@ -12,7 +12,7 @@ export function PromptField({
     id,
     value,
     params,
-    rows,
+    className,
     placeholder,
     ariaLabel,
     onChange,
@@ -20,12 +20,13 @@ export function PromptField({
     id?: string
     value: string
     params: TemplateParam[]
-    rows: number
+    className?: string
     placeholder?: string
     ariaLabel?: string
     onChange: (value: string) => void
 }) {
     const mirror = useRef<HTMLPreElement>(null)
+
     const known = new Set(params.map((param) => param.key))
     const unknown = paramRefs(value).filter((key) => !known.has(key))
 
@@ -43,6 +44,7 @@ export function PromptField({
                     aria-hidden="true"
                     className={cn(
                         BOX,
+                        className,
                         'pointer-events-none absolute inset-0 overflow-hidden border-transparent break-words whitespace-pre-wrap text-foreground',
                     )}
                 >
@@ -68,13 +70,13 @@ export function PromptField({
 
                 <Textarea
                     id={id}
-                    rows={rows}
                     value={value}
                     placeholder={placeholder}
                     aria-label={ariaLabel}
                     spellCheck={false}
                     className={cn(
                         BOX,
+                        className,
                         'relative resize-none bg-transparent text-transparent caret-foreground',
                     )}
                     onChange={change}

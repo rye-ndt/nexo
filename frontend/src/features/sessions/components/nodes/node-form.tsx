@@ -40,7 +40,7 @@ export function NodeForm({
             >
                 <PromptField
                     id="node-prompt"
-                    rows={5}
+                    className="max-h-64 min-h-32"
                     value={prompt}
                     params={params}
                     onChange={onPromptChange}

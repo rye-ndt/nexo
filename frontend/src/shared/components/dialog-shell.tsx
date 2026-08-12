@@ -40,7 +40,7 @@ export function DialogShell({
                     {aside}
                 </div>
 
-                <div className="min-h-0 flex-1 overflow-y-auto">{children}</div>
+                <div className="min-h-0 flex-1 scroll-py-6 overflow-y-auto">{children}</div>
 
                 <div className="flex h-14 shrink-0 items-center gap-2 border-t border-border px-4">
                     {footer}

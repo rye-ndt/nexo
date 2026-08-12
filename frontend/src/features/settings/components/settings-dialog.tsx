@@ -53,7 +53,7 @@ export function SettingsDialog({
                         <DialogTitle className="text-base">{active.label}</DialogTitle>
                     </div>
 
-                    <div className="min-h-0 flex-1 overflow-y-auto">
+                    <div className="min-h-0 flex-1 scroll-py-6 overflow-y-auto">
                         {active.id === SettingsTabId.Preferences && <PreferencesPanel />}
                         {active.id === SettingsTabId.Templates && <TemplatesPanel />}
                         {active.id === SettingsTabId.MCP && <MCPPanel />}
