@@ -189,6 +189,20 @@ func (s *v1) commit(c *change, what string) error {
 	return s.publish(c.progress)
 }
 
+func (s *v1) settle(c *change, what string) error {
+	return firstErr(s.commit(c, what), s.drainIfDone(c.session))
+}
+
+func firstErr(errs ...error) error {
+	for _, err := range errs {
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 func (s *v1) publish(progress *core_itf.SessionProgress) error {
 	return s.mq.Emit(progress.SessionID, progress.Event, progress)
 }
@@ -383,7 +397,7 @@ func (s *v1) RewindTo(taskID uuid.UUID) error {
 		return err
 	}
 
-	var commitErr error
+	commitErrs := make([]error, 0, len(dependents))
 
 	for _, dependent := range dependents {
 		c, err := s.editTask(dependent, uuid.Nil, enums.SessionTaskStatusChanged,
@@ -404,14 +418,12 @@ func (s *v1) RewindTo(taskID uuid.UUID) error {
 			return err
 		}
 
-		if err := s.commit(c, "task rewind"); err != nil && commitErr == nil {
-			commitErr = err
-		}
+		commitErrs = append(commitErrs, s.commit(c, "task rewind"))
 	}
 
 	s.resume(session)
 
-	return commitErr
+	return firstErr(commitErrs...)
 }
 
 func (s *v1) dependentsOf(taskID uuid.UUID) (*sessionMetadata, []uuid.UUID, error) {
@@ -474,13 +486,7 @@ func (s *v1) AnswerAcceptance(taskID uuid.UUID, accepted bool) error {
 		return err
 	}
 
-	commitErr := s.commit(c, "task acceptance")
-
-	if err := s.drainIfDone(c.session); err != nil && commitErr == nil {
-		commitErr = err
-	}
-
-	return commitErr
+	return s.settle(c, "task acceptance")
 }
 
 func (s *v1) Report(agentID uuid.UUID, status enums.TaskStatus, docs []*core_itf.HandoverDoc) error {
@@ -565,13 +571,7 @@ func (s *v1) Report(agentID uuid.UUID, status enums.TaskStatus, docs []*core_itf
 
 	s.closeHandle(c.session, agentID, report)
 
-	publishErr := s.publish(c.progress)
-
-	if err := s.drainIfDone(c.session); err != nil && publishErr == nil {
-		publishErr = err
-	}
-
-	return publishErr
+	return firstErr(s.publish(c.progress), s.drainIfDone(c.session))
 }
 
 // Runs after the database write, so a failed write leaves the agent still holding its task.
@@ -621,22 +621,17 @@ func (s *v1) Cancel(sessionID uuid.UUID) ([]uuid.UUID, error) {
 		return nil, custom_error.Critical("cannot save task cancel: %v", err)
 	}
 
-	var publishErr error
+	publishErrs := make([]error, 0, len(changes)+1)
 
 	for _, c := range changes {
-		if err := s.publish(c.progress); err != nil && publishErr == nil {
-			publishErr = err
-		}
+		publishErrs = append(publishErrs, s.publish(c.progress))
 	}
 
-	session, found := s.session(sessionID)
-	if found {
-		if err := s.drainIfDone(session); err != nil && publishErr == nil {
-			publishErr = err
-		}
+	if session, found := s.session(sessionID); found {
+		publishErrs = append(publishErrs, s.drainIfDone(session))
 	}
 
-	return agentIDs, publishErr
+	return agentIDs, firstErr(publishErrs...)
 }
 
 func (s *v1) cancelSession(sessionID uuid.UUID) ([]*change, []uuid.UUID, error) {
@@ -1040,13 +1035,7 @@ func (s *v1) dropTask(agentID uuid.UUID, deadline int64) error {
 		return nil
 	}
 
-	commitErr := s.commit(c, "task drop")
-
-	if err := s.drainIfDone(c.session); err != nil && commitErr == nil {
-		commitErr = err
-	}
-
-	return commitErr
+	return s.settle(c, "task drop")
 }
 
 func (s *v1) session(sessionID uuid.UUID) (*sessionMetadata, bool) {
@@ -1142,9 +1131,7 @@ func (m *sessionMetadata) isReady(t *input_itf.TaskEntity) bool {
 		return true
 	}
 
-	retryable := t.Status == enums.TaskFailed || t.Status == enums.TaskCancelled
-
-	return t.AutoRetry && retryable && t.RetryCount < maxAutoRetry
+	return t.AutoRetry && t.Status.Retryable() && t.RetryCount < maxAutoRetry
 }
 
 func (m *sessionMetadata) findHandle(taskID uuid.UUID) (*AgentHandle, bool) {

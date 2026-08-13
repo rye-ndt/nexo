@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
@@ -113,6 +114,34 @@ func parseID(kind, id string) (uuid.UUID, error) {
 	return parsed, nil
 }
 
+func withID(kind, id string, do func(uuid.UUID) error) error {
+	parsed, err := parseID(kind, id)
+	if err != nil {
+		return err
+	}
+
+	return do(parsed)
+}
+
+func fromID[T any](kind, id string, do func(uuid.UUID) (T, error)) (T, error) {
+	parsed, err := parseID(kind, id)
+	if err != nil {
+		var zero T
+
+		return zero, err
+	}
+
+	return do(parsed)
+}
+
+func withSessionTask(sessionID, taskID string, do func(session, task uuid.UUID) error) error {
+	return withID(idSession, sessionID, func(session uuid.UUID) error {
+		return withID(idTask, taskID, func(task uuid.UUID) error {
+			return do(session, task)
+		})
+	})
+}
+
 func labels[T fmt.Stringer](items []T) []string {
 	names := make([]string, 0, len(items))
 
@@ -214,39 +243,39 @@ func approvalInfo(request *core_itf.ApprovalRequest) *output_itf.ApprovalInfo {
 }
 
 func (a *API) AnswerApproval(requestID string, approved bool, optionIDs []string, guidance string) error {
-	parsed, err := parseID(idApproval, requestID)
-	if err != nil {
-		return err
-	}
+	return withID(idApproval, requestID, func(parsed uuid.UUID) error {
+		var sendErr error
 
-	agentID := uuid.Nil
+		if !approved && guidance != "" {
+			agentID := a.approvalAgent(parsed)
+			if agentID == uuid.Nil {
+				return custom_error.Critical("approval %s has no agent to send the guidance to", requestID)
+			}
+
+			sendErr = a.agentManager.Send(agentID, guidance)
+		}
+
+		if err := a.approvals.Answer(&core_itf.ApprovalAnswer{
+			RequestID: parsed,
+			Approved:  approved,
+			OptionIDs: optionIDs,
+			Guidance:  guidance,
+		}); err != nil {
+			return err
+		}
+
+		return sendErr
+	})
+}
+
+func (a *API) approvalAgent(requestID uuid.UUID) uuid.UUID {
 	for _, request := range a.approvals.Pending() {
-		if request.ID == parsed {
-			agentID = request.AgentID
-			break
+		if request.ID == requestID {
+			return request.AgentID
 		}
 	}
 
-	var sendErr error
-
-	if !approved && guidance != "" {
-		if agentID == uuid.Nil {
-			return custom_error.Critical("approval %s has no agent to send the guidance to", requestID)
-		}
-
-		sendErr = a.agentManager.Send(agentID, guidance)
-	}
-
-	if err := a.approvals.Answer(&core_itf.ApprovalAnswer{
-		RequestID: parsed,
-		Approved:  approved,
-		OptionIDs: optionIDs,
-		Guidance:  guidance,
-	}); err != nil {
-		return err
-	}
-
-	return sendErr
+	return uuid.Nil
 }
 
 func (a *API) Templates() ([]*output_itf.TemplateInfo, error) {
@@ -265,17 +294,14 @@ func (a *API) Templates() ([]*output_itf.TemplateInfo, error) {
 }
 
 func (a *API) Template(id string) (*output_itf.TemplateInfo, error) {
-	parsed, err := parseID(idTemplate, id)
-	if err != nil {
-		return nil, err
-	}
+	return fromID(idTemplate, id, func(parsed uuid.UUID) (*output_itf.TemplateInfo, error) {
+		template, err := a.templates.Get(parsed)
+		if err != nil {
+			return nil, err
+		}
 
-	template, err := a.templates.Get(parsed)
-	if err != nil {
-		return nil, err
-	}
-
-	return templateInfo(template), nil
+		return templateInfo(template), nil
+	})
 }
 
 func (a *API) UpsertTemplate(template *output_itf.TemplateInfo) (string, error) {
@@ -330,12 +356,26 @@ func (a *API) UpsertTemplate(template *output_itf.TemplateInfo) (string, error) 
 }
 
 func (a *API) RemoveTemplate(id string) error {
-	parsed, err := parseID(idTemplate, id)
-	if err != nil {
-		return err
+	return withID(idTemplate, id, a.templates.Remove)
+}
+
+func (a *API) ExportTemplates(ids []string, path string) (int, error) {
+	parsed := make([]uuid.UUID, 0, len(ids))
+
+	for _, id := range ids {
+		templateID, err := parseID(idTemplate, id)
+		if err != nil {
+			return 0, err
+		}
+
+		parsed = append(parsed, templateID)
 	}
 
-	return a.templates.Remove(parsed)
+	return a.templates.Export(parsed, path)
+}
+
+func (a *API) ImportTemplates(path string) (int, error) {
+	return a.templates.Import(path)
 }
 
 func templateInfo(template *core_itf.Template) *output_itf.TemplateInfo {
@@ -442,10 +482,31 @@ func (a *API) ChooseDirectory(title string) (string, error) {
 	})
 }
 
-func (a *API) ChooseFile(title string) (string, error) {
+func (a *API) ChooseFile(title string, pattern string) (string, error) {
 	return runtime.OpenFileDialog(a.ctx, runtime.OpenDialogOptions{
-		Title: title,
+		Title:   title,
+		Filters: fileFilters(pattern),
 	})
+}
+
+func (a *API) ChooseSaveFile(title string, defaultName string, pattern string) (string, error) {
+	return runtime.SaveFileDialog(a.ctx, runtime.SaveDialogOptions{
+		Title:                title,
+		DefaultFilename:      defaultName,
+		Filters:              fileFilters(pattern),
+		CanCreateDirectories: true,
+	})
+}
+
+func fileFilters(pattern string) []runtime.FileFilter {
+	if pattern == "" {
+		return nil
+	}
+
+	return []runtime.FileFilter{{
+		DisplayName: strings.ToUpper(strings.TrimPrefix(pattern, "*.")) + " files",
+		Pattern:     pattern,
+	}}
 }
 
 func (a *API) AgentDefaults() ([]*output_itf.AgentDefaultInfo, error) {
@@ -549,68 +610,46 @@ func resolveDeps(dependsOn []string, clientToTask map[string]uuid.UUID) ([]uuid.
 }
 
 func (a *API) SessionStatus(sessionID string) (*output_itf.SessionStatusInfo, error) {
-	parsed, err := parseID(idSession, sessionID)
-	if err != nil {
-		return nil, err
-	}
+	return fromID(idSession, sessionID, func(parsed uuid.UUID) (*output_itf.SessionStatusInfo, error) {
+		status, err := a.sessions.Status(parsed)
+		if err != nil {
+			return nil, err
+		}
 
-	status, err := a.sessions.Status(parsed)
-	if err != nil {
-		return nil, err
-	}
-
-	return sessionStatusInfo(status), nil
+		return sessionStatusInfo(status), nil
+	})
 }
 
 func (a *API) ResumeSession(sessionID string) error {
-	parsed, err := parseID(idSession, sessionID)
-	if err != nil {
-		return err
-	}
-
-	return a.coordinator.Run(parsed)
+	return withID(idSession, sessionID, a.coordinator.Run)
 }
 
 func (a *API) CancelSession(sessionID string) error {
-	parsed, err := parseID(idSession, sessionID)
-	if err != nil {
-		return err
-	}
-
-	return a.coordinator.Cancel(parsed)
+	return withID(idSession, sessionID, a.coordinator.Cancel)
 }
 
 func (a *API) TaskDiff(sessionID, taskID string) ([]*output_itf.FileChangeInfo, error) {
-	parsedSession, err := parseID(idSession, sessionID)
+	infos := []*output_itf.FileChangeInfo{}
+
+	err := withSessionTask(sessionID, taskID, func(session, task uuid.UUID) error {
+		changes, err := a.history.Diff(session, task)
+		if err != nil {
+			return err
+		}
+
+		infos = fileChangeInfos(changes)
+
+		return nil
+	})
 	if err != nil {
 		return nil, err
 	}
 
-	parsedTask, err := parseID(idTask, taskID)
-	if err != nil {
-		return nil, err
-	}
-
-	changes, err := a.history.Diff(parsedSession, parsedTask)
-	if err != nil {
-		return nil, err
-	}
-
-	return fileChangeInfos(changes), nil
+	return infos, nil
 }
 
 func (a *API) RevertSessionTo(sessionID, taskID string) error {
-	parsedSession, err := parseID(idSession, sessionID)
-	if err != nil {
-		return err
-	}
-
-	parsedTask, err := parseID(idTask, taskID)
-	if err != nil {
-		return err
-	}
-
-	return a.coordinator.RevertTo(parsedSession, parsedTask)
+	return withSessionTask(sessionID, taskID, a.coordinator.RevertTo)
 }
 
 func fileChangeInfos(changes []*input_itf.FileChange) []*output_itf.FileChangeInfo {
@@ -631,21 +670,13 @@ func fileChangeInfos(changes []*input_itf.FileChange) []*output_itf.FileChangeIn
 }
 
 func (a *API) RetrySessionTask(taskID string) error {
-	parsed, err := parseID(idTask, taskID)
-	if err != nil {
-		return err
-	}
-
-	return a.sessions.RetryTask(parsed)
+	return withID(idTask, taskID, a.sessions.RetryTask)
 }
 
 func (a *API) AnswerTaskAcceptance(taskID string, accepted bool) error {
-	parsed, err := parseID(idTask, taskID)
-	if err != nil {
-		return err
-	}
-
-	return a.sessions.AnswerAcceptance(parsed, accepted)
+	return withID(idTask, taskID, func(parsed uuid.UUID) error {
+		return a.sessions.AnswerAcceptance(parsed, accepted)
+	})
 }
 
 func (a *API) SessionDrafts() ([]*output_itf.SessionDraftInfo, error) {
@@ -668,25 +699,17 @@ func (a *API) SessionDrafts() ([]*output_itf.SessionDraftInfo, error) {
 }
 
 func (a *API) SaveSessionDraft(id string, doc string) error {
-	parsed, err := parseID(idDraft, id)
-	if err != nil {
-		return err
-	}
-
-	return a.drafts.Save(&input_itf.SessionDraftEntity{
-		ID:        parsed,
-		Doc:       doc,
-		UpdatedAt: helpers.NewUTC(),
+	return withID(idDraft, id, func(parsed uuid.UUID) error {
+		return a.drafts.Save(&input_itf.SessionDraftEntity{
+			ID:        parsed,
+			Doc:       doc,
+			UpdatedAt: helpers.NewUTC(),
+		})
 	})
 }
 
 func (a *API) DeleteSessionDraft(id string) error {
-	parsed, err := parseID(idDraft, id)
-	if err != nil {
-		return err
-	}
-
-	return a.drafts.Delete(parsed)
+	return withID(idDraft, id, a.drafts.Delete)
 }
 
 func (a *API) MCPServers() ([]*output_itf.MCPServerInfo, error) {

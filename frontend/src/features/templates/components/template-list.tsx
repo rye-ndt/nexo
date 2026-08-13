@@ -5,7 +5,6 @@ import {Button} from '@/shared/ui/button'
 import {ConfirmDialog} from '@/shared/components/confirm-dialog'
 import {StatusChip} from '@/shared/components/status-chip'
 import {TaskLevelTag} from '@/shared/components/task-level-tag'
-import {paramSignature} from '@/features/templates/template'
 import type {Template} from '@/features/templates/types'
 
 export function TemplateList({
@@ -96,9 +95,21 @@ function TemplateCard({
                     {template.role || 'No role set.'}
                 </span>
 
-                <span className="truncate font-mono text-sm text-muted-foreground">
-                    {paramSignature(template) || 'no inputs'}
-                </span>
+                {template.params.length === 0 ? (
+                    <span className="text-sm text-muted-foreground">No inputs</span>
+                ) : (
+                    <span className="flex flex-wrap gap-1">
+                        {template.params.map((param) => (
+                            <span
+                                key={param.key}
+                                className="rounded-sm bg-muted px-1.5 py-0.5 font-mono text-xs break-all text-muted-foreground"
+                            >
+                                {param.key}
+                                {param.required && <span className="text-live">*</span>}
+                            </span>
+                        ))}
+                    </span>
+                )}
             </button>
 
             <span className="absolute top-2 right-2 flex items-center gap-1 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100">

@@ -19,6 +19,11 @@ var takeable = []TaskStatus{
 	TaskFailed,
 }
 
+var retryable = []TaskStatus{
+	TaskFailed,
+	TaskCancelled,
+}
+
 var removable = []TaskStatus{
 	TaskCompleted,
 	TaskCancelled,
@@ -32,6 +37,10 @@ var cancellable = []TaskStatus{
 
 func (s TaskStatus) Takeable() bool {
 	return slices.Contains(takeable, s)
+}
+
+func (s TaskStatus) Retryable() bool {
+	return slices.Contains(retryable, s)
 }
 
 func (s TaskStatus) Removable() bool {

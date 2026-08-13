@@ -27,12 +27,6 @@ export function emptyTemplate(): TemplateDraft {
     }
 }
 
-export function paramSignature(template: Template) {
-    return template.params
-        .map((param) => (param.required ? `${param.key}*` : param.key))
-        .join(' · ')
-}
-
 function defaultOf(param: TemplateParam): FieldValue {
     if (param.type === ParamType.Boolean) return param.default === 'true'
     if (param.type === ParamType.Select && !param.options?.includes(param.default ?? '')) return ''

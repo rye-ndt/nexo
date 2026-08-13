@@ -27,4 +27,7 @@ const (
 	ErrMcpForbiddenRequest   ErrorType = "err_mcp_forbidden_request"
 	ErrMcpRequestFailed      ErrorType = "err_mcp_request_failed"
 	ErrMcpTokenRequired      ErrorType = "err_mcp_token_required"
+
+	ErrTemplateFileInvalid ErrorType = "err_template_file_invalid"
+	ErrTemplateConflict    ErrorType = "err_template_conflict"
 )

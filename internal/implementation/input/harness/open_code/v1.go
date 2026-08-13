@@ -34,11 +34,18 @@ import (
 )
 
 const openCodeName = "open-code"
+const openCodeLabel = "open code"
 
 const (
 	permissionAllow = "allow"
 	sseDataPrefix   = "data: "
 )
+
+var openCodePlatforms = map[string]string{
+	enums.Mac.String():     enums.Mac.String(),
+	enums.Linux.String():   enums.Linux.String(),
+	enums.Windows.String(): enums.Windows.String(),
+}
 
 var openCodePermissions = map[string]string{
 	"edit":     permissionAllow,
@@ -136,9 +143,7 @@ type openCode struct {
 	authPath      string
 	workspacesDir string
 
-	mu           sync.Mutex
-	agents       map[string]*openCodeProc
-	uninstalled  bool
+	agents       *harness_helper.Registry[*openCodeProc]
 	authMu       sync.Mutex
 	installMu    sync.Mutex
 	cfg          *openCodeCfg
@@ -165,7 +170,7 @@ func New(
 
 	base, err := os.UserConfigDir()
 	if err != nil {
-		return nil, custom_error.Critical("%v", err)
+		return nil, custom_error.Critical("locate user config dir: %v", err)
 	}
 
 	dir := filepath.Join(base, cfg.Read().App.DataDir, "harness", openCodeName)
@@ -195,7 +200,7 @@ func New(
 		authPath:      filepath.Join(dataDir, "opencode", "auth.json"),
 		workspacesDir: filepath.Join(dir, "workspaces"),
 
-		agents:       map[string]*openCodeProc{},
+		agents:       harness_helper.NewRegistry[*openCodeProc](openCodeLabel, openCfg.MaxInstance),
 		cfg:          openCfg,
 		httpCli:      httpCli,
 		storage:      store,
@@ -215,103 +220,57 @@ func (o *openCode) Support(name enums.ModelName) bool {
 	return slices.Contains(o.cfg.EnabledModels, name)
 }
 
-func (o *openCode) atLimit() bool {
-	return len(o.agents) >= o.cfg.MaxInstance
-}
-
 func (o *openCode) Install(onProgress func(input_itf.InstallProgress)) error {
 	o.installMu.Lock()
 	defer o.installMu.Unlock()
 
-	if onProgress == nil {
-		onProgress = func(input_itf.InstallProgress) {}
-	}
-
-	if _, err := os.Stat(o.binPath); err == nil {
-		info, err := o.storage.Find(openCodeName)
-		if err != nil {
-			return custom_error.Critical("find harness info: %v", err)
-		}
-		if info != nil {
-			onProgress(input_itf.InstallProgress{Stage: enums.InstallStageDone})
-			return nil
-		}
-	}
-
-	onProgress(input_itf.InstallProgress{Stage: enums.InstallStageResolve})
-
-	platform, err := openCodePlatform()
-	if err != nil {
+	if err := harness_helper.Install(&harness_helper.InstallSpec{
+		Name:    openCodeName,
+		Label:   openCodeLabel,
+		BinPath: o.binPath,
+		Store:   o.storage,
+		HttpCli: o.httpCli,
+		Resolve: o.release,
+		Place: func(downloaded, dest string) error {
+			return extractBinary(downloaded, filepath.Base(dest), dest)
+		},
+	}, onProgress); err != nil {
 		return err
 	}
 
-	release := &githubRelease{}
+	o.agents.MarkInstalled()
 
-	if err := o.httpCli.GetJSON(o.cfg.ReleaseBase+"/releases/latest", release); err != nil {
-		return custom_error.Critical("resolve latest release: %v", err)
+	return nil
+}
+
+func (o *openCode) release() (*harness_helper.Release, error) {
+	platform, err := harness_helper.Platform(openCodePlatforms)
+	if err != nil {
+		return nil, err
+	}
+
+	latest := &githubRelease{}
+
+	if err := o.httpCli.GetJSON(o.cfg.ReleaseBase+"/releases/latest", latest); err != nil {
+		return nil, custom_error.Critical("resolve latest release: %v", err)
 	}
 
 	want := o.cfg.BinName + "-" + platform + ".zip"
 
-	var url, checksum string
-	for _, a := range release.Assets {
-		if a.Name == want {
-			url = a.BrowserDownloadURL
-			checksum = strings.TrimPrefix(a.Digest, "sha256:")
-			break
+	for _, asset := range latest.Assets {
+		if asset.Name != want {
+			continue
 		}
-	}
-	if url == "" {
-		return custom_error.Critical("no open code build for platform %s", platform)
-	}
 
-	if err := os.MkdirAll(filepath.Dir(o.binPath), 0o755); err != nil {
-		return custom_error.Critical("%v", err)
-	}
-
-	archive := o.binPath + ".zip"
-
-	onProgress(input_itf.InstallProgress{Stage: enums.InstallStageDownload})
-
-	if err := o.httpCli.Download(url, archive, &input_itf.DownloadParams{
-		Checksum: checksum,
-		OnProgress: func(downloaded, total int64) {
-			onProgress(input_itf.InstallProgress{
-				Stage:      enums.InstallStageDownload,
-				Downloaded: downloaded,
-				Total:      total,
-			})
-		},
-	}); err != nil {
-		return custom_error.Critical("download archive: %v", err)
-	}
-	defer os.Remove(archive)
-
-	onProgress(input_itf.InstallProgress{Stage: enums.InstallStageExtract})
-
-	if err := extractBinary(archive, filepath.Base(o.binPath), o.binPath); err != nil {
-		return err
-	}
-	if err := os.Chmod(o.binPath, 0o755); err != nil {
-		return custom_error.Critical("%v", err)
+		return &harness_helper.Release{
+			Version:  strings.TrimPrefix(latest.TagName, "v"),
+			Platform: platform,
+			URL:      asset.BrowserDownloadURL,
+			Checksum: strings.TrimPrefix(asset.Digest, "sha256:"),
+		}, nil
 	}
 
-	if err := o.storage.Save(&input_itf.HarnessEntity{
-		Name:     openCodeName,
-		Version:  strings.TrimPrefix(release.TagName, "v"),
-		Platform: enums.OS(platform),
-		Path:     o.binPath,
-	}); err != nil {
-		return custom_error.Critical("save install info: %v", err)
-	}
-
-	o.mu.Lock()
-	o.uninstalled = false
-	o.mu.Unlock()
-
-	onProgress(input_itf.InstallProgress{Stage: enums.InstallStageDone})
-
-	return nil
+	return nil, custom_error.Critical("no open code build for platform %s", platform)
 }
 
 func (o *openCode) Auth() (string, error) {
@@ -333,7 +292,7 @@ func (o *openCode) Auth() (string, error) {
 	}
 
 	if err := os.MkdirAll(o.dataDir, 0o755); err != nil {
-		return "", custom_error.Critical("%v", err)
+		return "", custom_error.Critical("create login data dir: %v", err)
 	}
 
 	scriptPath := filepath.Join(o.dir, "login.sh")
@@ -341,7 +300,7 @@ func (o *openCode) Auth() (string, error) {
 	sh := fmt.Sprintf("#!/bin/sh\nexport XDG_DATA_HOME='%s'\nexec '%s' auth login\n",
 		o.dataDir, o.binPath)
 	if err := os.WriteFile(scriptPath, []byte(sh), 0o700); err != nil {
-		return "", custom_error.Critical("%v", err)
+		return "", custom_error.Critical("write login script: %v", err)
 	}
 
 	if err := exec.Command("osascript",
@@ -367,29 +326,7 @@ func (o *openCode) SubmitAuthCode(code string) error {
 }
 
 func (o *openCode) Status() (*input_itf.AgentStatus, error) {
-	status := &input_itf.AgentStatus{Name: o.cfg.Name}
-
-	info, err := o.storage.Find(openCodeName)
-	if err != nil {
-		return nil, custom_error.Critical("find harness info: %v", err)
-	}
-
-	if info != nil {
-		if _, err := os.Stat(info.Path); err == nil {
-			status.Installed = true
-			status.Version = info.Version
-		}
-	}
-
-	if _, err := os.Stat(o.authPath); err == nil {
-		status.LoggedIn = true
-	}
-
-	o.mu.Lock()
-	status.InstanceCount = len(o.agents)
-	o.mu.Unlock()
-
-	return status, nil
+	return harness_helper.Status(openCodeName, o.cfg.Name, o.authPath, o.storage, o.agents.Count())
 }
 
 func (o *openCode) Spawn(
@@ -414,31 +351,32 @@ func (o *openCode) Spawn(
 		return uuid.Nil, custom_error.Critical("not authenticated, run Auth first")
 	}
 
-	o.mu.Lock()
-	limited := o.atLimit()
-	o.mu.Unlock()
-
-	if limited {
-		return uuid.Nil, custom_error.Critical("open code is at its limit of %d instances", o.cfg.MaxInstance)
+	if err := o.agents.Reserve(); err != nil {
+		return uuid.Nil, err
 	}
 
 	uid, err := uuid.NewV7()
 	if err != nil {
-		return uuid.Nil, custom_error.Critical("%v", err)
+		return uuid.Nil, err
 	}
+
 	id := uid.String()
+
+	unwind := &harness_helper.Unwind{}
+	defer unwind.Run()
 
 	workspace := filepath.Join(o.workspacesDir, id)
 	if err := os.MkdirAll(workspace, 0o755); err != nil {
-		return uuid.Nil, custom_error.Critical("%v", err)
+		return uuid.Nil, custom_error.Critical("create agent workspace: %v", err)
 	}
+
+	unwind.Push(func() { os.RemoveAll(workspace) })
 
 	agentCfg := maps.Clone(o.agentCfg)
 	agentCfg["model"] = string(name)
 
 	rawCfg, err := json.Marshal(agentCfg)
 	if err != nil {
-		os.RemoveAll(workspace)
 		return uuid.Nil, custom_error.Critical("build open code config: %v", err)
 	}
 
@@ -449,26 +387,24 @@ func (o *openCode) Spawn(
 	)
 
 	if err := harness_helper.WriteNewFile(filepath.Join(workspace, "opencode.json"), rawCfg, 0o600); err != nil {
-		os.RemoveAll(workspace)
 		return uuid.Nil, custom_error.Critical("write opencode config: %v", err)
 	}
 
 	if err := os.WriteFile(filepath.Join(workspace, "AGENTS.md"), agentsFile(o.systemPrompt, systemPrompts), 0o644); err != nil {
-		os.RemoveAll(workspace)
-		return uuid.Nil, custom_error.Critical("%v", err)
+		return uuid.Nil, custom_error.Critical("write agent prompt file: %v", err)
 	}
 
 	port, err := freePort(constances.GlobalLocalHost)
 	if err != nil {
-		os.RemoveAll(workspace)
 		return uuid.Nil, err
 	}
 
 	logFile, err := os.Create(filepath.Join(workspace, "serve.log"))
 	if err != nil {
-		os.RemoveAll(workspace)
-		return uuid.Nil, custom_error.Critical("%v", err)
+		return uuid.Nil, custom_error.Critical("open agent serve log: %v", err)
 	}
+
+	unwind.Push(func() { logFile.Close() })
 
 	cmd := exec.Command(
 		o.binPath,
@@ -484,19 +420,16 @@ func (o *openCode) Spawn(
 	harness_helper.SetProcAttrs(cmd)
 
 	if err := cmd.Start(); err != nil {
-		logFile.Close()
-		os.RemoveAll(workspace)
 		return uuid.Nil, custom_error.Critical("start open code: %v", err)
 	}
 
+	unwind.Push(func() {
+		harness_helper.KillProc(cmd)
+		cmd.Wait()
+	})
+
 	session, err := o.createSession(port)
 	if err != nil {
-		harness_helper.KillProc(cmd)
-		go func() {
-			cmd.Wait()
-			logFile.Close()
-			os.RemoveAll(workspace)
-		}()
 		return uuid.Nil, err
 	}
 
@@ -504,30 +437,14 @@ func (o *openCode) Spawn(
 	done := make(chan struct{})
 	exited := make(chan struct{})
 
-	abort := func() {
-		harness_helper.KillProc(cmd)
-		cmd.Wait()
-		logFile.Close()
-		os.RemoveAll(workspace)
-	}
-
-	o.mu.Lock()
-	if o.uninstalled {
-		o.mu.Unlock()
-		abort()
-		return uuid.Nil, custom_error.Critical("open code was uninstalled")
-	}
-
-	if o.atLimit() {
-		o.mu.Unlock()
-		abort()
-		return uuid.Nil, custom_error.Critical("open code is at its limit of %d instances", o.cfg.MaxInstance)
-	}
 	proc := &openCodeProc{cmd: cmd, out: out, port: port, session: session, done: done, exited: exited, ctxWindow: o.ctxWindow}
 	proc.lastOut.Store(helpers.NewUTCUnix())
 
-	o.agents[id] = proc
-	o.mu.Unlock()
+	if err := o.agents.Admit(id, proc); err != nil {
+		return uuid.Nil, err
+	}
+
+	unwind.Done()
 
 	streamClosed := make(chan struct{})
 
@@ -542,9 +459,7 @@ func (o *openCode) Spawn(
 		cmd.Wait()
 		logFile.Close()
 		os.RemoveAll(workspace)
-		o.mu.Lock()
-		delete(o.agents, id)
-		o.mu.Unlock()
+		o.agents.Forget(id)
 		close(exited)
 	}()
 
@@ -623,11 +538,9 @@ func streamEvents(
 }
 
 func (o *openCode) Send(id string, message string) error {
-	o.mu.Lock()
-	a, ok := o.agents[id]
-	o.mu.Unlock()
-	if !ok {
-		return custom_error.Critical("no running agent with id %s", id)
+	a, err := o.agents.Get(id)
+	if err != nil {
+		return err
 	}
 
 	payload, err := json.Marshal(map[string]any{
@@ -636,7 +549,7 @@ func (o *openCode) Send(id string, message string) error {
 		},
 	})
 	if err != nil {
-		return custom_error.Critical("%v", err)
+		return custom_error.Critical("encode message for agent %s: %v", id, err)
 	}
 
 	url := fmt.Sprintf("%s/session/%s/message", o.baseURL(a.port), a.session)
@@ -654,11 +567,9 @@ func (o *openCode) Send(id string, message string) error {
 }
 
 func (o *openCode) Alive(id string) (time.Time, error) {
-	o.mu.Lock()
-	a, ok := o.agents[id]
-	o.mu.Unlock()
-	if !ok {
-		return time.Time{}, custom_error.Critical("no running agent with id %s", id)
+	a, err := o.agents.Get(id)
+	if err != nil {
+		return time.Time{}, err
 	}
 
 	select {
@@ -671,11 +582,9 @@ func (o *openCode) Alive(id string) (time.Time, error) {
 }
 
 func (o *openCode) Usage(id string) (*input_itf.ContextUsage, error) {
-	o.mu.Lock()
-	a, ok := o.agents[id]
-	o.mu.Unlock()
-	if !ok {
-		return nil, custom_error.Critical("no running agent with id %s", id)
+	a, err := o.agents.Get(id)
+	if err != nil {
+		return nil, err
 	}
 
 	return a.snapshotUsage(), nil
@@ -686,23 +595,16 @@ func (o *openCode) Activity(id string) ([]input_itf.Activity, error) {
 }
 
 func (o *openCode) Listen(id string) (<-chan string, error) {
-	o.mu.Lock()
-	a, ok := o.agents[id]
-	o.mu.Unlock()
-	if !ok {
-		return nil, custom_error.Critical("no running agent with id %s", id)
+	a, err := o.agents.Get(id)
+	if err != nil {
+		return nil, err
 	}
+
 	return a.out, nil
 }
 
 func (o *openCode) stopAll() {
-	o.mu.Lock()
-	procs := make([]*openCodeProc, 0, len(o.agents))
-	for id, a := range o.agents {
-		procs = append(procs, a)
-		delete(o.agents, id)
-	}
-	o.mu.Unlock()
+	procs := o.agents.Drain()
 
 	for _, a := range procs {
 		close(a.done)
@@ -721,9 +623,7 @@ func (o *openCode) Shutdown() {
 }
 
 func (o *openCode) Uninstall() error {
-	o.mu.Lock()
-	o.uninstalled = true
-	o.mu.Unlock()
+	o.agents.MarkUninstalled()
 
 	o.stopAll()
 
@@ -735,16 +635,13 @@ func (o *openCode) Uninstall() error {
 }
 
 func (o *openCode) Kill(id string) error {
-	o.mu.Lock()
-	a, ok := o.agents[id]
-	if ok {
-		delete(o.agents, id)
+	a, err := o.agents.Take(id)
+	if err != nil {
+		return err
 	}
-	o.mu.Unlock()
-	if !ok {
-		return custom_error.Critical("no running agent with id %s", id)
-	}
+
 	close(a.done)
+
 	return nil
 }
 
@@ -763,7 +660,7 @@ func agentsFile(base []byte, extra []string) []byte {
 func freePort(host string) (int, error) {
 	ln, err := net.Listen("tcp", net.JoinHostPort(host, "0"))
 	if err != nil {
-		return 0, custom_error.Critical("%v", err)
+		return 0, custom_error.Critical("reserve a local port: %v", err)
 	}
 	port := ln.Addr().(*net.TCPAddr).Port
 	ln.Close()
@@ -789,19 +686,6 @@ func openCodeMCPCfg(gateway *core_itf.MCPGateway) map[string]any {
 	return block
 }
 
-func openCodePlatform() (string, error) {
-	goos := map[string]string{
-		enums.Mac.String():     enums.Mac.String(),
-		enums.Linux.String():   enums.Linux.String(),
-		enums.Windows.String(): enums.Windows.String(),
-	}[runtime.GOOS]
-	arch := map[string]string{"arm64": "arm64", "amd64": "x64"}[runtime.GOARCH]
-	if goos == "" || arch == "" {
-		return "", custom_error.Critical("unsupported platform %s/%s", runtime.GOOS, runtime.GOARCH)
-	}
-	return goos + "-" + arch, nil
-}
-
 func extractBinary(archive, member, dest string) error {
 	r, err := zip.OpenReader(archive)
 	if err != nil {
@@ -810,34 +694,43 @@ func extractBinary(archive, member, dest string) error {
 	defer r.Close()
 
 	for _, f := range r.File {
-		if filepath.Base(f.Name) != member {
-			continue
+		if filepath.Base(f.Name) == member {
+			return writeZipEntry(f, dest)
 		}
-
-		rc, err := f.Open()
-		if err != nil {
-			return custom_error.Critical("%v", err)
-		}
-		tmp := dest + ".tmp"
-		out, err := os.Create(tmp)
-		if err != nil {
-			rc.Close()
-			return custom_error.Critical("%v", err)
-		}
-		_, err = io.Copy(out, rc)
-		rc.Close()
-		if cerr := out.Close(); err == nil {
-			err = cerr
-		}
-		if err == nil {
-			err = os.Rename(tmp, dest)
-		}
-		if err != nil {
-			os.Remove(tmp)
-			return custom_error.Critical("%v", err)
-		}
-		return nil
 	}
 
 	return custom_error.Critical("%s not found in archive", member)
+}
+
+func writeZipEntry(f *zip.File, dest string) error {
+	rc, err := f.Open()
+	if err != nil {
+		return custom_error.Critical("read %s from archive: %v", f.Name, err)
+	}
+	defer rc.Close()
+
+	tmp := dest + ".tmp"
+
+	out, err := os.Create(tmp)
+	if err != nil {
+		return custom_error.Critical("create %s: %v", tmp, err)
+	}
+
+	_, err = io.Copy(out, rc)
+
+	if closeErr := out.Close(); err == nil {
+		err = closeErr
+	}
+
+	if err == nil {
+		err = os.Rename(tmp, dest)
+	}
+
+	if err != nil {
+		os.Remove(tmp)
+
+		return custom_error.Critical("extract %s: %v", f.Name, err)
+	}
+
+	return nil
 }

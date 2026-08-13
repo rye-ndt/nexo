@@ -34,6 +34,29 @@ export function useTemplates() {
     }
 }
 
+export function useTemplateTransfer() {
+    const queryClient = useQueryClient()
+
+    const send = useMutation({
+        meta: {action: 'Could not export your templates'},
+        mutationFn: ({templateIds, path}: {templateIds: string[]; path: string}) =>
+            api.exportTemplates(templateIds, path),
+    })
+
+    const receive = useMutation({
+        meta: {action: 'Could not import that file'},
+        mutationFn: (path: string) => api.importTemplates(path),
+        onSuccess: () => queryClient.invalidateQueries({queryKey: TEMPLATES_KEY}),
+    })
+
+    return {
+        exportTemplates: send.mutateAsync,
+        importTemplates: receive.mutateAsync,
+        sending: send.isPending,
+        receiving: receive.isPending,
+    }
+}
+
 export function useTemplate(templateId: string | undefined) {
     const {templates} = useTemplates()
     return templates.find((template) => template.id === templateId)

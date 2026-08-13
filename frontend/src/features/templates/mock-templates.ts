@@ -1,4 +1,5 @@
-import type {Template} from '@/features/templates/types'
+import {PARAM_TYPES, TASK_LEVELS, type ParamType, type TaskLevel} from '@/shared/lib/enums'
+import type {Template, TemplateArchive, TemplateRecord} from '@/features/templates/types'
 
 export const MOCK_TEMPLATES: Template[] = [
     {
@@ -112,3 +113,148 @@ recommendation: what the next node should do about it`,
         outputStructure: '',
     },
 ]
+
+const ARCHIVE_VERSION = 1
+const TEMPLATE_FILE_INVALID = 'err_template_file_invalid'
+const TEMPLATE_CONFLICT = 'err_template_conflict'
+
+function toRecord(template: Template): TemplateRecord {
+    return {
+        id: template.id,
+        name: template.name,
+        role: template.role,
+        task_level: template.taskLevel,
+        retryable: template.retryable,
+        manual_accept_required: template.manualAcceptRequired,
+        params: Object.fromEntries(
+            template.params.map((param) => [
+                param.key,
+                {
+                    description: param.label,
+                    required: param.required,
+                    type: param.type,
+                    default: param.default ?? '',
+                    options: param.options ?? [],
+                },
+            ]),
+        ),
+        system_prompts: Object.fromEntries(
+            template.systemPrompts.map((prompt) => [prompt.key, prompt.value]),
+        ),
+        output_structure: template.outputStructure,
+    }
+}
+
+function fromRecord(record: TemplateRecord): Template {
+    return {
+        id: record.id,
+        name: record.name.trim(),
+        role: record.role ?? '',
+        taskLevel: record.task_level as TaskLevel,
+        retryable: record.retryable ?? false,
+        manualAcceptRequired: record.manual_accept_required ?? false,
+        params: Object.entries(record.params ?? {}).map(([key, param]) => ({
+            key,
+            label: param.description,
+            type: param.type as ParamType,
+            required: param.required,
+            default: param.default || undefined,
+            options: param.options?.length ? param.options : undefined,
+        })),
+        systemPrompts: Object.entries(record.system_prompts ?? {}).map(([key, value]) => ({
+            key,
+            value,
+        })),
+        outputStructure: record.output_structure ?? '',
+    }
+}
+
+export function mockArchive(picked: Template[]): string {
+    const archive: TemplateArchive = {
+        version: ARCHIVE_VERSION,
+        exported_at: new Date().toISOString(),
+        templates: picked.map(toRecord),
+    }
+
+    return `${JSON.stringify(archive, null, 2)}\n`
+}
+
+function recordIssues(record: TemplateRecord, index: number): string[] {
+    const at = `templates[${index}]`
+    const issues: string[] = []
+
+    if (!record?.id) issues.push(`${at}.id is missing`)
+    if (!record?.name?.trim()) issues.push(`${at}.name is missing`)
+    if (!TASK_LEVELS.some((level) => level === record?.task_level))
+        issues.push(`${at}.task_level is not one of the values this app knows`)
+    if (!Object.keys(record?.system_prompts ?? {}).length)
+        issues.push(`${at}.system_prompts is missing`)
+
+    for (const [key, param] of Object.entries(record?.params ?? {})) {
+        if (!PARAM_TYPES.some((type) => type === param?.type))
+            issues.push(`${at}.params[${key}].type is not one of the values this app knows`)
+    }
+
+    return issues
+}
+
+function refusal(code: string, message: string) {
+    return new Error(`[Err] Type: ${code} - Message: ${message} - Critical: critical`)
+}
+
+export function mockImported(current: Template[], body: string, path: string): Template[] {
+    const named = `\u201c${path.slice(path.lastIndexOf('/') + 1) || path}\u201d`
+
+    let archive: TemplateArchive
+
+    try {
+        archive = JSON.parse(body)
+    } catch {
+        throw refusal(TEMPLATE_FILE_INVALID, `${named} is not a template file`)
+    }
+
+    if (archive?.version !== ARCHIVE_VERSION)
+        throw refusal(
+            TEMPLATE_FILE_INVALID,
+            `${named} is a version ${archive?.version} template file, and this app reads version ${ARCHIVE_VERSION}`,
+        )
+
+    const issues = (archive.templates ?? []).flatMap(recordIssues)
+    if (!archive.templates?.length) issues.push('templates is missing')
+
+    if (issues.length > 0)
+        throw refusal(
+            TEMPLATE_FILE_INVALID,
+            `${named} does not hold valid templates: ${issues.join(', ')}`,
+        )
+
+    const problems: string[] = []
+    const names = new Set(current.map((template) => template.name.trim().toLowerCase()))
+    const ids = new Set(current.map((template) => template.id))
+    const seenNames = new Set<string>()
+    const seenIds = new Set<string>()
+
+    for (const record of archive.templates) {
+        const name = record.name.trim()
+        const key = name.toLowerCase()
+
+        if (seenNames.has(key)) problems.push(`the file lists \u201c${name}\u201d twice`)
+        if (seenIds.has(record.id)) problems.push(`the file lists the id ${record.id} twice`)
+
+        seenNames.add(key)
+        seenIds.add(record.id)
+
+        if (names.has(key)) {
+            problems.push(`a template named \u201c${name}\u201d is already here`)
+            continue
+        }
+
+        if (ids.has(record.id))
+            problems.push(`\u201c${name}\u201d carries the id of a template already here`)
+    }
+
+    if (problems.length > 0)
+        throw refusal(TEMPLATE_CONFLICT, `nothing was imported: ${problems.join('; ')}`)
+
+    return archive.templates.map(fromRecord)
+}

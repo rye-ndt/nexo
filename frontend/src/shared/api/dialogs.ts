@@ -1,11 +1,13 @@
 /**
  * The path-chooser seam. Inside the Wails webview these are the real native
  * dialogs — ChooseDirectory wraps runtime.OpenDirectoryDialog with
- * CanCreateDirectories, so creating a folder comes from the OS, and ChooseFile
- * wraps runtime.OpenFileDialog with no filter, so any format can be picked.
- * Both return an absolute path or "" when the user cancels. Under the plain
- * vite dev server there is no runtime and the File System Access API refuses to
- * disclose absolute paths, so a stand-in picker answers the same contract.
+ * CanCreateDirectories, so creating a folder comes from the OS, ChooseFile
+ * wraps runtime.OpenFileDialog and ChooseSaveFile wraps runtime.SaveFileDialog.
+ * A pattern such as "*.json" narrows what the OS offers; an empty one takes any
+ * format. All three return an absolute path or "" when the user cancels. Under
+ * the plain vite dev server there is no runtime and the File System Access API
+ * refuses to disclose absolute paths, so a stand-in picker answers the same
+ * contract.
  */
 
 import {hasWailsRuntime} from '@/shared/api/bridge'
@@ -15,11 +17,18 @@ import {
     mockCreateDirectory,
     MOCK_HOME,
 } from '@/shared/api/mock-fs'
-import {ChooseDirectory, ChooseFile} from '@wailsjs/go/wails_api/API'
+import {ChooseDirectory, ChooseFile, ChooseSaveFile} from '@wailsjs/go/wails_api/API'
 
-export type PathKind = 'directory' | 'file'
+export type PathKind = 'directory' | 'file' | 'save'
 
-type PathChooser = (kind: PathKind, title: string) => Promise<string>
+export type PathRequest = {
+    kind: PathKind
+    title: string
+    pattern: string
+    defaultName: string
+}
+
+type PathChooser = (request: PathRequest) => Promise<string>
 
 let standIn: PathChooser | null = null
 
@@ -33,28 +42,51 @@ export function hasNativePathPicker() {
 }
 
 /** Resolves to the chosen absolute path, or an empty string if the user cancels. */
-async function choosePath(kind: PathKind, title: string): Promise<string> {
-    if (hasNativePathPicker()) return kind === 'file' ? ChooseFile(title) : ChooseDirectory(title)
+async function choosePath(request: PathRequest): Promise<string> {
+    if (hasNativePathPicker()) {
+        if (request.kind === 'directory') return ChooseDirectory(request.title)
+        if (request.kind === 'file') return ChooseFile(request.title, request.pattern)
+
+        return ChooseSaveFile(request.title, request.defaultName, request.pattern)
+    }
 
     if (!standIn) throw new Error('No path picker is available right now.')
 
-    return standIn(kind, title)
+    return standIn(request)
 }
 
 export async function chooseDirectory(title: string): Promise<string> {
-    return choosePath('directory', title)
+    return choosePath({kind: 'directory', title, pattern: '', defaultName: ''})
 }
 
-export async function chooseFile(title: string): Promise<string> {
-    return choosePath('file', title)
+export async function chooseFile(title: string, pattern = ''): Promise<string> {
+    return choosePath({kind: 'file', title, pattern, defaultName: ''})
+}
+
+export async function chooseSaveFile(
+    title: string,
+    defaultName: string,
+    pattern = '',
+): Promise<string> {
+    const path = await choosePath({kind: 'save', title, pattern, defaultName})
+    const extension = pattern.replace('*', '')
+
+    if (!path || !extension || path.endsWith(extension)) return path
+
+    return path + extension
 }
 
 export async function listDirectories(path: string): Promise<string[]> {
     return mockChildDirectories(path)
 }
 
-export async function listFiles(path: string): Promise<string[]> {
-    return mockChildFiles(path)
+export async function listFiles(path: string, pattern = ''): Promise<string[]> {
+    const files = mockChildFiles(path)
+    if (!pattern) return files
+
+    const extension = pattern.replace('*', '')
+
+    return files.filter((name) => name.endsWith(extension))
 }
 
 export async function createDirectory(parent: string, name: string): Promise<string> {

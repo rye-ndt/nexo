@@ -9,7 +9,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
-	"runtime"
 	"slices"
 	"strings"
 	"sync"
@@ -29,7 +28,14 @@ import (
 )
 
 const harnessName = "claude-code"
+const harnessLabel = "claude code"
 const maxActivity = 40
+
+var claudePlatforms = map[string]string{
+	enums.Mac.String():     "darwin",
+	enums.Linux.String():   "linux",
+	enums.Windows.String(): "win32",
+}
 
 const (
 	eventAssistant = "assistant"
@@ -315,22 +321,20 @@ type claudeCode struct {
 	tokenPath     string
 	workspacesDir string
 
-	mu          sync.Mutex
-	agents      map[string]*agentProc
-	uninstalled bool
-	authMu      sync.Mutex
-	installMu   sync.Mutex
-	auth        *authSession
-	loginMu     sync.Mutex
-	cfg         *claudeCodeCfg
-	httpCli     input_itf.HttpCli
-	storage     input_itf.HarnessStorage
-	tokenRe     *regexp.Regexp
-	ansiRe      *regexp.Regexp
-	spawnArgs   []string
-	mcpCfg      []byte
-	baseEnv     []string
-	ctxWindow   int
+	agents    *harness_helper.Registry[*agentProc]
+	authMu    sync.Mutex
+	installMu sync.Mutex
+	auth      *authSession
+	loginMu   sync.Mutex
+	cfg       *claudeCodeCfg
+	httpCli   input_itf.HttpCli
+	storage   input_itf.HarnessStorage
+	tokenRe   *regexp.Regexp
+	ansiRe    *regexp.Regexp
+	spawnArgs []string
+	mcpCfg    []byte
+	baseEnv   []string
+	ctxWindow int
 }
 
 func New(
@@ -347,7 +351,7 @@ func New(
 
 	base, err := os.UserConfigDir()
 	if err != nil {
-		return nil, custom_error.Critical("%v", err)
+		return nil, custom_error.Critical("locate user config dir: %v", err)
 	}
 
 	tokenRe, err := regexp.Compile(claudeCfg.TokenRegex)
@@ -379,7 +383,7 @@ func New(
 		configDir:     configDir,
 		tokenPath:     filepath.Join(dir, "credentials"),
 		workspacesDir: filepath.Join(dir, "workspaces"),
-		agents:        map[string]*agentProc{},
+		agents:        harness_helper.NewRegistry[*agentProc](harnessLabel, claudeCfg.MaxInstance),
 		cfg:           claudeCfg,
 		httpCli:       httpCli,
 		storage:       store,
@@ -408,98 +412,54 @@ func (c *claudeCode) Support(name enums.ModelName) bool {
 	return slices.Contains(c.cfg.EnabledModels, name)
 }
 
-func (c *claudeCode) atLimit() bool {
-	return len(c.agents) >= c.cfg.MaxInstance
-}
-
 func (c *claudeCode) Install(onProgress func(input_itf.InstallProgress)) error {
 	c.installMu.Lock()
 	defer c.installMu.Unlock()
 
-	if onProgress == nil {
-		onProgress = func(input_itf.InstallProgress) {}
-	}
-
-	if _, err := os.Stat(c.binPath); err == nil {
-		info, err := c.storage.Find(harnessName)
-		if err != nil {
-			return custom_error.Critical("find harness info: %v", err)
-		}
-		if info != nil {
-			onProgress(input_itf.InstallProgress{Stage: enums.InstallStageDone})
-			return nil
-		}
-	}
-
-	onProgress(input_itf.InstallProgress{Stage: enums.InstallStageResolve})
-
-	platform, err := platformString()
-	if err != nil {
+	if err := harness_helper.Install(&harness_helper.InstallSpec{
+		Name:    harnessName,
+		Label:   harnessLabel,
+		BinPath: c.binPath,
+		Store:   c.storage,
+		HttpCli: c.httpCli,
+		Resolve: c.release,
+	}, onProgress); err != nil {
 		return err
+	}
+
+	c.agents.MarkInstalled()
+
+	return nil
+}
+
+func (c *claudeCode) release() (*harness_helper.Release, error) {
+	platform, err := harness_helper.Platform(claudePlatforms)
+	if err != nil {
+		return nil, err
 	}
 
 	version, err := c.httpCli.GetString(c.cfg.ReleaseBase + "/stable")
 	if err != nil {
-		return custom_error.Critical("resolve stable version: %v", err)
+		return nil, custom_error.Critical("resolve stable version: %v", err)
 	}
 
 	manifest := &claudeManifest{}
 
 	if err := c.httpCli.GetJSON(c.cfg.ReleaseBase+"/"+version+"/manifest.json", manifest); err != nil {
-		return custom_error.Critical("fetch manifest: %v", err)
+		return nil, custom_error.Critical("fetch manifest: %v", err)
 	}
 
-	entry, ok := manifest.Platforms[platform]
-	if !ok {
-		return custom_error.Critical("no claude code build for platform %s", platform)
+	entry, found := manifest.Platforms[platform]
+	if !found {
+		return nil, custom_error.Critical("no claude code build for platform %s", platform)
 	}
 
-	if err := os.MkdirAll(filepath.Dir(c.binPath), 0o755); err != nil {
-		return custom_error.Critical("%v", err)
-	}
-
-	tmp := c.binPath + ".download"
-
-	onProgress(input_itf.InstallProgress{Stage: enums.InstallStageDownload})
-
-	url := c.cfg.ReleaseBase + "/" + version + "/" + platform + "/" + entry.Binary
-	if err := c.httpCli.Download(url, tmp, &input_itf.DownloadParams{
-		Checksum: entry.Checksum,
-		OnProgress: func(downloaded, total int64) {
-			onProgress(input_itf.InstallProgress{
-				Stage:      enums.InstallStageDownload,
-				Downloaded: downloaded,
-				Total:      total,
-			})
-		},
-	}); err != nil {
-		return custom_error.Critical("download binary: %v", err)
-	}
-	if err := os.Chmod(tmp, 0o755); err != nil {
-		os.Remove(tmp)
-		return custom_error.Critical("%v", err)
-	}
-	if err := os.Rename(tmp, c.binPath); err != nil {
-		os.Remove(tmp)
-		return custom_error.Critical("%v", err)
-	}
-
-	if err := c.storage.Save(&input_itf.HarnessEntity{
-		Name:     harnessName,
+	return &harness_helper.Release{
 		Version:  version,
-		Platform: enums.OS(platform),
-		Path:     c.binPath,
-	}); err != nil {
-		return custom_error.Critical("save install info: %v", err)
-	}
-
-	c.mu.Lock()
-	c.uninstalled = false
-	c.mu.Unlock()
-
-	onProgress(input_itf.InstallProgress{Stage: enums.InstallStageDone})
-
-	return nil
+		Platform: platform,
+		URL:      c.cfg.ReleaseBase + "/" + version + "/" + platform + "/" + entry.Binary,
+		Checksum: entry.Checksum,
+	}, nil
 }
 
 func (c *claudeCode) Auth() (string, error) {
@@ -517,7 +477,7 @@ func (c *claudeCode) Auth() (string, error) {
 	}
 
 	if err := os.MkdirAll(c.configDir, 0o755); err != nil {
-		return "", custom_error.Critical("%v", err)
+		return "", custom_error.Critical("create login config dir: %v", err)
 	}
 
 	cmd := exec.Command(c.binPath, "setup-token")
@@ -589,7 +549,7 @@ func (c *claudeCode) SubmitAuthCode(code string) error {
 	}
 
 	if err := os.WriteFile(c.tokenPath, []byte(tok), 0o600); err != nil {
-		return custom_error.Critical("%v", err)
+		return custom_error.Critical("store login token: %v", err)
 	}
 
 	c.dropAuth(s)
@@ -607,11 +567,22 @@ func (c *claudeCode) dropAuth(s *authSession) {
 }
 
 func (c *claudeCode) waitFor(s *authSession, re *regexp.Regexp, timeout time.Duration) (string, error) {
-	deadline := time.Now().Add(timeout)
-	for {
+	match := func(settled bool) (string, bool) {
 		clean := c.ansiRe.ReplaceAllString(strings.ReplaceAll(s.snapshot(), "\r", ""), "")
-		if loc := re.FindStringIndex(clean); loc != nil && loc[1] < len(clean) {
-			return clean[loc[0]:loc[1]], nil
+
+		loc := re.FindStringIndex(clean)
+		if loc == nil || (!settled && loc[1] >= len(clean)) {
+			return "", false
+		}
+
+		return clean[loc[0]:loc[1]], true
+	}
+
+	deadline := time.Now().Add(timeout)
+
+	for {
+		if found, ok := match(false); ok {
+			return found, nil
 		}
 
 		select {
@@ -619,10 +590,11 @@ func (c *claudeCode) waitFor(s *authSession, re *regexp.Regexp, timeout time.Dur
 			if s.wasKilled() {
 				return "", custom_error.Critical("login session was cancelled")
 			}
-			clean = c.ansiRe.ReplaceAllString(strings.ReplaceAll(s.snapshot(), "\r", ""), "")
-			if m := re.FindString(clean); m != "" {
-				return m, nil
+
+			if found, ok := match(true); ok {
+				return found, nil
 			}
+
 			return "", custom_error.Critical("login process exited unexpectedly")
 		default:
 		}
@@ -636,29 +608,7 @@ func (c *claudeCode) waitFor(s *authSession, re *regexp.Regexp, timeout time.Dur
 }
 
 func (c *claudeCode) Status() (*input_itf.AgentStatus, error) {
-	status := &input_itf.AgentStatus{Name: c.cfg.Name}
-
-	info, err := c.storage.Find(harnessName)
-	if err != nil {
-		return nil, custom_error.Critical("find harness info: %v", err)
-	}
-
-	if info != nil {
-		if _, err := os.Stat(info.Path); err == nil {
-			status.Installed = true
-			status.Version = info.Version
-		}
-	}
-
-	if _, err := os.Stat(c.tokenPath); err == nil {
-		status.LoggedIn = true
-	}
-
-	c.mu.Lock()
-	status.InstanceCount = len(c.agents)
-	c.mu.Unlock()
-
-	return status, nil
+	return harness_helper.Status(harnessName, c.cfg.Name, c.tokenPath, c.storage, c.agents.Count())
 }
 
 func (c *claudeCode) Spawn(
@@ -680,25 +630,26 @@ func (c *claudeCode) Spawn(
 		return uuid.Nil, custom_error.Critical("not authenticated, run Auth first")
 	}
 
-	c.mu.Lock()
-	limited := c.atLimit()
-	c.mu.Unlock()
-
-	if limited {
-		return uuid.Nil, custom_error.Critical("claude code is at its limit of %d instances", c.cfg.MaxInstance)
+	if err := c.agents.Reserve(); err != nil {
+		return uuid.Nil, err
 	}
 
 	uid, err := uuid.NewV7()
 	if err != nil {
-		return uuid.Nil, custom_error.Critical("%v", err)
+		return uuid.Nil, err
 	}
 
 	id := uid.String()
 
+	unwind := &harness_helper.Unwind{}
+	defer unwind.Run()
+
 	workspace := filepath.Join(c.workspacesDir, id)
 	if err := os.MkdirAll(workspace, 0o755); err != nil {
-		return uuid.Nil, custom_error.Critical("%v", err)
+		return uuid.Nil, custom_error.Critical("create agent workspace: %v", err)
 	}
+
+	unwind.Push(func() { os.RemoveAll(workspace) })
 
 	args := append(slices.Clone(c.spawnArgs), "--model", string(name))
 
@@ -718,7 +669,6 @@ func (c *claudeCode) Spawn(
 		)
 
 		if err := harness_helper.WriteNewFile(mcpPath, agentCfg, 0o600); err != nil {
-			os.RemoveAll(workspace)
 			return uuid.Nil, custom_error.Critical("write mcp config: %v", err)
 		}
 
@@ -733,56 +683,43 @@ func (c *claudeCode) Spawn(
 	cmd.Env = append(slices.Clone(c.baseEnv),
 		"CLAUDE_CODE_OAUTH_TOKEN="+strings.TrimSpace(string(token)),
 	)
+
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
-		os.RemoveAll(workspace)
-		return uuid.Nil, custom_error.Critical("%v", err)
+		return uuid.Nil, custom_error.Critical("open agent stdin: %v", err)
 	}
+
+	unwind.Push(func() { stdin.Close() })
+
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
-		stdin.Close()
-		os.RemoveAll(workspace)
-		return uuid.Nil, custom_error.Critical("%v", err)
+		return uuid.Nil, custom_error.Critical("open agent stdout: %v", err)
 	}
+
+	unwind.Push(func() { stdout.Close() })
+
 	stderr, err := os.Create(filepath.Join(workspace, "stderr.log"))
 	if err != nil {
-		stdin.Close()
-		stdout.Close()
-		os.RemoveAll(workspace)
-		return uuid.Nil, custom_error.Critical("%v", err)
+		return uuid.Nil, custom_error.Critical("open agent stderr log: %v", err)
 	}
+
+	unwind.Push(func() { stderr.Close() })
+
 	cmd.Stderr = stderr
 	harness_helper.SetProcAttrs(cmd)
 
 	if err := cmd.Start(); err != nil {
-		stderr.Close()
-		os.RemoveAll(workspace)
 		return uuid.Nil, custom_error.Critical("start claude code: %v", err)
 	}
+
+	unwind.Push(func() {
+		harness_helper.KillProc(cmd)
+		cmd.Wait()
+	})
 
 	out := make(chan string, 64)
 	done := make(chan struct{})
 	exited := make(chan struct{})
-
-	abort := func() {
-		harness_helper.KillProc(cmd)
-		cmd.Wait()
-		stderr.Close()
-		os.RemoveAll(workspace)
-	}
-
-	c.mu.Lock()
-	if c.uninstalled {
-		c.mu.Unlock()
-		abort()
-		return uuid.Nil, custom_error.Critical("claude code was uninstalled")
-	}
-
-	if c.atLimit() {
-		c.mu.Unlock()
-		abort()
-		return uuid.Nil, custom_error.Critical("claude code is at its limit of %d instances", c.cfg.MaxInstance)
-	}
 
 	proc := &agentProc{
 		cmd:       cmd,
@@ -796,9 +733,11 @@ func (c *claudeCode) Spawn(
 
 	proc.lastOut.Store(helpers.NewUTCUnix())
 
-	c.agents[id] = proc
+	if err := c.agents.Admit(id, proc); err != nil {
+		return uuid.Nil, err
+	}
 
-	c.mu.Unlock()
+	unwind.Done()
 
 	go func() {
 		sc := bufio.NewScanner(stdout)
@@ -818,9 +757,7 @@ func (c *claudeCode) Spawn(
 		cmd.Wait()
 		stderr.Close()
 		os.RemoveAll(workspace)
-		c.mu.Lock()
-		delete(c.agents, id)
-		c.mu.Unlock()
+		c.agents.Forget(id)
 		close(exited)
 	}()
 
@@ -828,11 +765,9 @@ func (c *claudeCode) Spawn(
 }
 
 func (c *claudeCode) Send(id string, message string) error {
-	c.mu.Lock()
-	a, ok := c.agents[id]
-	c.mu.Unlock()
-	if !ok {
-		return custom_error.Critical("no running agent with id %s", id)
+	a, err := c.agents.Get(id)
+	if err != nil {
+		return err
 	}
 
 	payload, err := json.Marshal(map[string]any{
@@ -845,7 +780,7 @@ func (c *claudeCode) Send(id string, message string) error {
 		},
 	})
 	if err != nil {
-		return custom_error.Critical("%v", err)
+		return custom_error.Critical("encode message for agent %s: %v", id, err)
 	}
 
 	a.stdinMu.Lock()
@@ -854,15 +789,14 @@ func (c *claudeCode) Send(id string, message string) error {
 	if err != nil {
 		return custom_error.Critical("write to agent %s: %v", id, err)
 	}
+
 	return nil
 }
 
 func (c *claudeCode) Alive(id string) (time.Time, error) {
-	c.mu.Lock()
-	a, ok := c.agents[id]
-	c.mu.Unlock()
-	if !ok {
-		return time.Time{}, custom_error.Critical("no running agent with id %s", id)
+	a, err := c.agents.Get(id)
+	if err != nil {
+		return time.Time{}, err
 	}
 
 	select {
@@ -875,34 +809,29 @@ func (c *claudeCode) Alive(id string) (time.Time, error) {
 }
 
 func (c *claudeCode) Usage(id string) (*input_itf.ContextUsage, error) {
-	c.mu.Lock()
-	a, ok := c.agents[id]
-	c.mu.Unlock()
-	if !ok {
-		return nil, custom_error.Critical("no running agent with id %s", id)
+	a, err := c.agents.Get(id)
+	if err != nil {
+		return nil, err
 	}
 
 	return a.snapshotUsage(), nil
 }
 
 func (c *claudeCode) Activity(id string) ([]input_itf.Activity, error) {
-	c.mu.Lock()
-	a, ok := c.agents[id]
-	c.mu.Unlock()
-	if !ok {
-		return nil, custom_error.Critical("no running agent with id %s", id)
+	a, err := c.agents.Get(id)
+	if err != nil {
+		return nil, err
 	}
 
 	return a.snapshotActivity(), nil
 }
 
 func (c *claudeCode) Listen(id string) (<-chan string, error) {
-	c.mu.Lock()
-	a, ok := c.agents[id]
-	c.mu.Unlock()
-	if !ok {
-		return nil, custom_error.Critical("no running agent with id %s", id)
+	a, err := c.agents.Get(id)
+	if err != nil {
+		return nil, err
 	}
+
 	return a.out, nil
 }
 
@@ -915,18 +844,10 @@ func (c *claudeCode) stopAll() {
 		s.close()
 	}
 
-	c.mu.Lock()
-	procs := make([]*agentProc, 0, len(c.agents))
-	for id, a := range c.agents {
-		procs = append(procs, a)
-		delete(c.agents, id)
-	}
-	c.mu.Unlock()
+	procs := c.agents.Drain()
 
 	for _, a := range procs {
-		close(a.done)
-		a.stdin.Close()
-		harness_helper.SignalProc(a.cmd)
+		a.stop()
 	}
 
 	for _, a := range procs {
@@ -942,9 +863,7 @@ func (c *claudeCode) Shutdown() {
 }
 
 func (c *claudeCode) Uninstall() error {
-	c.mu.Lock()
-	c.uninstalled = true
-	c.mu.Unlock()
+	c.agents.MarkUninstalled()
 
 	c.stopAll()
 
@@ -956,21 +875,19 @@ func (c *claudeCode) Uninstall() error {
 }
 
 func (c *claudeCode) Kill(id string) error {
-	c.mu.Lock()
-	a, ok := c.agents[id]
-	if ok {
-		delete(c.agents, id)
+	a, err := c.agents.Take(id)
+	if err != nil {
+		return err
 	}
-	c.mu.Unlock()
-	if !ok {
-		return custom_error.Critical("no running agent with id %s", id)
-	}
+
+	return a.stop()
+}
+
+func (a *agentProc) stop() error {
 	close(a.done)
 	a.stdin.Close()
-	if err := harness_helper.SignalProc(a.cmd); err != nil {
-		return custom_error.Critical("%v", err)
-	}
-	return nil
+
+	return harness_helper.SignalProc(a.cmd)
 }
 
 func claudeMCPConfig(gateway *core_itf.MCPGateway) ([]byte, error) {
@@ -994,17 +911,4 @@ func claudeMCPConfig(gateway *core_itf.MCPGateway) ([]byte, error) {
 	}
 
 	return raw, nil
-}
-
-func platformString() (string, error) {
-	goos := map[string]string{
-		enums.Mac.String():     "darwin",
-		enums.Linux.String():   "linux",
-		enums.Windows.String(): "win32",
-	}[runtime.GOOS]
-	arch := map[string]string{"arm64": "arm64", "amd64": "x64"}[runtime.GOARCH]
-	if goos == "" || arch == "" {
-		return "", custom_error.Critical("unsupported platform %s/%s", runtime.GOOS, runtime.GOARCH)
-	}
-	return goos + "-" + arch, nil
 }

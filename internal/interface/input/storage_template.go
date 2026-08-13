@@ -31,6 +31,7 @@ type TemplateEntity struct {
 
 type TemplateStorage interface {
 	Upsert(template *TemplateEntity) error
+	UpsertMany(templates []*TemplateEntity) error
 	List() ([]*TemplateEntity, error)
 	Find(id uuid.UUID) (*TemplateEntity, error)
 	Remove(id uuid.UUID) error

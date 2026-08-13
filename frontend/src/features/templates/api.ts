@@ -8,10 +8,13 @@
 
 import {bridge, hasWailsRuntime} from '@/shared/api/bridge'
 import {PARAM_TYPES, ParamType, TASK_LEVELS, TaskLevel} from '@/shared/lib/enums'
-import {MOCK_TEMPLATES} from '@/features/templates/mock-templates'
+import {mockArchive, mockImported, MOCK_TEMPLATES} from '@/features/templates/mock-templates'
+import {mockReadFile, mockWriteFile} from '@/shared/api/mock-fs'
 import type {Template, TemplateDraft} from '@/features/templates/types'
 import {output_itf} from '@wailsjs/go/models'
 import {
+    ExportTemplates,
+    ImportTemplates,
     RemoveTemplate,
     Template as FetchTemplate,
     Templates as FetchTemplates,
@@ -112,6 +115,33 @@ export async function upsertTemplate(draft: TemplateDraft): Promise<Template> {
         : [...templates, next]
 
     return structuredClone(next)
+}
+
+export async function exportTemplates(templateIds: string[], path: string): Promise<number> {
+    if (templateIds.length === 0) throw new Error('Pick at least one template to export.')
+
+    if (hasWailsRuntime()) return bridge(() => ExportTemplates(templateIds, path))
+
+    await roundtrip()
+
+    const picked = templates.filter((template) => templateIds.includes(template.id))
+    if (picked.length !== templateIds.length)
+        throw new Error('One of those templates is no longer here.')
+
+    mockWriteFile(path, mockArchive(picked))
+
+    return picked.length
+}
+
+export async function importTemplates(path: string): Promise<number> {
+    if (hasWailsRuntime()) return bridge(() => ImportTemplates(path))
+
+    await roundtrip()
+
+    const imported = mockImported(templates, mockReadFile(path), path)
+    templates = [...templates, ...imported]
+
+    return imported.length
 }
 
 export async function removeTemplate(templateId: string): Promise<void> {

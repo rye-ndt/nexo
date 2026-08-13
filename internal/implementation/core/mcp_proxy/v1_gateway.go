@@ -30,7 +30,7 @@ func (s *v1) Serve() (*core_itf.MCPGateway, error) {
 
 	uid, err := uuid.NewV7()
 	if err != nil {
-		return nil, custom_error.Critical("%v", err)
+		return nil, err
 	}
 
 	ln, err := net.Listen("tcp", net.JoinHostPort(constances.GlobalLocalHost, "0"))

@@ -19,10 +19,6 @@ var mcpAuthFlows = []MCPAuthFlow{
 	MCPAuthFlowToken,
 }
 
-func MCPAuthFlows() []MCPAuthFlow {
-	return slices.Clone(mcpAuthFlows)
-}
-
 func (f MCPAuthFlow) Valid() bool {
 	return slices.Contains(mcpAuthFlows, f)
 }

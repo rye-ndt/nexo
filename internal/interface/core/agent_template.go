@@ -31,4 +31,6 @@ type AgentTemplateManager interface {
 	List() ([]*Template, error)
 	Remove(id uuid.UUID) error
 	Get(id uuid.UUID) (*Template, error)
+	Export(ids []uuid.UUID, path string) (int, error)
+	Import(path string) (int, error)
 }

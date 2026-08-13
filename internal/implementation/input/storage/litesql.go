@@ -308,6 +308,26 @@ func (s *draftStore) Delete(id uuid.UUID) error {
 }
 
 func (s *templateStore) Upsert(t *input_itf.TemplateEntity) error {
+	return upsertTemplate(s.db, t)
+}
+
+func (s *templateStore) UpsertMany(templates []*input_itf.TemplateEntity) error {
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	for _, t := range templates {
+		if err := upsertTemplate(tx, t); err != nil {
+			return err
+		}
+	}
+
+	return tx.Commit()
+}
+
+func upsertTemplate(db execer, t *input_itf.TemplateEntity) error {
 	params, err := json.Marshal(t.Params)
 	if err != nil {
 		return err
@@ -318,7 +338,7 @@ func (s *templateStore) Upsert(t *input_itf.TemplateEntity) error {
 		return err
 	}
 
-	_, err = s.db.Exec(`INSERT INTO agent_templates (`+templateColumns+`)
+	_, err = db.Exec(`INSERT INTO agent_templates (`+templateColumns+`)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(id) DO UPDATE SET
 			name = excluded.name,

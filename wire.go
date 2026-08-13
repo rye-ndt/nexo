@@ -19,6 +19,7 @@ import (
 	"hexago/internal/implementation/input/harness/open_code"
 	"hexago/internal/implementation/input/http_cli"
 	"hexago/internal/implementation/input/storage"
+	"hexago/internal/implementation/input/template_archive"
 	"hexago/internal/implementation/input/workspace_history"
 	"hexago/internal/implementation/output/app_builder"
 	wails_api "hexago/internal/implementation/output/fe_api"
@@ -126,7 +127,7 @@ func wire(assets fs.FS) (*App, error) {
 		return nil, err
 	}
 
-	templateManager, err := template_manager.InitV1(store.TemplateStore())
+	templateManager, err := template_manager.InitV1(store.TemplateStore(), template_archive.InitV1())
 	if err != nil {
 		return nil, err
 	}

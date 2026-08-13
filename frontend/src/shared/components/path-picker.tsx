@@ -12,21 +12,19 @@ import {
     listDirectories,
     listFiles,
     registerPathChooser,
-    type PathKind,
+    type PathRequest,
 } from '@/shared/api/dialogs'
 import {joinPath, parentPath} from '@/shared/lib/path'
 
-type Request = {
-    title: string
-    kind: PathKind
+type Request = PathRequest & {
     resolve: (path: string) => void
 }
 
 /**
- * Stands in for the native folder and file dialogs outside the Wails webview,
- * where the OS choosers are unreachable and the browser refuses to disclose
- * absolute paths. Inside the webview ChooseDirectory and ChooseFile answer
- * instead and this never mounts.
+ * Stands in for the native folder, file and save dialogs outside the Wails
+ * webview, where the OS choosers are unreachable and the browser refuses to
+ * disclose absolute paths. Inside the webview ChooseDirectory, ChooseFile and
+ * ChooseSaveFile answer instead and this never mounts.
  */
 export function PathPickerHost() {
     const [request, setRequest] = useState<Request | null>(null)
@@ -35,7 +33,7 @@ export function PathPickerHost() {
         if (hasNativePathPicker()) return
 
         registerPathChooser(
-            (kind, title) => new Promise<string>((resolve) => setRequest({title, kind, resolve})),
+            (asked) => new Promise<string>((resolve) => setRequest({...asked, resolve})),
         )
 
         return () => registerPathChooser(null)
@@ -48,23 +46,18 @@ export function PathPickerHost() {
         setRequest(null)
     }
 
-    return <PathPicker title={request.title} kind={request.kind} onSettle={settle} />
+    return <PathPicker request={request} onSettle={settle} />
 }
 
-function PathPicker({
-    title,
-    kind,
-    onSettle,
-}: {
-    title: string
-    kind: PathKind
-    onSettle: (path: string) => void
-}) {
+function PathPicker({request, onSettle}: {request: Request; onSettle: (path: string) => void}) {
     const queryClient = useQueryClient()
+    const {title, kind, pattern} = request
     const pickingFile = kind === 'file'
+    const saving = kind === 'save'
 
     const [visitedPath, setVisitedPath] = useState<string | null>(null)
     const [newName, setNewName] = useState<string | null>(null)
+    const [fileName, setFileName] = useState(request.defaultName)
 
     const home = useQuery({
         queryKey: ['home-directory'],
@@ -81,9 +74,9 @@ function PathPicker({
     })
 
     const files = useQuery({
-        queryKey: ['files', path],
-        queryFn: () => listFiles(path ?? ''),
-        enabled: path !== null && pickingFile,
+        queryKey: ['files', path, pattern],
+        queryFn: () => listFiles(path ?? '', pattern),
+        enabled: path !== null && (pickingFile || saving),
         meta: {action: 'Could not read that folder'},
     })
 
@@ -109,7 +102,7 @@ function PathPicker({
     const parent = parentPath(path)
 
     const dismiss = () => onSettle('')
-    const choose = () => onSettle(path)
+    const choose = () => onSettle(saving ? joinPath(path, fileName.trim()) : path)
     const createFolder = () => creation.mutate({parent: path, name: newName ?? ''})
 
     return (
@@ -118,15 +111,26 @@ function PathPicker({
             title={title}
             footer={
                 <>
-                    <span className="min-w-0 flex-1 truncate font-mono text-sm text-muted-foreground">
-                        {path}
-                    </span>
+                    {saving ? (
+                        <Input
+                            autoFocus
+                            value={fileName}
+                            aria-label="File name"
+                            spellCheck={false}
+                            className="min-w-0 flex-1 font-mono"
+                            onChange={(event) => setFileName(event.target.value)}
+                        />
+                    ) : (
+                        <span className="min-w-0 flex-1 truncate font-mono text-sm text-muted-foreground">
+                            {path}
+                        </span>
+                    )}
                     <Button variant="outline" size="sm" onClick={dismiss}>
                         Cancel
                     </Button>
                     {!pickingFile && (
-                        <Button size="sm" onClick={choose}>
-                            Choose folder
+                        <Button size="sm" disabled={saving && !fileName.trim()} onClick={choose}>
+                            {saving ? 'Save here' : 'Choose folder'}
                         </Button>
                     )}
                 </>
@@ -164,18 +168,25 @@ function PathPicker({
                         key={name}
                         type="button"
                         className="flex w-full items-center gap-3 px-4 py-2.5 text-left outline-none hover:bg-muted focus-visible:bg-muted"
-                        onClick={() => onSettle(joinPath(path, name))}
+                        onClick={() =>
+                            saving ? setFileName(name) : onSettle(joinPath(path, name))
+                        }
                     >
                         <File className="size-4 shrink-0 text-muted-foreground" />
                         <span className="min-w-0 flex-1 truncate font-mono text-base">{name}</span>
+                        {saving && name === fileName.trim() && (
+                            <span className="shrink-0 text-sm text-live">replaces this</span>
+                        )}
                     </button>
                 ))}
 
                 {children.length === 0 && names.length === 0 && (
                     <p className="px-4 py-3 text-base text-muted-foreground">
-                        {pickingFile
-                            ? 'Nothing in this folder. Go back up and try another one.'
-                            : 'No folders inside this one. Choose it, make one, or go back up.'}
+                        {pickingFile && 'Nothing in this folder. Go back up and try another one.'}
+                        {saving && 'Nothing here yet. Name the file below, or go somewhere else.'}
+                        {!pickingFile &&
+                            !saving &&
+                            'No folders inside this one. Choose it, make one, or go back up.'}
                     </p>
                 )}
 

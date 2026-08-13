@@ -34,6 +34,10 @@ func newConfigValidator() *validator.Validate {
 		return enums.TaskLevel(fl.Field().String()).Valid()
 	})
 
+	v.RegisterValidation("param_type", func(fl validator.FieldLevel) bool {
+		return enums.ParamType(fl.Field().String()).Valid()
+	})
+
 	v.RegisterValidation("thinking_level", func(fl validator.FieldLevel) bool {
 		return enums.ThinkingLevel(fl.Field().String()).Valid()
 	})

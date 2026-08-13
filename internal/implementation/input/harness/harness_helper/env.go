@@ -10,6 +10,17 @@ import (
 	"hexago/internal/helpers/enums"
 )
 
+func Platform(goosNames map[string]string) (string, error) {
+	goos := goosNames[runtime.GOOS]
+	arch := map[string]string{"arm64": "arm64", "amd64": "x64"}[runtime.GOARCH]
+
+	if goos == "" || arch == "" {
+		return "", custom_error.Critical("unsupported platform %s/%s", runtime.GOOS, runtime.GOARCH)
+	}
+
+	return goos + "-" + arch, nil
+}
+
 func BinPath(dir, name string) string {
 	if runtime.GOOS == enums.Windows.String() {
 		name += ".exe"

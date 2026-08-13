@@ -27,7 +27,13 @@ const FILES: Record<string, string[]> = {
     '/Users/rye/dev/agent-harness/.harness/context': ['handover.json', 'session.log'],
     '/Users/rye/dev/agent-harness/docs': ['architecture.md', 'diagram.png'],
     '/Users/rye/Documents/notes': ['brief.pdf', 'roadmap.md'],
-    '/Users/rye/Downloads': ['export.csv', 'screenshot.png'],
+    '/Users/rye/Downloads': [
+        'export.csv',
+        'screenshot.png',
+        'templates-sound.json',
+        'templates-torn.json',
+        'templates-incomplete.json',
+    ],
 }
 
 const ILLEGAL_NAME = /[/\\]/
@@ -38,6 +44,76 @@ export function mockChildDirectories(path: string): string[] {
 
 export function mockChildFiles(path: string): string[] {
     return FILES[path] ?? []
+}
+
+const CONTENTS: Record<string, string> = {
+    '/Users/rye/Downloads/templates-sound.json': JSON.stringify(
+        {
+            version: 1,
+            exported_at: '2026-08-13T09:00:00Z',
+            templates: [
+                {
+                    id: '0192f3a1-0900-7000-8000-000000000009',
+                    name: 'Release notes writer',
+                    role: 'Turns a set of merged changes into notes a user can read.',
+                    task_level: 'daily_task',
+                    retryable: true,
+                    manual_accept_required: false,
+                    params: {
+                        since_tag: {
+                            description: 'Tag to start from',
+                            required: true,
+                            type: 'text',
+                            default: '',
+                            options: [],
+                        },
+                    },
+                    system_prompts: {
+                        base: 'You write release notes. One line per change, in the words a user would use.',
+                    },
+                    output_structure: 'highlights: the three changes that matter most',
+                },
+            ],
+        },
+        null,
+        2,
+    ),
+    '/Users/rye/Downloads/templates-torn.json': '{ this was edited by hand and is not json',
+    '/Users/rye/Downloads/templates-incomplete.json': JSON.stringify(
+        {
+            version: 1,
+            exported_at: '2026-08-13T09:00:00Z',
+            templates: [
+                {
+                    id: '0192f3a1-0910-7000-8000-000000000010',
+                    name: 'Nameless prompt',
+                    task_level: 'weekly_task',
+                    system_prompts: {},
+                },
+            ],
+        },
+        null,
+        2,
+    ),
+}
+
+export function mockReadFile(path: string): string {
+    const body = CONTENTS[path]
+    if (body === undefined) throw new Error(`${path} could not be read.`)
+
+    return body
+}
+
+export function mockWriteFile(path: string, body: string) {
+    const parent = path.slice(0, path.lastIndexOf('/')) || '/'
+    const name = path.slice(path.lastIndexOf('/') + 1)
+
+    if (!name) throw new Error('Give the file a name.')
+
+    CONTENTS[path] = body
+
+    const siblings = FILES[parent] ?? []
+    if (!siblings.includes(name)) FILES[parent] = [...siblings, name]
 }
 
 /** Mirrors what the OS dialog's New Folder button does, and fails the same ways. */

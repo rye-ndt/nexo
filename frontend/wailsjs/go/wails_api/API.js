@@ -42,8 +42,12 @@ export function ChooseDirectory(arg1) {
   return window['go']['wails_api']['API']['ChooseDirectory'](arg1);
 }
 
-export function ChooseFile(arg1) {
-  return window['go']['wails_api']['API']['ChooseFile'](arg1);
+export function ChooseFile(arg1, arg2) {
+  return window['go']['wails_api']['API']['ChooseFile'](arg1, arg2);
+}
+
+export function ChooseSaveFile(arg1, arg2, arg3) {
+  return window['go']['wails_api']['API']['ChooseSaveFile'](arg1, arg2, arg3);
 }
 
 export function CompleteOnboarding() {
@@ -52,6 +56,14 @@ export function CompleteOnboarding() {
 
 export function DeleteSessionDraft(arg1) {
   return window['go']['wails_api']['API']['DeleteSessionDraft'](arg1);
+}
+
+export function ExportTemplates(arg1, arg2) {
+  return window['go']['wails_api']['API']['ExportTemplates'](arg1, arg2);
+}
+
+export function ImportTemplates(arg1) {
+  return window['go']['wails_api']['API']['ImportTemplates'](arg1);
 }
 
 export function InstallAgent(arg1) {

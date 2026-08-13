@@ -82,17 +82,21 @@ func (h *v1) Commit(sessionID, taskID uuid.UUID, workingDir string, excludes []s
 		return err
 	}
 
+	return h.commitAll(gitDir, workingDir, tag)
+}
+
+func (h *v1) commitAll(gitDir, workingDir, tag string) error {
 	if _, err := h.run(gitDir, workingDir, "add", "-A"); err != nil {
 		return err
 	}
+
 	if _, err := h.run(gitDir, workingDir, "commit", "--allow-empty", "--no-verify", "-m", tag); err != nil {
 		return err
 	}
-	if _, err := h.run(gitDir, workingDir, "tag", "-f", tag); err != nil {
-		return err
-	}
 
-	return nil
+	_, err := h.run(gitDir, workingDir, "tag", "-f", tag)
+
+	return err
 }
 
 func (h *v1) Diff(sessionID, taskID uuid.UUID) ([]*input_itf.FileChange, error) {
@@ -168,17 +172,7 @@ func (h *v1) RestoreTo(sessionID, taskID uuid.UUID, workingDir string) error {
 // snapshotBeforeRevert makes the reset that follows it reversible: whatever was written
 // since the last task snapshot is otherwise destroyed with no way back.
 func (h *v1) snapshotBeforeRevert(gitDir, workingDir string) error {
-	if _, err := h.run(gitDir, workingDir, "add", "-A"); err != nil {
-		return err
-	}
-	if _, err := h.run(gitDir, workingDir, "commit", "--allow-empty", "--no-verify", "-m", preRevertTag); err != nil {
-		return err
-	}
-	if _, err := h.run(gitDir, workingDir, "tag", "-f", preRevertTag); err != nil {
-		return err
-	}
-
-	return nil
+	return h.commitAll(gitDir, workingDir, preRevertTag)
 }
 
 // lock serialises on every key it is given, in the order given, and drops a key once
@@ -331,33 +325,38 @@ func (h *v1) knownStore(sessionID uuid.UUID) bool {
 // top of that same task's previous attempt, the previous attempt is unwound first so
 // the new snapshot is taken against the state the task started from.
 func (h *v1) dropPreviousAttempt(gitDir, workingDir, tag string) error {
-	head, err := h.run(gitDir, workingDir, "rev-parse", "--quiet", "--verify", "HEAD^{commit}")
-	if err != nil {
+	head, found := h.commitish(gitDir, workingDir, "HEAD")
+	if !found {
 		return nil
 	}
 
-	previous, err := h.run(gitDir, workingDir, "rev-parse", "--quiet", "--verify", tag+"^{commit}")
-	if err != nil {
+	previous, found := h.commitish(gitDir, workingDir, tag)
+	if !found || head != previous {
 		return nil
 	}
 
-	if strings.TrimSpace(head) != strings.TrimSpace(previous) {
+	if _, found := h.commitish(gitDir, workingDir, "HEAD~1"); !found {
 		return nil
 	}
 
-	if _, err := h.run(gitDir, workingDir, "rev-parse", "--quiet", "--verify", "HEAD~1^{commit}"); err != nil {
-		return nil
-	}
-
-	_, err = h.run(gitDir, workingDir, "reset", "--soft", "HEAD~1")
+	_, err := h.run(gitDir, workingDir, "reset", "--soft", "HEAD~1")
 
 	return err
 }
 
-func (h *v1) hasTag(gitDir, tag string) bool {
-	_, err := h.run(gitDir, "", "rev-parse", "--quiet", "--verify", tag+"^{commit}")
+func (h *v1) commitish(gitDir, workingDir, rev string) (string, bool) {
+	out, err := h.run(gitDir, workingDir, "rev-parse", "--quiet", "--verify", rev+"^{commit}")
+	if err != nil {
+		return "", false
+	}
 
-	return err == nil
+	return strings.TrimSpace(out), true
+}
+
+func (h *v1) hasTag(gitDir, tag string) bool {
+	_, found := h.commitish(gitDir, "", tag)
+
+	return found
 }
 
 func (h *v1) requireTag(gitDir, tag string) error {
