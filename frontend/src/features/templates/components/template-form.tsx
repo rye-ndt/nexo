@@ -9,6 +9,7 @@ import {Input} from '@/shared/ui/input'
 import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from '@/shared/ui/select'
 import {Switch} from '@/shared/ui/switch'
 import {Textarea} from '@/shared/ui/textarea'
+import {cn} from '@/shared/lib/utils'
 import type {TaskLevel} from '@/shared/lib/enums'
 import {TASK_LEVELS, TASK_LEVEL_LABELS} from '@/shared/lib/enums'
 import {emptyParam, NO_PROMPTS_ISSUE} from '@/features/templates/template'
@@ -65,128 +66,124 @@ export function TemplateForm({
         patch({systemPrompts: removeAt(draft.systemPrompts, index)})
 
     return (
-        <div className="flex flex-col gap-6 p-4">
-            <Field htmlFor="template-name" label="Name">
-                <Input
-                    id="template-name"
-                    value={draft.name}
-                    placeholder="Code reviewer"
-                    onChange={changeName}
-                />
-            </Field>
+        <div className="grid min-h-full grid-cols-1 gap-x-6 gap-y-6 p-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]">
+            <div className="flex min-h-0 flex-col gap-6">
+                <Field htmlFor="template-name" label="Name">
+                    <Input
+                        id="template-name"
+                        value={draft.name}
+                        placeholder="Code reviewer"
+                        onChange={changeName}
+                    />
+                </Field>
 
-            <Field
-                htmlFor="template-role"
-                label="Role"
-                hint="Shows on every node built from this template."
-            >
-                <Textarea
-                    id="template-role"
-                    rows={2}
-                    value={draft.role}
-                    placeholder="Reads a diff and reports the defects it can prove."
-                    onChange={changeRole}
-                />
-            </Field>
+                <Field htmlFor="template-role" label="Role">
+                    <Textarea
+                        id="template-role"
+                        rows={2}
+                        value={draft.role}
+                        placeholder="Reads a diff and reports the defects it can prove."
+                        onChange={changeRole}
+                    />
+                </Field>
 
-            <div className="flex flex-col gap-2">
-                <div className="flex items-end gap-3">
-                    <Field htmlFor="template-level" label="Effort" className="min-w-0 flex-1">
-                        <Select value={draft.taskLevel} onValueChange={changeLevel}>
-                            <SelectTrigger id="template-level">
-                                <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {TASK_LEVELS.map((level) => (
-                                    <SelectItem key={level} value={level}>
-                                        {TASK_LEVEL_LABELS[level]}
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    </Field>
+                <div className="flex flex-col gap-2">
+                    <div className="flex items-end gap-3">
+                        <Field htmlFor="template-level" label="Effort" className="min-w-0 flex-1">
+                            <Select value={draft.taskLevel} onValueChange={changeLevel}>
+                                <SelectTrigger id="template-level">
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {TASK_LEVELS.map((level) => (
+                                        <SelectItem key={level} value={level}>
+                                            {TASK_LEVEL_LABELS[level]}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </Field>
+
+                        <label
+                            htmlFor="template-retryable"
+                            className="flex h-9 shrink-0 items-center gap-3 rounded-lg border border-border px-3"
+                        >
+                            <span className="text-base font-medium">Retry on failure</span>
+                            <Switch
+                                id="template-retryable"
+                                checked={draft.retryable}
+                                onCheckedChange={changeRetryable}
+                            />
+                        </label>
+                    </div>
 
                     <label
-                        htmlFor="template-retryable"
-                        className="flex h-9 shrink-0 items-center gap-3 rounded-lg border border-border px-3"
+                        htmlFor="template-manual-accept"
+                        className="flex h-11 items-center justify-between gap-3 rounded-lg border border-border px-3"
                     >
-                        <span className="text-base font-medium">Retry on failure</span>
+                        <span className="text-base font-medium">Require manual acceptance</span>
                         <Switch
-                            id="template-retryable"
-                            checked={draft.retryable}
-                            onCheckedChange={changeRetryable}
+                            id="template-manual-accept"
+                            checked={draft.manualAcceptRequired}
+                            onCheckedChange={changeManualAccept}
                         />
                     </label>
                 </div>
 
-                <label
-                    htmlFor="template-manual-accept"
-                    className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2"
+                <Section
+                    title="Inputs"
+                    hint="What a node fills in."
+                    onAdd={addParam}
+                    addLabel="Add input"
                 >
-                    <span className="flex min-w-0 flex-col gap-1">
-                        <span className="text-base font-medium">Require manual acceptance</span>
-                        <span className="text-sm text-muted-foreground">
-                            The run stops here when this node finishes and waits for you to read the
-                            handover and confirm. Autopilot ignores it and runs straight through.
-                        </span>
-                    </span>
-                    <Switch
-                        id="template-manual-accept"
-                        checked={draft.manualAcceptRequired}
-                        onCheckedChange={changeManualAccept}
+                    {draft.params.map((param, index) => (
+                        <ParamEditor
+                            key={index}
+                            index={index}
+                            param={param}
+                            onChange={changeParam}
+                            onRemove={removeParam}
+                        />
+                    ))}
+                </Section>
+
+                <Field
+                    htmlFor="template-structure"
+                    label="Output"
+                    hint={STRUCTURE_HINT}
+                    className="min-h-0 flex-1"
+                >
+                    <Textarea
+                        id="template-structure"
+                        value={draft.outputStructure}
+                        placeholder={STRUCTURE_EXAMPLE}
+                        spellCheck={false}
+                        className="min-h-44 flex-1 font-mono"
+                        onChange={changeStructure}
                     />
-                </label>
+                </Field>
             </div>
 
-            <Section
-                title="Inputs"
-                hint="What a node fills in. An input left empty reaches the agent as the reference itself."
-                onAdd={addParam}
-                addLabel="Add input"
-            >
-                {draft.params.map((param, index) => (
-                    <ParamEditor
-                        key={index}
-                        index={index}
-                        param={param}
-                        onChange={changeParam}
-                        onRemove={removeParam}
-                    />
-                ))}
-            </Section>
-
-            <Section
-                title="Prompts"
-                hint={
-                    draft.systemPrompts.length === 0
-                        ? NO_PROMPTS_ISSUE
-                        : `${PARAM_REF_HINT} An input left empty reaches the agent as the reference itself.`
-                }
-                onAdd={addPrompt}
-                addLabel="Add prompt"
-            >
-                {draft.systemPrompts.map((prompt, index) => (
-                    <PromptEditor
-                        key={index}
-                        index={index}
-                        prompt={prompt}
-                        params={draft.params}
-                        onChange={changePrompt}
-                        onRemove={removePrompt}
-                    />
-                ))}
-            </Section>
-
-            <Field htmlFor="template-structure" label="Output" hint={STRUCTURE_HINT}>
-                <Textarea
-                    id="template-structure"
-                    value={draft.outputStructure}
-                    placeholder={STRUCTURE_EXAMPLE}
-                    spellCheck={false}
-                    className="min-h-44 font-mono"
-                    onChange={changeStructure}
-                />
-            </Field>
+            <div className="flex min-h-0 flex-col gap-6">
+                <Section
+                    className="min-h-0 flex-1"
+                    title="Prompts"
+                    hint={draft.systemPrompts.length === 0 ? NO_PROMPTS_ISSUE : PARAM_REF_HINT}
+                    onAdd={addPrompt}
+                    addLabel="Add prompt"
+                >
+                    {draft.systemPrompts.map((prompt, index) => (
+                        <PromptEditor
+                            key={index}
+                            index={index}
+                            prompt={prompt}
+                            params={draft.params}
+                            onChange={changePrompt}
+                            onRemove={removePrompt}
+                        />
+                    ))}
+                </Section>
+            </div>
         </div>
     )
 }
@@ -195,17 +192,19 @@ function Section({
     title,
     hint,
     addLabel,
+    className,
     onAdd,
     children,
 }: {
     title: string
     hint?: string
     addLabel: string
+    className?: string
     onAdd: () => void
     children: ReactNode
 }) {
     return (
-        <section className="flex flex-col gap-3">
+        <section className={cn('flex flex-col gap-3', className)}>
             <div className="flex items-center justify-between gap-3">
                 <div className="flex min-w-0 flex-col gap-2">
                     <span className="micro-label">{title}</span>
@@ -216,7 +215,7 @@ function Section({
                     {addLabel}
                 </Button>
             </div>
-            {children}
+            <div className="flex min-h-0 flex-1 flex-col gap-3">{children}</div>
         </section>
     )
 }

@@ -100,6 +100,17 @@ func (a AgentHarness) String() string {
 	return string(a)
 }
 
+func (a AgentHarness) DisplayName() string {
+	switch a {
+	case ClaudeCode:
+		return "Claude Code"
+	case OpenCode:
+		return "OpenCode"
+	default:
+		return string(a)
+	}
+}
+
 type InstallationStage string
 
 const (

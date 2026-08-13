@@ -38,6 +38,7 @@ type v1 struct {
 	db                input_itf.StorageMCP
 	approvalBroker    core_itf.ApprovalBroker
 	reporter          core_itf.TaskReporter
+	templateHelper    core_itf.TemplateHelper
 	gateway           *core_itf.MCPGateway
 	gatewayHttpServer *http.Server
 }
@@ -76,6 +77,20 @@ func InitV1(
 	}
 
 	return s, nil
+}
+
+func (s *v1) TrackTemplateHelper(helper core_itf.TemplateHelper) {
+	s.locker.Lock()
+	defer s.locker.Unlock()
+
+	s.templateHelper = helper
+}
+
+func (s *v1) drafter() core_itf.TemplateHelper {
+	s.locker.RLock()
+	defer s.locker.RUnlock()
+
+	return s.templateHelper
 }
 
 func (s *v1) loadCredentials() error {

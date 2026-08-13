@@ -8,20 +8,32 @@
 
 import {bridge, hasWailsRuntime} from '@/shared/api/bridge'
 import {PARAM_TYPES, ParamType, TASK_LEVELS, TaskLevel} from '@/shared/lib/enums'
-import {mockArchive, mockImported, MOCK_TEMPLATES} from '@/features/templates/mock-templates'
+import {listAgents} from '@/features/agents/api'
+import {
+    mockArchive,
+    mockHelperBlocked,
+    mockImported,
+    mockRefined,
+    MOCK_TEMPLATES,
+} from '@/features/templates/mock-templates'
 import {mockReadFile, mockWriteFile} from '@/shared/api/mock-fs'
 import type {Template, TemplateDraft} from '@/features/templates/types'
 import {output_itf} from '@wailsjs/go/models'
 import {
     ExportTemplates,
     ImportTemplates,
+    RefineTemplate,
     RemoveTemplate,
     Template as FetchTemplate,
+    TemplateHelperBlocked,
     Templates as FetchTemplates,
     UpsertTemplate,
 } from '@wailsjs/go/wails_api/API'
 
 const ROUNDTRIP_MS = 400
+
+/** The real call spawns an agent and waits for it, so the mock has to feel like it. */
+const REFINE_MS = 2600
 
 let templates: Template[] = structuredClone(MOCK_TEMPLATES)
 
@@ -142,6 +154,39 @@ export async function importTemplates(path: string): Promise<number> {
     templates = [...templates, ...imported]
 
     return imported.length
+}
+
+/**
+ * Why a template cannot be filled in right now, empty when it can. Under vite the
+ * answer comes from the mock agent roster, so logging the harness in and out in
+ * Agents actually opens and closes this.
+ */
+export async function templateHelperBlocked(): Promise<string> {
+    if (hasWailsRuntime()) return bridge(TemplateHelperBlocked)
+
+    return mockHelperBlocked(await listAgents())
+}
+
+/**
+ * Hands the name and role to an agent and waits for the whole template back. The
+ * Go side refuses anything the agent leaves half-written, so what lands here is
+ * either a complete template or an error.
+ */
+export async function refineTemplate(draft: TemplateDraft): Promise<TemplateDraft> {
+    const name = draft.name.trim()
+    const role = draft.role.trim()
+
+    if (hasWailsRuntime()) {
+        const filled = toTemplate(await bridge(() => RefineTemplate(name, role)))
+        return {...filled, id: draft.id}
+    }
+
+    const blocked = mockHelperBlocked(await listAgents())
+    if (blocked) throw new Error(blocked)
+
+    await new Promise((resolve) => setTimeout(resolve, REFINE_MS))
+
+    return {...mockRefined(name, role), id: draft.id}
 }
 
 export async function removeTemplate(templateId: string): Promise<void> {

@@ -82,6 +82,10 @@ export function PendingApprovals() {
   return window['go']['wails_api']['API']['PendingApprovals']();
 }
 
+export function RefineTemplate(arg1, arg2) {
+  return window['go']['wails_api']['API']['RefineTemplate'](arg1, arg2);
+}
+
 export function RemoveTemplate(arg1) {
   return window['go']['wails_api']['API']['RemoveTemplate'](arg1);
 }
@@ -148,6 +152,10 @@ export function TaskDiff(arg1, arg2) {
 
 export function Template(arg1) {
   return window['go']['wails_api']['API']['Template'](arg1);
+}
+
+export function TemplateHelperBlocked() {
+  return window['go']['wails_api']['API']['TemplateHelperBlocked']();
 }
 
 export function Templates() {

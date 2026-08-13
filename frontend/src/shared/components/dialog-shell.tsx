@@ -1,6 +1,12 @@
 import type {ReactNode} from 'react'
 
+import {cn} from '@/shared/lib/utils'
 import {Dialog, DialogContent, DialogDescription, DialogTitle} from '@/shared/ui/dialog'
+
+const SIZES = {
+    default: 'h-[600px] max-w-[560px]',
+    wide: 'h-[min(90vh,880px)] max-w-[min(94vw,1060px)]',
+}
 
 /** Always mounted open — callers render it conditionally — so there is no `open` prop. */
 export function DialogShell({
@@ -8,6 +14,7 @@ export function DialogShell({
     description,
     aside,
     footer,
+    size = 'default',
     onClose,
     children,
 }: {
@@ -15,6 +22,7 @@ export function DialogShell({
     description?: string
     aside?: ReactNode
     footer: ReactNode
+    size?: keyof typeof SIZES
     onClose: () => void
     children: ReactNode
 }) {
@@ -26,7 +34,7 @@ export function DialogShell({
         <Dialog open onOpenChange={change}>
             <DialogContent
                 {...(description ? {} : {'aria-describedby': undefined})}
-                className="flex h-[600px] max-w-[560px] flex-col gap-0 overflow-hidden p-0"
+                className={cn('flex flex-col gap-0 overflow-hidden p-0', SIZES[size])}
             >
                 <div className="flex h-16 shrink-0 items-center gap-3 border-b border-border px-4 pr-12">
                     <div className="flex min-w-0 flex-1 flex-col gap-1">

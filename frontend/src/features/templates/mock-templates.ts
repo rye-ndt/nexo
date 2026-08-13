@@ -1,5 +1,11 @@
-import {PARAM_TYPES, TASK_LEVELS, type ParamType, type TaskLevel} from '@/shared/lib/enums'
-import type {Template, TemplateArchive, TemplateRecord} from '@/features/templates/types'
+import {PARAM_TYPES, ParamType, TASK_LEVELS, TaskLevel} from '@/shared/lib/enums'
+import type {Agent} from '@/features/agents/types'
+import type {
+    Template,
+    TemplateArchive,
+    TemplateDraft,
+    TemplateRecord,
+} from '@/features/templates/types'
 
 export const MOCK_TEMPLATES: Template[] = [
     {
@@ -113,6 +119,73 @@ recommendation: what the next node should do about it`,
         outputStructure: '',
     },
 ]
+
+/**
+ * The heavy task level is what the helper borrows, and in this app that lands on
+ * Claude Code. The browser answer follows the mock roster so that installing and
+ * logging the harness in actually opens the button.
+ */
+export function mockHelperBlocked(agents: Agent[]): string {
+    const harness = agents.find((agent) => agent.id === 'claude_code')
+
+    if (!harness?.installed) return 'Install Claude Code to use this.'
+    if (!harness.loggedIn) return 'Log in to Claude Code to use this.'
+
+    return ''
+}
+
+/**
+ * Stands in for what the agent hands back. It is written from the name and role so
+ * the filled form reads as an answer to what was typed, rather than a fixture.
+ */
+export function mockRefined(name: string, role: string): TemplateDraft {
+    const subject = name.trim().toLowerCase()
+
+    return {
+        name: name.trim(),
+        role: role.trim(),
+        taskLevel: TaskLevel.Heavy,
+        retryable: true,
+        manualAcceptRequired: true,
+        params: [
+            {
+                key: 'target_path',
+                label: 'What this node should work on',
+                type: ParamType.Text,
+                required: true,
+            },
+            {
+                key: 'depth',
+                label: 'How far to go',
+                type: ParamType.Select,
+                required: true,
+                default: 'thorough',
+                options: ['quick', 'thorough', 'exhaustive'],
+            },
+            {
+                key: 'constraints',
+                label: 'Anything this node must not touch',
+                type: ParamType.Textarea,
+                required: false,
+            },
+        ],
+        systemPrompts: [
+            {
+                key: 'base',
+                value: `You are the ${subject} step of a larger job. Work on {{target_path}} and nothing else.\n\nStart by reading enough to know what is already true, then do the smallest thing that meets the goal. Go {{depth}} about it.`,
+            },
+            {
+                key: 'limits',
+                value: 'Report only what you can point at. Where you had to guess, say so and say what you guessed. Leave {{constraints}} alone.',
+            },
+        ],
+        outputStructure: `summary: one paragraph a non-programmer can follow
+findings:
+  - title: short label for this finding
+    evidence: what makes this true rather than likely
+next_steps: what the following node should do`,
+    }
+}
 
 const ARCHIVE_VERSION = 1
 const TEMPLATE_FILE_INVALID = 'err_template_file_invalid'

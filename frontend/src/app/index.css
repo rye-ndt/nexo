@@ -244,6 +244,43 @@
         transform-origin: center;
         animation: spin-arc 0.9s linear infinite;
     }
+
+    /*
+        The helper button. Its ground is a still sheen, and the light only travels
+        on hover or while the agent is actually working — a footer at rest should
+        not glitter.
+    */
+    .sheen {
+        position: relative;
+        overflow: hidden;
+        background-image: linear-gradient(
+            105deg,
+            color-mix(in oklch, var(--live), transparent 88%),
+            color-mix(in oklch, var(--live), transparent 96%) 42%,
+            color-mix(in oklch, var(--live), transparent 90%)
+        );
+    }
+
+    .sheen::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        translate: -120% 0;
+        background-image: linear-gradient(
+            105deg,
+            transparent 38%,
+            color-mix(in oklch, var(--live), transparent 72%) 50%,
+            transparent 62%
+        );
+    }
+
+    .sheen:not(:disabled):hover::after {
+        animation: sheen-sweep 0.7s ease-out;
+    }
+
+    .sheen[data-working='true']::after {
+        animation: sheen-sweep 1.4s ease-in-out infinite;
+    }
 }
 
 @keyframes edge-flow {
@@ -258,8 +295,16 @@
     }
 }
 
+@keyframes sheen-sweep {
+    to {
+        translate: 120% 0;
+    }
+}
+
 @media (prefers-reduced-motion: reduce) {
-    .react-flow__edge.is-live .react-flow__edge-path {
+    .react-flow__edge.is-live .react-flow__edge-path,
+    .sheen:not(:disabled):hover::after,
+    .sheen[data-working='true']::after {
         animation: none;
     }
 

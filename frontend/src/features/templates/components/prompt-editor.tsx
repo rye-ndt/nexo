@@ -27,7 +27,7 @@ export function PromptEditor({
     const changeValue = (value: string) => onChange(index, {value})
 
     return (
-        <div className="flex flex-col gap-2 rounded-xl border border-border bg-muted/40 p-3">
+        <div className="flex min-h-0 flex-1 flex-col gap-2 rounded-xl border border-border bg-muted/40 p-3">
             <div className="flex items-center gap-2">
                 <Input
                     value={prompt.key}
@@ -41,7 +41,8 @@ export function PromptEditor({
                 </Button>
             </div>
             <PromptField
-                className="max-h-72 min-h-56"
+                fill
+                className="min-h-56"
                 value={prompt.value}
                 params={params}
                 ariaLabel="Prompt text"

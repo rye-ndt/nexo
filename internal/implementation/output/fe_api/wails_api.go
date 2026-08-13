@@ -2,7 +2,6 @@ package wails_api
 
 import (
 	"context"
-	"fmt"
 	"sort"
 	"strings"
 	"time"
@@ -40,20 +39,22 @@ type API struct {
 	history      input_itf.WorkspaceHistory
 	userConfig   output_itf.UserConfig
 	drafts       input_itf.DraftStorage
+	templateHelp core_itf.TemplateHelper
 }
 
 var _ output_itf.FEAPI = (*API)(nil)
 
 type Deps struct {
-	AgentManager core_itf.AgentManager
-	MCPProxy     core_itf.MCPProxyServer
-	Approvals    core_itf.ApprovalBroker
-	Templates    core_itf.AgentTemplateManager
-	Sessions     core_itf.SessionManager
-	Coordinator  core_itf.Coordinator
-	History      input_itf.WorkspaceHistory
-	UserConfig   output_itf.UserConfig
-	Drafts       input_itf.DraftStorage
+	AgentManager   core_itf.AgentManager
+	MCPProxy       core_itf.MCPProxyServer
+	Approvals      core_itf.ApprovalBroker
+	Templates      core_itf.AgentTemplateManager
+	Sessions       core_itf.SessionManager
+	Coordinator    core_itf.Coordinator
+	History        input_itf.WorkspaceHistory
+	UserConfig     output_itf.UserConfig
+	Drafts         input_itf.DraftStorage
+	TemplateHelper core_itf.TemplateHelper
 }
 
 func New(deps *Deps) *API {
@@ -67,6 +68,7 @@ func New(deps *Deps) *API {
 		history:      deps.History,
 		userConfig:   deps.UserConfig,
 		drafts:       deps.Drafts,
+		templateHelp: deps.TemplateHelper,
 	}
 }
 
@@ -140,16 +142,6 @@ func withSessionTask(sessionID, taskID string, do func(session, task uuid.UUID) 
 			return do(session, task)
 		})
 	})
-}
-
-func labels[T fmt.Stringer](items []T) []string {
-	names := make([]string, 0, len(items))
-
-	for _, item := range items {
-		names = append(names, item.String())
-	}
-
-	return names
 }
 
 func (a *API) admin(id string) (input_itf.AgentAdmin, error) {
@@ -408,6 +400,23 @@ func templateInfo(template *core_itf.Template) *output_itf.TemplateInfo {
 	}
 }
 
+// TemplateHelperBlocked is empty when a template can be filled in, and otherwise
+// says why it cannot.
+func (a *API) TemplateHelperBlocked() string {
+	return a.templateHelp.Blocked()
+}
+
+// RefineTemplate blocks for as long as the assistant takes, which is minutes. Wails
+// runs each bound call on its own goroutine, so the bridge stays free meanwhile.
+func (a *API) RefineTemplate(name string, role string) (*output_itf.TemplateInfo, error) {
+	template, err := a.templateHelp.Draft(name, role)
+	if err != nil {
+		return nil, err
+	}
+
+	return templateInfo(template), nil
+}
+
 func (a *API) UninstallAgent(id string) error {
 	h, err := a.admin(id)
 	if err != nil {
@@ -567,9 +576,9 @@ func (a *API) AgentDefaultOptions() (*output_itf.AgentDefaultOptionsInfo, error)
 	}
 
 	return &output_itf.AgentDefaultOptionsInfo{
-		TaskLevels:     labels(enums.TaskLevels()),
+		TaskLevels:     helpers.Labels(enums.TaskLevels()),
 		Models:         models,
-		ThinkingLevels: labels(enums.ThinkingLevels()),
+		ThinkingLevels: helpers.Labels(enums.ThinkingLevels()),
 	}, nil
 }
 

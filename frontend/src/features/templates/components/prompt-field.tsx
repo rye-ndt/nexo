@@ -15,6 +15,7 @@ export function PromptField({
     className,
     placeholder,
     ariaLabel,
+    fill = false,
     onChange,
 }: {
     id?: string
@@ -23,6 +24,8 @@ export function PromptField({
     className?: string
     placeholder?: string
     ariaLabel?: string
+    /** Grow to whatever height the parent hands down, instead of sizing to `className`. */
+    fill?: boolean
     onChange: (value: string) => void
 }) {
     const mirror = useRef<HTMLPreElement>(null)
@@ -37,13 +40,14 @@ export function PromptField({
     const change = (event: ChangeEvent<HTMLTextAreaElement>) => onChange(event.target.value)
 
     return (
-        <div className="flex flex-col gap-2">
-            <div className="relative">
+        <div className={cn('flex flex-col gap-2', fill && 'min-h-0 flex-1')}>
+            <div className={cn('relative', fill && 'min-h-0 flex-1')}>
                 <pre
                     ref={mirror}
                     aria-hidden="true"
                     className={cn(
                         BOX,
+                        fill && 'h-full',
                         className,
                         'pointer-events-none absolute inset-0 overflow-hidden border-transparent break-words whitespace-pre-wrap text-foreground',
                     )}
@@ -76,6 +80,7 @@ export function PromptField({
                     spellCheck={false}
                     className={cn(
                         BOX,
+                        fill && 'h-full',
                         className,
                         'relative resize-none bg-transparent text-transparent caret-foreground',
                     )}

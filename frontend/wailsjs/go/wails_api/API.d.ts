@@ -43,6 +43,8 @@ export function Onboarded():Promise<boolean>;
 
 export function PendingApprovals():Promise<Array<output_itf.ApprovalInfo>>;
 
+export function RefineTemplate(arg1:string,arg2:string):Promise<output_itf.TemplateInfo>;
+
 export function RemoveTemplate(arg1:string):Promise<void>;
 
 export function ResumeSession(arg1:string):Promise<void>;
@@ -76,6 +78,8 @@ export function SubmitAuthCode(arg1:string,arg2:string):Promise<void>;
 export function TaskDiff(arg1:string,arg2:string):Promise<Array<output_itf.FileChangeInfo>>;
 
 export function Template(arg1:string):Promise<output_itf.TemplateInfo>;
+
+export function TemplateHelperBlocked():Promise<string>;
 
 export function Templates():Promise<Array<output_itf.TemplateInfo>>;
 

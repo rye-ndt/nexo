@@ -281,7 +281,7 @@ func (r *fakeReporter) Report(_ uuid.UUID, status enums.TaskStatus, docs []*core
 func reportSchema(t *testing.T, proxy *v1) map[string]any {
 	t.Helper()
 
-	for _, tool := range proxy.localTools() {
+	for _, tool := range proxy.localTools(uuid.New()) {
 		if tool.name == reportTool {
 			return tool.input
 		}

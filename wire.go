@@ -10,6 +10,7 @@ import (
 	"hexago/internal/helpers/enums"
 	"hexago/internal/implementation/core/agent_manager"
 	"hexago/internal/implementation/core/coordinator"
+	"hexago/internal/implementation/core/helper_agent"
 	"hexago/internal/implementation/core/manual_approval_broker"
 	"hexago/internal/implementation/core/mcp_proxy"
 	"hexago/internal/implementation/core/session_manager"
@@ -132,16 +133,24 @@ func wire(assets fs.FS) (*App, error) {
 		return nil, err
 	}
 
+	templateHelper, err := helper_agent.InitV1(agentManager, userCfg, appLogger)
+	if err != nil {
+		return nil, err
+	}
+
+	mcpProxy.TrackTemplateHelper(templateHelper)
+
 	feAPI := wails_api.New(&wails_api.Deps{
-		AgentManager: agentManager,
-		MCPProxy:     mcpProxy,
-		Approvals:    approvalBroker,
-		Templates:    templateManager,
-		Sessions:     sessionManager,
-		Coordinator:  sessionCoordinator,
-		History:      history,
-		UserConfig:   userCfg,
-		Drafts:       store.DraftStore(),
+		AgentManager:   agentManager,
+		MCPProxy:       mcpProxy,
+		Approvals:      approvalBroker,
+		Templates:      templateManager,
+		Sessions:       sessionManager,
+		Coordinator:    sessionCoordinator,
+		History:        history,
+		UserConfig:     userCfg,
+		Drafts:         store.DraftStore(),
+		TemplateHelper: templateHelper,
 	})
 
 	wired = true
