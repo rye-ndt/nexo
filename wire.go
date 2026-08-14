@@ -1,6 +1,7 @@
 package main
 
 import (
+	_ "embed"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -34,6 +35,9 @@ import (
 
 const httpTimeout = 30 * time.Second
 
+//go:embed config.yaml
+var builtinConfig []byte
+
 type App struct {
 	Config     input_itf.Config
 	Logger     output_itf.Logger
@@ -54,7 +58,7 @@ var harnessBuilders = map[enums.AgentHarness]harnessBuilder{
 }
 
 func wire(assets fs.FS) (*App, error) {
-	cfg, err := config.New("config.yaml")
+	cfg, err := config.New(builtinConfig)
 	if err != nil {
 		return nil, err
 	}

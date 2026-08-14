@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Nexo
+Comment=A desktop control plane for orchestrating a fleet of coding agents
+Exec=nexo
+Icon=nexo
+Terminal=false
+Categories=Development;

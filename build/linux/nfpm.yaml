@@ -1,0 +1,28 @@
+# Debian package definition. Run nfpm from the repo root, the `src` paths below
+# are relative to the working directory, not to this file:
+#
+#   NEXO_VERSION=0.0.1 nfpm pkg -f build/linux/nfpm.yaml -p deb -t build/bin/nexo.deb
+name: nexo
+arch: amd64
+platform: linux
+version: ${NEXO_VERSION}
+# The nightly stamp is not semver; let it through untouched so apt still sorts it.
+version_schema: none
+section: devel
+priority: optional
+maintainer: akai-rothschild <nduytung.1611@gmail.com>
+description: |
+  A desktop control plane for orchestrating a fleet of coding agents.
+homepage: https://github.com/rye-ndt/nexo
+license: MIT
+depends:
+  - libgtk-3-0
+  - libwebkit2gtk-4.1-0
+contents:
+  - src: build/bin/nexo
+    dst: /usr/bin/nexo
+  - src: build/linux/nexo.desktop
+    dst: /usr/share/applications/nexo.desktop
+  # pixmaps, not hicolor: the icon is 1024x1024 and hicolor has no such size.
+  - src: build/appicon.png
+    dst: /usr/share/pixmaps/nexo.png

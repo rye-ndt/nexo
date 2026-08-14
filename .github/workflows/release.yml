@@ -1,0 +1,114 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+# One nightly at a time. Never cancel: publish replaces the rolling release in
+# place, and a run killed halfway through leaves no release at all.
+concurrency: nightly
+
+env:
+  WAILS: go run github.com/wailsapp/wails/v2/cmd/wails@v2.13.0
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest, ubuntu-24.04]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      # Apple Silicon only. wails ad-hoc signs the bundle, which is not
+      # notarization — see the release notes. hdiutil ships with the OS, so the
+      # image needs no extra tooling; the symlink gives it the usual
+      # drag-to-Applications layout.
+      - name: Build the macOS disk image
+        if: runner.os == 'macOS'
+        run: |
+          ${{ env.WAILS }} build -platform darwin/arm64 -clean
+          mkdir -p build/bin/dmg dist
+          cp -R build/bin/Nexo.app build/bin/dmg/
+          ln -s /Applications build/bin/dmg/Applications
+          hdiutil create -volname Nexo -srcfolder build/bin/dmg -ov -format UDZO \
+            dist/Nexo-macos-arm64.dmg
+
+      # wails drives the NSIS templates already in build/windows. Append to
+      # PATH in-process — $GITHUB_PATH only reaches the next step.
+      - name: Build the Windows installer
+        if: runner.os == 'Windows'
+        run: |
+          choco install nsis -y --no-progress
+          $env:PATH += ";C:\Program Files (x86)\NSIS"
+          ${{ env.WAILS }} build -platform windows/amd64 -clean -nsis -webview2 embed
+          New-Item -ItemType Directory -Force dist | Out-Null
+          Move-Item build\bin\Nexo-amd64-installer.exe dist\Nexo-windows-amd64-setup.exe
+
+      # ubuntu-24.04 only ships webkit2gtk 4.1, which needs the build tag.
+      - name: Build the Debian package
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev
+          ${{ env.WAILS }} build -platform linux/amd64 -clean -tags webkit2_41
+          go install github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.43.0
+          mkdir -p dist
+          # nfpm expands this into nfpm.yaml. Read it from wails.json so the deb
+          # carries the same version wails stamps into the .app and the .exe.
+          export NEXO_VERSION="$(jq -r .info.productVersion wails.json)~nightly${{ github.run_number }}"
+          "$(go env GOPATH)/bin/nfpm" pkg -f build/linux/nfpm.yaml -p deb \
+            -t dist/nexo-linux-amd64.deb
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: installer-${{ runner.os }}
+          path: dist/*
+          if-no-files-found: error
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          pattern: installer-*
+          merge-multiple: true
+
+      # Replace the release outright rather than reconciling one that may or
+      # may not exist: --cleanup-tag drops the old tag, --target recreates it
+      # here. No checkout needed, gh works off GH_REPO.
+      - name: Publish the rolling nightly release
+        run: |
+          cat > notes.md <<'EOF'
+          Built from the latest commit on `main`. Unsigned — every OS will say so.
+
+          - **macOS** (Apple Silicon, 11+) — `Nexo-macos-arm64.dmg`. Gatekeeper
+            blocks it on first launch: right-click the app and choose Open, or run
+            `xattr -dr com.apple.quarantine /Applications/Nexo.app`.
+          - **Windows** (x64) — `Nexo-windows-amd64-setup.exe`. SmartScreen shows
+            "unrecognised app": More info, then Run anyway.
+          - **Linux** (x64, Ubuntu 24.04+ / Debian 13+) — `nexo-linux-amd64.deb`,
+            installed with `sudo apt install ./nexo-linux-amd64.deb`. Older
+            releases ship webkit2gtk 4.0 and cannot satisfy the dependency.
+          EOF
+          gh release delete nightly --cleanup-tag --yes || true
+          gh release create nightly --prerelease --target "$GITHUB_SHA" \
+            --title "Nightly ${GITHUB_SHA:0:7}" --notes-file notes.md dist/*

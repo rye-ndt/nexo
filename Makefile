@@ -16,7 +16,7 @@ build:
 
 # Build and launch the production app.
 run: build
-	./build/bin/nexo.app/Contents/MacOS/nexo
+	./build/bin/Nexo.app/Contents/MacOS/nexo
 
 test:
 	go test ./...

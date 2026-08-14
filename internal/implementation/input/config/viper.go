@@ -1,6 +1,8 @@
 package config
 
 import (
+	"bytes"
+
 	"github.com/spf13/viper"
 
 	"hexago/internal/helpers"
@@ -13,26 +15,26 @@ type viperConfig struct {
 	cfg *input_itf.ConfigStruct
 }
 
-func New(path string) (input_itf.Config, error) {
+func New(raw []byte) (input_itf.Config, error) {
 	v := viper.New()
-	v.SetConfigFile(path)
+	v.SetConfigType("yaml")
 
-	if err := v.ReadInConfig(); err != nil {
+	if err := v.ReadConfig(bytes.NewReader(raw)); err != nil {
 		return nil, err
 	}
 
 	cfg := &input_itf.ConfigStruct{}
 
 	if err := v.Unmarshal(cfg); err != nil {
-		return nil, custom_error.Critical("cannot decode %s: %v", path, err)
+		return nil, custom_error.Critical("cannot decode config.yaml: %v", err)
 	}
 
 	if err := helpers.ValidateStruct(cfg); err != nil {
-		return nil, custom_error.Critical("invalid %s: %v", path, err)
+		return nil, custom_error.Critical("invalid config.yaml: %v", err)
 	}
 
 	if err := validatePKCE(cfg.MCPServers); err != nil {
-		return nil, custom_error.Critical("invalid %s: %v", path, err)
+		return nil, custom_error.Critical("invalid config.yaml: %v", err)
 	}
 
 	return &viperConfig{cfg: cfg}, nil

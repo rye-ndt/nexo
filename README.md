@@ -43,9 +43,9 @@ Then, in the app:
 8. come back, review, revert what you don't like
 9. commit
 
-Two things that will bite you: run from the repo root, because `config.yaml` is
-read from the working directory. And use `make dev` — `go run .` dies on a Wails
-build tag.
+Two things that will bite you: `config.yaml` is compiled into the binary, so
+editing it needs a rebuild rather than a restart. And use `make dev` — `go run .`
+dies on a Wails build tag.
 
 ## Config
 

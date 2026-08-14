@@ -9,5 +9,12 @@
   "author": {
     "name": "akai-rothschild",
     "email": "nduytung.1611@gmail.com"
+  },
+  "info": {
+    "companyName": "akai-rothschild",
+    "productName": "Nexo",
+    "productVersion": "0.0.1",
+    "copyright": "Copyright © 2026 akai-rothschild",
+    "comments": "A desktop control plane for orchestrating a fleet of coding agents"
   }
 }

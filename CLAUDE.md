@@ -21,8 +21,8 @@ Two things to hold onto:
 
 # Commands
 
-Run everything from the repo root; `config.yaml` is read from the working
-directory.
+Run everything from the repo root. `config.yaml` is compiled into the binary by
+the `//go:embed` in `wire.go`, so editing it needs a rebuild, not a restart.
 
 ```sh
 make dev      # run the app; frontend hot-reloads, Go changes need a restart
@@ -180,7 +180,8 @@ Inspector against the WebContent process for the frontend.
 
 # Gotchas
 
-- Run from the repo root; `config.yaml` is read from the working directory.
+- Run from the repo root. `config.yaml` is embedded at compile time, so an edit
+  to it takes effect on the next build — there is no file read at startup.
 - `go run .` fails with a Wails build-tag error — use `make dev`.
 - The SQLite driver name is `sqlite` (modernc), not `sqlite3`.
 - `storage.New` opens the DB through `dsn()`, which sets `busy_timeout` and

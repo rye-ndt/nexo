@@ -2,7 +2,6 @@ package config
 
 import (
 	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
@@ -11,7 +10,7 @@ import (
 
 const shippedConfig = "../../../../config.yaml"
 
-func writeConfig(t *testing.T, old, new string) string {
+func writeConfig(t *testing.T, old, new string) []byte {
 	t.Helper()
 
 	raw, err := os.ReadFile(shippedConfig)
@@ -29,13 +28,7 @@ func writeConfig(t *testing.T, old, new string) string {
 		body = strings.Replace(body, old, new, 1)
 	}
 
-	path := filepath.Join(t.TempDir(), "config.yaml")
-
-	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
-		t.Fatalf("cannot write the test config: %v", err)
-	}
-
-	return path
+	return []byte(body)
 }
 
 func TestNewAcceptsShippedConfig(t *testing.T) {
@@ -101,9 +94,9 @@ func TestNewRejectsPKCEValuesBelowTheFloor(t *testing.T) {
 }
 
 func TestNewIgnoresRemovedFloorKeys(t *testing.T) {
-	path := writeConfig(t, "\n  verifier_bytes: 32", "\n  min_verifier_bytes: 1\n  verifier_bytes: 32")
+	raw := writeConfig(t, "\n  verifier_bytes: 32", "\n  min_verifier_bytes: 1\n  verifier_bytes: 32")
 
-	if _, err := New(path); err != nil {
+	if _, err := New(raw); err != nil {
 		t.Fatalf("a stale min_verifier_bytes key must not lower the floor nor break boot, got %v", err)
 	}
 }
