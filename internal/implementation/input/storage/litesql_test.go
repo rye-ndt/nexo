@@ -3,6 +3,7 @@ package storage
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -245,5 +246,45 @@ func TestOverlappingTaskWritesDoNotHitSQLiteBusy(t *testing.T) {
 
 	if failed > 0 {
 		t.Fatalf("%d of %d concurrent writes failed", failed, writers*each)
+	}
+}
+
+func TestDSNKeepsAWindowsDriveOutOfTheURIAuthority(t *testing.T) {
+	cases := []struct {
+		name string
+		path string
+		want string
+	}{
+		{
+			name: "a unix path is already rooted",
+			path: "/home/rye/.local/share/nexo/harness.db",
+			want: "file:///home/rye/.local/share/nexo/harness.db",
+		},
+		{
+			name: "a windows path gains the third slash",
+			path: "C:/Users/rye/AppData/Roaming/nexo/harness.db",
+			want: "file:///C:/Users/rye/AppData/Roaming/nexo/harness.db",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := dsn(tc.path)
+
+			base, query, found := strings.Cut(got, "?")
+			if !found {
+				t.Fatalf("dsn dropped the pragmas entirely: %s", got)
+			}
+
+			if base != tc.want {
+				t.Fatalf("dsn(%q) = %q, want %q", tc.path, base, tc.want)
+			}
+
+			for _, pragma := range []string{"busy_timeout", "journal_mode"} {
+				if !strings.Contains(query, pragma) {
+					t.Fatalf("dsn(%q) dropped %s: %s", tc.path, pragma, query)
+				}
+			}
+		})
 	}
 }

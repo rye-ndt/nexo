@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -180,7 +181,15 @@ func New(path string) (input_itf.Storage, error) {
 // writer of any overlapping pair fails instantly with SQLITE_BUSY instead of
 // waiting its turn. The path is escaped because the macOS data dir has a space in it.
 func dsn(path string) string {
-	uri := url.URL{Scheme: "file", Path: path}
+	// SQLite reads everything between file:// and the first slash as an
+	// authority, so a Windows path has to arrive as /C:/Users/... — the raw
+	// C:\Users\... becomes file://C:%5CUsers%5C... and is rejected as one.
+	slashed := filepath.ToSlash(path)
+	if !strings.HasPrefix(slashed, "/") {
+		slashed = "/" + slashed
+	}
+
+	uri := url.URL{Scheme: "file", Path: slashed}
 	uri.RawQuery = url.Values{
 		"_pragma": {"busy_timeout(5000)", "journal_mode(WAL)"},
 	}.Encode()
