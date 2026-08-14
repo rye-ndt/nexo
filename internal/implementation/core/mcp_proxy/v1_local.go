@@ -150,10 +150,16 @@ var reportToolSchema = objectSchema(map[string]any{
 	"known_gaps":         handoverSection("Work knowingly left undone, keyed by a short name."),
 }, "status", "tldr", "outcome")
 
-// The list is scoped to the caller: an agent drafting a template is the only one
-// offered report_template, and it is not offered report_task, so neither job can
-// reach for the other's tool.
 func (s *v1) localTools(agentID uuid.UUID) []*rpcTool {
+	if drafter := s.drafter(); drafter != nil && drafter.Drafting(agentID) {
+		return []*rpcTool{{
+			name:        draftTool,
+			description: draftToolDescription,
+			input:       draftToolSchema,
+			call:        s.callDraft,
+		}}
+	}
+
 	tools := make([]*rpcTool, 0, 2)
 
 	tools = append(tools, &rpcTool{
@@ -162,15 +168,6 @@ func (s *v1) localTools(agentID uuid.UUID) []*rpcTool {
 		input:       approvalToolSchema,
 		call:        s.callApproval,
 	})
-
-	if drafter := s.drafter(); drafter != nil && drafter.Drafting(agentID) {
-		return append(tools, &rpcTool{
-			name:        draftTool,
-			description: draftToolDescription,
-			input:       draftToolSchema,
-			call:        s.callDraft,
-		})
-	}
 
 	if s.reporter != nil {
 		tools = append(tools, &rpcTool{

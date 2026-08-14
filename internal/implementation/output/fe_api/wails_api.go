@@ -406,10 +406,8 @@ func (a *API) TemplateHelperBlocked() string {
 	return a.templateHelp.Blocked()
 }
 
-// RefineTemplate blocks for as long as the assistant takes, which is minutes. Wails
-// runs each bound call on its own goroutine, so the bridge stays free meanwhile.
-func (a *API) RefineTemplate(name string, role string) (*output_itf.TemplateInfo, error) {
-	template, err := a.templateHelp.Draft(name, role)
+func (a *API) RefineTemplate(req *core_itf.DraftRequest) (*output_itf.TemplateInfo, error) {
+	template, err := a.templateHelp.Draft(req)
 	if err != nil {
 		return nil, err
 	}

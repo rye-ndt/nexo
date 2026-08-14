@@ -133,7 +133,7 @@ func wire(assets fs.FS) (*App, error) {
 		return nil, err
 	}
 
-	templateHelper, err := helper_agent.InitV1(agentManager, userCfg, appLogger)
+	templateHelper, err := helper_agent.InitV1(agentManager, templateManager, userCfg, appLogger)
 	if err != nil {
 		return nil, err
 	}

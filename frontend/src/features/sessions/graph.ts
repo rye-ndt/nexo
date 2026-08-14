@@ -1,5 +1,6 @@
 import {SessionStatus, TaskState} from '@/shared/lib/enums'
 import type {Point, Session, SessionDraft, Task, TaskDraft} from '@/features/sessions/types'
+import type {DraftContext} from '@/features/templates/types'
 
 const SETTLED_STATES = new Set<TaskState>([
     TaskState.Running,
@@ -121,6 +122,21 @@ export function isCancellable(session: Session): boolean {
     return session.tasks.some(
         (task) => !KEPT_ON_CANCEL.has(task.state) && task.state !== TaskState.Cancelled,
     )
+}
+
+/** What an agent writing a new template is told about the session it is being written for. */
+export function draftContext(session: Session): DraftContext {
+    return {
+        session_name: session.name,
+        working_dir: session.workingDir,
+        context_dir: session.contextDir,
+        nodes: session.tasks.map((task) => ({
+            id: task.id,
+            title: task.title,
+            template_id: task.templateId ?? '',
+            depends_on: task.dependsOn,
+        })),
+    }
 }
 
 export function findSession(sessions: Session[], sessionId: string | null) {

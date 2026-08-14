@@ -16,14 +16,16 @@ import {
     toParamValues,
 } from '@/features/templates/template'
 import type {TaskDraft} from '@/features/sessions/types'
-import type {FieldValue, Template} from '@/features/templates/types'
+import type {DraftContext, FieldValue, Template} from '@/features/templates/types'
 
 const STEP_COUNT = 2
 
 export function NewNodeDialog({
+    context,
     onCreate,
     onClose,
 }: {
+    context: DraftContext
     onCreate: (draft: TaskDraft) => void
     onClose: () => void
 }) {
@@ -94,7 +96,7 @@ export function NewNodeDialog({
                     />
                 </>
             ) : (
-                <TemplatesPanel onPick={choose} />
+                <TemplatesPanel context={context} onPick={choose} />
             )}
         </DialogShell>
     )

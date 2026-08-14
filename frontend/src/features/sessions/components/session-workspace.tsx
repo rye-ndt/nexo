@@ -8,6 +8,7 @@ import {MissingInputsDialog} from '@/features/sessions/components/nodes/missing-
 import {NewNodeDialog} from '@/features/sessions/components/nodes/new-node-dialog'
 import {SessionHeader} from '@/features/sessions/components/canvas/session-header'
 import {TaskDialog} from '@/features/sessions/components/nodes/task-dialog'
+import {draftContext} from '@/features/sessions/graph'
 import {useInterrupts} from '@/features/sessions/use-interrupts'
 import {useMissingInputs} from '@/features/sessions/use-missing-inputs'
 import {useToggle} from '@/shared/hooks/use-toggle'
@@ -143,7 +144,13 @@ export function SessionWorkspace({
                 />
             )}
 
-            {newNodeAt && <NewNodeDialog onCreate={createTask} onClose={closeNewNode} />}
+            {newNodeAt && session && (
+                <NewNodeDialog
+                    context={draftContext(session)}
+                    onCreate={createTask}
+                    onClose={closeNewNode}
+                />
+            )}
 
             {locations.on && session && !session.finalized && (
                 <EditLocationsDialog

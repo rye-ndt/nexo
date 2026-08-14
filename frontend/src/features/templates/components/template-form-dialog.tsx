@@ -8,13 +8,15 @@ import {Button} from '@/shared/ui/button'
 import {useTemplateHelper} from '@/features/templates/use-template-helper'
 import {useTemplates} from '@/features/templates/use-templates'
 import {emptyTemplate, templateIssues} from '@/features/templates/template'
-import type {Template, TemplateDraft} from '@/features/templates/types'
+import type {DraftContext, Template, TemplateDraft} from '@/features/templates/types'
 
 export function TemplateFormDialog({
     template,
+    context,
     onClose,
 }: {
     template: Template | null
+    context?: DraftContext
     onClose: () => void
 }) {
     const {saveTemplate, saving} = useTemplates()
@@ -29,7 +31,7 @@ export function TemplateFormDialog({
     const helper = useTemplateHelper((filled, sent) => {
         setBeforeFill(sent)
         setDraft(filled)
-    })
+    }, context)
 
     const issues = templateIssues(draft)
 
@@ -64,7 +66,7 @@ export function TemplateFormDialog({
     // A blocked helper takes the hint only once the user could plausibly reach for
     // it, since that is the moment they find the button dead and want to know why.
     const hint = helper.filling
-        ? 'An agent is writing this. It can take a minute.'
+        ? 'An agent is reading the project and writing this. It can take a few minutes.'
         : (fillable ? helper.blocked : '') || (issues[0] ?? '')
 
     return (

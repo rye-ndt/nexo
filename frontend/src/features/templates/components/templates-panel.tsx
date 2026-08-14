@@ -12,7 +12,7 @@ import {pluralize} from '@/shared/lib/format'
 import {reportError} from '@/shared/lib/error-bus'
 import {useTemplates, useTemplateTransfer} from '@/features/templates/use-templates'
 import {useToggle} from '@/shared/hooks/use-toggle'
-import type {Template} from '@/features/templates/types'
+import type {DraftContext, Template} from '@/features/templates/types'
 
 const JSON_FILES = '*.json'
 
@@ -24,7 +24,13 @@ function exportFileName() {
     return `nexo-templates-${new Date().toISOString().slice(0, 10)}.json`
 }
 
-export function TemplatesPanel({onPick}: {onPick?: (template: Template) => void}) {
+export function TemplatesPanel({
+    context,
+    onPick,
+}: {
+    context?: DraftContext
+    onPick?: (template: Template) => void
+}) {
     const {templates, loading, removeTemplate} = useTemplates()
     const transfer = useTemplateTransfer()
 
@@ -128,7 +134,13 @@ export function TemplatesPanel({onPick}: {onPick?: (template: Template) => void}
                 </div>
             )}
 
-            {editing && <TemplateFormDialog template={editing.template} onClose={closeForm} />}
+            {editing && (
+                <TemplateFormDialog
+                    template={editing.template}
+                    context={context}
+                    onClose={closeForm}
+                />
+            )}
 
             {exporting.on && (
                 <TemplateExportDialog

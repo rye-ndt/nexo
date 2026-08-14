@@ -23,7 +23,9 @@ type fakeDeliverer struct {
 
 func (d *fakeDeliverer) Blocked() string { return "" }
 
-func (d *fakeDeliverer) Draft(_ string, _ string) (*core_itf.Template, error) { return nil, nil }
+func (d *fakeDeliverer) Draft(_ *core_itf.DraftRequest) (*core_itf.Template, error) {
+	return nil, nil
+}
 
 func (d *fakeDeliverer) Drafting(agentID uuid.UUID) bool {
 	return agentID != uuid.Nil && d.drafting == agentID

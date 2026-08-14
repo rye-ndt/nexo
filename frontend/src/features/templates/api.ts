@@ -17,8 +17,8 @@ import {
     MOCK_TEMPLATES,
 } from '@/features/templates/mock-templates'
 import {mockReadFile, mockWriteFile} from '@/shared/api/mock-fs'
-import type {Template, TemplateDraft} from '@/features/templates/types'
-import {output_itf} from '@wailsjs/go/models'
+import type {DraftContext, Template, TemplateDraft} from '@/features/templates/types'
+import {core_itf, output_itf} from '@wailsjs/go/models'
 import {
     ExportTemplates,
     ImportTemplates,
@@ -168,16 +168,21 @@ export async function templateHelperBlocked(): Promise<string> {
 }
 
 /**
- * Hands the name and role to an agent and waits for the whole template back. The
- * Go side refuses anything the agent leaves half-written, so what lands here is
- * either a complete template or an error.
+ * Hands the name, the role and the graph the template is being written for to an
+ * agent, which reads the project before it writes, and waits for the whole template
+ * back. The Go side refuses anything the agent leaves half-written, so what lands
+ * here is either a complete template or an error.
  */
-export async function refineTemplate(draft: TemplateDraft): Promise<TemplateDraft> {
+export async function refineTemplate(
+    draft: TemplateDraft,
+    context?: DraftContext,
+): Promise<TemplateDraft> {
     const name = draft.name.trim()
     const role = draft.role.trim()
 
     if (hasWailsRuntime()) {
-        const filled = toTemplate(await bridge(() => RefineTemplate(name, role)))
+        const request = new core_itf.DraftRequest({name, role, ...context})
+        const filled = toTemplate(await bridge(() => RefineTemplate(request)))
         return {...filled, id: draft.id}
     }
 
@@ -186,7 +191,7 @@ export async function refineTemplate(draft: TemplateDraft): Promise<TemplateDraf
 
     await new Promise((resolve) => setTimeout(resolve, REFINE_MS))
 
-    return {...mockRefined(name, role), id: draft.id}
+    return {...mockRefined(name, role, context), id: draft.id}
 }
 
 export async function removeTemplate(templateId: string): Promise<void> {

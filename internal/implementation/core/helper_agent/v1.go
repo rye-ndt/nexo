@@ -14,17 +14,18 @@ import (
 )
 
 const (
-	draftTimeout    = 5 * time.Minute
+	draftTimeout    = 10 * time.Minute
 	livenessCheck   = 15 * time.Second
 	maxParams       = 12
 	maxPromptLength = 20000
 )
 
 type v1 struct {
-	locker  sync.Mutex
-	agents  core_itf.AgentManager
-	userCfg output_itf.UserConfig
-	logger  output_itf.Logger
+	locker    sync.Mutex
+	agents    core_itf.AgentManager
+	templates core_itf.AgentTemplateManager
+	userCfg   output_itf.UserConfig
+	logger    output_itf.Logger
 
 	// One draft at a time, so an abandoned dialog cannot hold a harness slot for
 	// the whole of draftTimeout.
@@ -34,14 +35,17 @@ type v1 struct {
 
 func InitV1(
 	agents core_itf.AgentManager,
+	templates core_itf.AgentTemplateManager,
 	userCfg output_itf.UserConfig,
 	logger output_itf.Logger,
 ) (core_itf.TemplateHelper, error) {
-	if agents == nil || userCfg == nil || logger == nil {
-		return nil, custom_error.Critical("template helper needs an agent manager, a user config and a logger")
+	if agents == nil || templates == nil || userCfg == nil || logger == nil {
+		return nil, custom_error.Critical(
+			"template helper needs an agent manager, a template manager, a user config and a logger",
+		)
 	}
 
-	return &v1{agents: agents, userCfg: userCfg, logger: logger}, nil
+	return &v1{agents: agents, templates: templates, userCfg: userCfg, logger: logger}, nil
 }
 
 // Drafting a template is heavy work, so it borrows the heavy task level's model
@@ -80,8 +84,8 @@ func (s *v1) heavyAgent() (*output_itf.AgentDefault, string) {
 	}
 }
 
-func (s *v1) Draft(name string, role string) (*core_itf.Template, error) {
-	if strings.TrimSpace(name) == "" {
+func (s *v1) Draft(req *core_itf.DraftRequest) (*core_itf.Template, error) {
+	if req == nil || strings.TrimSpace(req.Name) == "" {
 		return nil, custom_error.Critical("a template needs a name before it can be filled in")
 	}
 
@@ -90,13 +94,13 @@ func (s *v1) Draft(name string, role string) (*core_itf.Template, error) {
 		return nil, custom_error.Critical("%s", reason)
 	}
 
-	// No working directory: the agent lands in its own throwaway workspace instead
-	// of whatever project the user happens to have open. Writing a template needs
-	// no files.
+	prompt := buildPrompt(req, s.library())
+
 	agent, err := s.agents.RequestInstance(&core_itf.AgentRequest{
 		Name:          agentDefault.Model,
 		ThinkingLevel: agentDefault.ThinkingLevel,
 		SystemPrompts: []string{systemPrompt},
+		WorkingDir:    req.WorkingDir,
 	})
 	if err != nil {
 		return nil, err
@@ -107,11 +111,22 @@ func (s *v1) Draft(name string, role string) (*core_itf.Template, error) {
 	// Registered before the prompt is sent, so the agent cannot report into a gap.
 	delivered := s.await(agent.ID)
 
-	if err := s.agents.Send(agent.ID, buildPrompt(name, role)); err != nil {
+	if err := s.agents.Send(agent.ID, prompt); err != nil {
 		return nil, custom_error.Critical("cannot reach the assistant filling this in: %v", err)
 	}
 
 	return s.wait(agent.ID, delivered)
+}
+
+func (s *v1) library() []*core_itf.Template {
+	templates, err := s.templates.List()
+	if err != nil {
+		s.logger.Warn("template helper library", "err", err)
+
+		return nil
+	}
+
+	return templates
 }
 
 func (s *v1) wait(

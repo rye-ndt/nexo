@@ -82,8 +82,8 @@ export function PendingApprovals() {
   return window['go']['wails_api']['API']['PendingApprovals']();
 }
 
-export function RefineTemplate(arg1, arg2) {
-  return window['go']['wails_api']['API']['RefineTemplate'](arg1, arg2);
+export function RefineTemplate(arg1) {
+  return window['go']['wails_api']['API']['RefineTemplate'](arg1);
 }
 
 export function RemoveTemplate(arg1) {

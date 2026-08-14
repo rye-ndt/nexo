@@ -1,6 +1,7 @@
 import {PARAM_TYPES, ParamType, TASK_LEVELS, TaskLevel} from '@/shared/lib/enums'
 import type {Agent} from '@/features/agents/types'
 import type {
+    DraftContext,
     Template,
     TemplateArchive,
     TemplateDraft,
@@ -135,11 +136,13 @@ export function mockHelperBlocked(agents: Agent[]): string {
 }
 
 /**
- * Stands in for what the agent hands back. It is written from the name and role so
- * the filled form reads as an answer to what was typed, rather than a fixture.
+ * Stands in for what the agent hands back. The last prompt section echoes the context
+ * it was given, so a template filled in from a session visibly differs from one filled
+ * in from Settings.
  */
-export function mockRefined(name: string, role: string): TemplateDraft {
+export function mockRefined(name: string, role: string, context?: DraftContext): TemplateDraft {
     const subject = name.trim().toLowerCase()
+    const neighbours = (context?.nodes ?? []).map((node) => node.title).filter(Boolean)
 
     return {
         name: name.trim(),
@@ -177,6 +180,13 @@ export function mockRefined(name: string, role: string): TemplateDraft {
             {
                 key: 'limits',
                 value: 'Report only what you can point at. Where you had to guess, say so and say what you guessed. Leave {{constraints}} alone.',
+            },
+            {
+                key: 'project',
+                value: [
+                    `Project read: ${context?.working_dir || '(none given)'}`,
+                    `Nodes already in the graph: ${neighbours.join(', ') || '(none)'}`,
+                ].join('\n'),
             },
         ],
         outputStructure: `summary: one paragraph a non-programmer can follow

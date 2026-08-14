@@ -29,6 +29,24 @@ export type Template = {
 
 export type TemplateDraft = Omit<Template, 'id'> & {id?: string}
 
+/**
+ * Everything the agent filling a template in is told about where that template is
+ * going: the folders its nodes will run in, and the graph it is being written for.
+ * Declared in the wire shape, so the api layer hands it straight to Go. Undefined
+ * when the template is written from Settings, with no session around it.
+ */
+export type DraftContext = {
+    session_name: string
+    working_dir: string
+    context_dir: string
+    nodes: {
+        id: string
+        title: string
+        template_id: string
+        depends_on: string[]
+    }[]
+}
+
 export type TemplateRecord = {
     id: string
     name: string
