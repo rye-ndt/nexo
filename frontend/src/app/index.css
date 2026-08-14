@@ -189,7 +189,7 @@
 
 @layer components {
     .react-flow__handle {
-        @apply size-2.5 rounded-full border-2 border-border bg-background transition-colors;
+        @apply size-2.5 rounded-full border-2 border-border-strong bg-background transition-colors;
         min-width: 0;
         min-height: 0;
     }
@@ -208,22 +208,30 @@
         right: 0;
     }
 
+    /*
+        A resting edge belongs to the same quiet neutral family as the ring around a
+        node, one step up so the line survives the canvas. An edge carries the state of
+        the node it leaves, so a live one takes that state's own colour and the extra
+        weight — the only place on the canvas that earns it.
+    */
     .react-flow__edge-path {
-        stroke: var(--border);
-        stroke-width: 1.5;
+        stroke: var(--border-strong);
+        stroke-width: 1.75;
     }
 
     .react-flow__edge.selected .react-flow__edge-path {
         stroke: var(--live);
+        stroke-width: 2;
     }
 
     .react-flow__connection-path {
         stroke: var(--live);
-        stroke-width: 1.5;
+        stroke-width: 1.75;
     }
 
     .react-flow__edge.is-live .react-flow__edge-path {
-        stroke: var(--live);
+        stroke: var(--state-running);
+        stroke-width: 2;
         stroke-dasharray: 4 4;
         animation: edge-flow 0.6s linear infinite;
     }

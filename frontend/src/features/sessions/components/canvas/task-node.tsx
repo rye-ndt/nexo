@@ -72,10 +72,10 @@ export function TaskNode({data, selected}: NodeProps<TaskNodeType>) {
             className={cn(
                 'relative w-[260px] rounded-xl bg-card p-3 shadow-[0_2px_16px_rgba(27,28,30,0.04)] transition-all duration-120',
                 blocked
-                    ? 'border border-dashed border-border opacity-60 ring-0'
-                    : 'ring-1 ring-border',
-                running && 'bg-live-tint ring-1 ring-live',
-                cancelled && 'bg-state-idle-tint ring-1 ring-state-idle/30',
+                    ? 'border-[1.75px] border-dashed border-border-strong opacity-60 ring-0'
+                    : 'ring-[1.75px] ring-border-strong',
+                running && 'bg-live-tint ring-2 ring-live',
+                cancelled && 'bg-state-idle-tint ring-[1.75px] ring-state-idle/30',
                 selected && 'ring-2 ring-live',
                 unlinkable && 'opacity-30',
             )}
