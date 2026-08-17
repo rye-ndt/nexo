@@ -107,9 +107,10 @@ func newTestProxy(t *testing.T, db input_itf.StorageMCP, httpCli input_itf.HttpC
 			},
 		},
 		DefaultTokenTTL: time.Hour,
+		Chrome:          &input_itf.MCPChromeConfig{DebugPort: 9222, ProfileDir: "chrome", LaunchTimeout: time.Second, CallTimeout: time.Second, MaxPageChars: 100},
 	}
 
-	proxy, err := InitV1(cfg, db, httpCli, nil, nil)
+	proxy, err := InitV1(cfg, t.TempDir(), db, httpCli, nil, nil)
 	if err != nil {
 		t.Fatalf("init proxy: %v", err)
 	}

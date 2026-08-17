@@ -98,7 +98,7 @@ func wire(assets fs.FS) (*App, error) {
 		return nil, err
 	}
 
-	mcpProxy, err := mcp_proxy.InitV1(cfg.Read().MCPServers, store.MCPStore(), httpCli, approvalBroker, sessionManager)
+	mcpProxy, err := mcp_proxy.InitV1(cfg.Read().MCPServers, dataDir, store.MCPStore(), httpCli, approvalBroker, sessionManager)
 	if err != nil {
 		return nil, err
 	}

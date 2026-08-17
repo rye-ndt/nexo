@@ -51,11 +51,16 @@ type rpcResponse struct {
 	Error   *rpcError       `json:"error,omitempty"`
 }
 
-const contentText = "text"
+const (
+	contentText  = "text"
+	contentImage = "image"
+)
 
 type toolContent struct {
-	Type string `json:"type"`
-	Text string `json:"text"`
+	Type     string `json:"type"`
+	Text     string `json:"text"`
+	Data     string `json:"data,omitempty"`
+	MIMEType string `json:"mimeType,omitempty"`
 }
 
 type toolResult struct {
@@ -179,6 +184,10 @@ func errorResult(message string) *toolResult {
 
 func textResult(text string) *toolResult {
 	return &toolResult{Content: []toolContent{{Type: contentText, Text: text}}}
+}
+
+func imageResult(base64Data, mimeType string) *toolResult {
+	return &toolResult{Content: []toolContent{{Type: contentImage, Data: base64Data, MIMEType: mimeType}}}
 }
 
 func agentFromHeader(r *http.Request) uuid.UUID {

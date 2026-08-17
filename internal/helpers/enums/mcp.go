@@ -11,12 +11,15 @@ const (
 	MCPAuthFlowDevice MCPAuthFlow = "device"
 	// no flow: the operator pastes a token in settings
 	MCPAuthFlowToken MCPAuthFlow = "token"
+	// no credential at all: the operator switches a local capability on
+	MCPAuthFlowEnable MCPAuthFlow = "enable"
 )
 
 var mcpAuthFlows = []MCPAuthFlow{
 	MCPAuthFlowDCR,
 	MCPAuthFlowDevice,
 	MCPAuthFlowToken,
+	MCPAuthFlowEnable,
 }
 
 func (f MCPAuthFlow) Valid() bool {

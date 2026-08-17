@@ -7,6 +7,7 @@ const (
 	GatewayAgentPlaceholder = "__HARNESS_AGENT_ID__"
 	GatewayLocalServer      = "harness"
 	FigmaLocalServer        = "figma"
+	ChromeLocalServer       = "chrome-devtools"
 	GatewayMCPPath          = "/mcp/"
 )
 

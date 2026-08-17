@@ -82,6 +82,18 @@ const READINGS: Record<string, Reading> = {
         title: 'That server needs an access token',
         hint: 'Paste a token for it in Settings › MCP.',
     },
+    err_chrome_not_found: {
+        title: 'Google Chrome is not installed',
+        hint: 'Nexo drives the Chrome in your applications folder. Install it there, then enable chrome-devtools again.',
+    },
+    err_chrome_launch_failed: {
+        title: 'Chrome would not start with remote debugging on',
+        hint: 'Quit the Chrome window Nexo opened, then enable it again. Your everyday Chrome can stay open — Nexo drives its own copy of your profile.',
+    },
+    err_chrome_not_connected: {
+        title: 'Chrome is not running',
+        hint: 'Enable chrome-devtools in Settings › MCP, then run the task again.',
+    },
 }
 
 function errorMessage(error: unknown): string {

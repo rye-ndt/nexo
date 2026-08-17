@@ -28,6 +28,10 @@ const (
 	ErrMcpRequestFailed      ErrorType = "err_mcp_request_failed"
 	ErrMcpTokenRequired      ErrorType = "err_mcp_token_required"
 
+	ErrChromeNotFound     ErrorType = "err_chrome_not_found"
+	ErrChromeLaunchFailed ErrorType = "err_chrome_launch_failed"
+	ErrChromeNotConnected ErrorType = "err_chrome_not_connected"
+
 	ErrTemplateFileInvalid ErrorType = "err_template_file_invalid"
 	ErrTemplateConflict    ErrorType = "err_template_conflict"
 

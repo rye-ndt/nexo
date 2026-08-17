@@ -65,10 +65,24 @@ var markdownNoise = regexp.MustCompile("^(?:[>#]+\\s*|[-*+]\\s+|\\d+[.)]\\s+)")
 
 var markdownEmphasis = strings.NewReplacer("**", "", "__", "", "`", "")
 
-var allowedTools = strings.Join([]string{
+var baseTools = []string{
 	toolRead, toolEdit, toolWrite, toolGlob, toolGrep, toolBash, toolWebFetch, toolWebSearch,
-	"mcp__" + constances.GatewayLocalServer,
-}, ",")
+}
+
+func allowedTools(gateway *core_itf.MCPGateway) string {
+	if gateway == nil {
+		return strings.Join(baseTools, ",")
+	}
+
+	tools := make([]string, 0, len(baseTools)+len(gateway.Servers))
+	tools = append(tools, baseTools...)
+
+	for _, server := range gateway.Servers {
+		tools = append(tools, "mcp__"+server.Name)
+	}
+
+	return strings.Join(tools, ",")
+}
 
 type authSession struct {
 	cmd    *exec.Cmd
@@ -482,7 +496,7 @@ func New(
 			"--output-format", "stream-json",
 			"--verbose",
 			"--permission-mode", "dontAsk",
-			"--allowedTools", allowedTools,
+			"--allowedTools", allowedTools(mcpGateway),
 			"--disallowedTools", toolAskUser,
 			"--append-system-prompt", string(prompts.System()),
 		},

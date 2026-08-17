@@ -33,6 +33,12 @@ mcp_servers:
   state_bytes: 16
   default_token_ttl: 1h
   challenge_method: S256 # the only method implemented; anything else is rejected at startup
+  chrome:
+    debug_port: 9222
+    profile_dir: chrome
+    launch_timeout: 30s
+    call_timeout: 30s
+    max_page_chars: 40000
   supported_servers:
     atlassian:
       name: atlassian
@@ -68,6 +74,12 @@ mcp_servers:
         url: https://api.figma.com/v1/me
         header: X-Figma-Token
         fields: [email, handle]
+    chrome-devtools: # local: no credential, the operator switches it on
+      name: chrome-devtools
+      auth_key_name: ""
+      auth_flow: enable
+      client_id: ""
+      url: http://127.0.0.1:9222
   encode_key: sk-abcxyz
 
 agent_harness:

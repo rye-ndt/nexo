@@ -2,11 +2,26 @@ import {MCPAuthKind} from '@/shared/lib/enums'
 import type {MCPServer} from '@/features/settings/types'
 
 const FIGMA_TOKEN_PREFIX = 'figd_'
+const CHROME_SERVER_ID = 'chrome-devtools'
+const CHROME_ENDPOINT = 'http://127.0.0.1:9222'
 
 const alreadyFailed = new Set<string>()
 
 function goError(errorType: string, message: string) {
     return new Error(`[Err] Type: ${errorType} - Message: ${message} - Critical: critical`)
+}
+
+function authorizeFailure(serverId: string) {
+    if (serverId === CHROME_SERVER_ID)
+        return goError(
+            'err_chrome_launch_failed',
+            `Chrome did not start listening on ${CHROME_ENDPOINT} within 20s`,
+        )
+
+    return goError(
+        'err_mcp_authorize_timeout',
+        `timed out waiting for the ${serverId} callback after 2m0s`,
+    )
 }
 
 export function mockAuthorizeFailure(serverId: string) {
@@ -16,10 +31,7 @@ export function mockAuthorizeFailure(serverId: string) {
 
     alreadyFailed.add(serverId)
 
-    return goError(
-        'err_mcp_authorize_timeout',
-        `timed out waiting for the ${serverId} callback after 2m0s`,
-    )
+    return authorizeFailure(serverId)
 }
 
 export function mockTokenFailure(serverId: string, token: string) {
@@ -79,5 +91,12 @@ export const MOCK_MCP_SERVERS: MCPServer[] = [
         url: 'https://api.figma.com',
         authorized: false,
         kind: MCPAuthKind.Token,
+    },
+    {
+        id: CHROME_SERVER_ID,
+        name: CHROME_SERVER_ID,
+        url: CHROME_ENDPOINT,
+        authorized: false,
+        kind: MCPAuthKind.Enable,
     },
 ]

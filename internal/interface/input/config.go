@@ -49,8 +49,17 @@ type MCPServerConfig struct {
 	Account       *MCPAccountConfig `mapstructure:"account" validate:"omitempty"`
 }
 
+type MCPChromeConfig struct {
+	DebugPort     int           `mapstructure:"debug_port" validate:"gt=0"`
+	ProfileDir    string        `mapstructure:"profile_dir" validate:"required"`
+	LaunchTimeout time.Duration `mapstructure:"launch_timeout" validate:"gt=0"`
+	CallTimeout   time.Duration `mapstructure:"call_timeout" validate:"gt=0"`
+	MaxPageChars  int           `mapstructure:"max_page_chars" validate:"gt=0"`
+}
+
 type MCPServersConfig struct {
 	SupportedServers map[string]*MCPServerConfig `mapstructure:"supported_servers" validate:"dive,required"`
+	Chrome           *MCPChromeConfig            `mapstructure:"chrome" validate:"required"`
 	EncodeKey        string                      `mapstructure:"encode_key" validate:"required"`
 	AuthTimeout      time.Duration               `mapstructure:"auth_timeout" validate:"gt=0"`
 	ClientName       string                      `mapstructure:"client_name" validate:"required"`

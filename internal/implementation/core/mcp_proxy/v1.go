@@ -41,10 +41,12 @@ type v1 struct {
 	templateHelper    core_itf.TemplateHelper
 	gateway           *core_itf.MCPGateway
 	gatewayHttpServer *http.Server
+	chrome            *mcp_helpers.ChromeLauncher
 }
 
 func InitV1(
 	cfg *input_itf.MCPServersConfig,
+	dataDir string,
 	db input_itf.StorageMCP,
 	httpCli input_itf.HttpCli,
 	approvalBroker core_itf.ApprovalBroker,
@@ -70,6 +72,7 @@ func InitV1(
 		db:             db,
 		approvalBroker: approvalBroker,
 		reporter:       reporter,
+		chrome:         mcp_helpers.NewChromeLauncher(cfg.Chrome, dataDir, httpCli),
 	}
 
 	if err := s.loadCredentials(); err != nil {
@@ -218,6 +221,10 @@ func (s *v1) Revoke(server string) error {
 		return custom_error.TypedCritical(enums.ErrMcpNotFound, "mcp %s not found", server)
 	}
 
+	if mcp.AuthFlow == enums.MCPAuthFlowEnable {
+		return s.disableChrome()
+	}
+
 	if err := s.db.DeleteCredentials(mcp.Name); err != nil {
 		return custom_error.TypedCritical(
 			enums.ErrMcpStoreCredentials,
@@ -236,6 +243,10 @@ func (s *v1) Authorize(server string) error {
 	mcp, found := s.cfg.SupportedServers[server]
 	if !found {
 		return custom_error.TypedCritical(enums.ErrMcpNotFound, "mcp %s not found", server)
+	}
+
+	if mcp.AuthFlow == enums.MCPAuthFlowEnable {
+		return s.enableChrome()
 	}
 
 	target, err := mcp_helpers.Discover(s.httpCli, mcp.URL)

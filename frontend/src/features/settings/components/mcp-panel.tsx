@@ -10,6 +10,57 @@ import {useToggle} from '@/shared/hooks/use-toggle'
 import {formatRelative} from '@/shared/lib/format'
 import type {MCPServer} from '@/features/settings/types'
 
+type KindCopy = {
+    connected: string
+    connect: string
+    connecting: string
+    disconnect: string
+    disconnecting: string
+    destructive: boolean
+    title: (server: MCPServer) => string
+    description: (server: MCPServer) => string
+}
+
+function revokable(regain: string): KindCopy {
+    return {
+        connected: 'Authorized',
+        connect: 'Authorize',
+        connecting: 'Authorizing',
+        disconnect: 'Revoke',
+        disconnecting: 'Revoking',
+        destructive: true,
+        title: (server) => `Revoke ${server.name} access`,
+        description: (server) =>
+            `Agents lose access to ${server.name} ${regain}. This deletes ${
+                server.account
+                    ? `the credential stored for ${server.account}`
+                    : 'the stored credential'
+            }.`,
+    }
+}
+
+const KIND_COPY: Record<MCPAuthKind, KindCopy> = {
+    [MCPAuthKind.DynamicRegistration]: revokable('until you authorize it again'),
+    [MCPAuthKind.Device]: revokable('until you authorize it again'),
+    [MCPAuthKind.Token]: {
+        ...revokable('until you save a new token'),
+        connected: 'Connected',
+        connect: 'Save token',
+        connecting: 'Saving',
+    },
+    [MCPAuthKind.Enable]: {
+        connected: 'Enabled',
+        connect: 'Enable',
+        connecting: 'Enabling',
+        disconnect: 'Disable',
+        disconnecting: 'Disabling',
+        destructive: false,
+        title: (server) => `Disable ${server.name}`,
+        description: () =>
+            'Nexo quits the Chrome it started, and agents stop driving your browser. You stay signed in to every site, and turning it back on takes one click.',
+    },
+}
+
 export function MCPPanel() {
     const {
         servers,
@@ -85,6 +136,7 @@ function MCPServerRow({
     onRevoke: (serverId: string) => void
 }) {
     const confirmingRevoke = useToggle()
+    const copy = KIND_COPY[server.kind]
 
     const revoke = () => {
         onRevoke(server.id)
@@ -113,69 +165,89 @@ function MCPServerRow({
                             {formatRelative(server.authorizedAt)}
                         </span>
                     )}
-                    <StatusChip tone="done">
-                        {server.kind === MCPAuthKind.Token ? 'Connected' : 'Authorized'}
-                    </StatusChip>
+                    <StatusChip tone="done">{copy.connected}</StatusChip>
                     <Button
                         variant="ghost"
                         size="sm"
-                        className="text-muted-foreground hover:text-destructive"
+                        className={
+                            copy.destructive
+                                ? 'text-muted-foreground hover:text-destructive'
+                                : 'text-muted-foreground'
+                        }
                         disabled={busy}
                         onClick={confirmingRevoke.open}
                     >
-                        {revoking ? 'Revoking' : 'Revoke'}
+                        {revoking ? copy.disconnecting : copy.disconnect}
                     </Button>
 
                     {confirmingRevoke.on && (
                         <ConfirmDialog
-                            destructive
-                            title={`Revoke ${server.name} access`}
-                            description={revokeDescription(server)}
-                            confirmLabel="Revoke"
+                            destructive={copy.destructive}
+                            title={copy.title(server)}
+                            description={copy.description(server)}
+                            confirmLabel={copy.disconnect}
                             onConfirm={revoke}
                             onClose={confirmingRevoke.close}
                         />
                     )}
                 </span>
-            ) : server.kind === MCPAuthKind.Token ? (
-                <MCPTokenForm
+            ) : (
+                <MCPConnectAction
+                    server={server}
                     busy={busy}
                     pending={pending}
-                    onSubmit={(token) => onSetToken({serverId: server.id, token})}
+                    onAuthorize={onAuthorize}
+                    onSetToken={onSetToken}
                 />
-            ) : (
-                <Button
-                    size="sm"
-                    className="shrink-0"
-                    disabled={busy}
-                    onClick={() => onAuthorize(server.id)}
-                >
-                    {pending ? 'Authorizing' : 'Authorize'}
-                </Button>
             )}
         </div>
     )
 }
 
-function revokeDescription(server: MCPServer) {
-    const regain =
-        server.kind === MCPAuthKind.Token
-            ? 'until you save a new token'
-            : 'until you authorize it again'
-    const credential = server.account
-        ? `the credential stored for ${server.account}`
-        : 'the stored credential'
+function MCPConnectAction({
+    server,
+    busy,
+    pending,
+    onAuthorize,
+    onSetToken,
+}: {
+    server: MCPServer
+    busy: boolean
+    pending: boolean
+    onAuthorize: (serverId: string) => void
+    onSetToken: (input: {serverId: string; token: string}) => void
+}) {
+    const copy = KIND_COPY[server.kind]
+    const label = pending ? copy.connecting : copy.connect
 
-    return `Agents lose access to ${server.name} ${regain}. This deletes ${credential}.`
+    if (server.kind === MCPAuthKind.Token)
+        return (
+            <MCPTokenForm
+                busy={busy}
+                label={label}
+                onSubmit={(token) => onSetToken({serverId: server.id, token})}
+            />
+        )
+
+    return (
+        <Button
+            size="sm"
+            className="shrink-0"
+            disabled={busy}
+            onClick={() => onAuthorize(server.id)}
+        >
+            {label}
+        </Button>
+    )
 }
 
 function MCPTokenForm({
     busy,
-    pending,
+    label,
     onSubmit,
 }: {
     busy: boolean
-    pending: boolean
+    label: string
     onSubmit: (token: string) => void
 }) {
     const [token, setToken] = useState('')
@@ -200,7 +272,7 @@ function MCPTokenForm({
                 onChange={(event) => setToken(event.target.value)}
             />
             <Button size="sm" type="submit" disabled={busy || !trimmed}>
-                {pending ? 'Saving' : 'Save token'}
+                {label}
             </Button>
         </form>
     )

@@ -2,8 +2,11 @@ package claude_code
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
+
+	core_itf "hexago/internal/interface/core"
 )
 
 const ctxWindow = 200_000
@@ -220,5 +223,37 @@ func TestToolUseStaysAutoNarrated(t *testing.T) {
 
 	if got, want := digest(block), "Reading config/viper.go"; got != want {
 		t.Fatalf("digest = %q, want %q", got, want)
+	}
+}
+
+func TestAllowedToolsCoversEveryGatewayServer(t *testing.T) {
+	gateway := &core_itf.MCPGateway{Servers: []core_itf.MCPGatewayServer{
+		{Name: "harness"},
+		{Name: "figma"},
+		{Name: "chrome-devtools"},
+		{Name: "atlassian", AuthKeyName: "ATLASSIAN_OAUTH_SECRET"},
+	}}
+
+	allowed := strings.Split(allowedTools(gateway), ",")
+
+	for _, want := range []string{
+		toolRead, toolBash,
+		"mcp__harness", "mcp__figma", "mcp__chrome-devtools", "mcp__atlassian",
+	} {
+		if !slices.Contains(allowed, want) {
+			t.Fatalf("%q is missing from the allowlist: %v", want, allowed)
+		}
+	}
+
+	if slices.Contains(allowed, toolAskUser) {
+		t.Fatal("the ask-user tool must stay out of the allowlist")
+	}
+}
+
+func TestAllowedToolsWithoutAGatewayKeepsTheBaseTools(t *testing.T) {
+	allowed := strings.Split(allowedTools(nil), ",")
+
+	if len(allowed) != len(baseTools) {
+		t.Fatalf("want only the base tools, got %v", allowed)
 	}
 }

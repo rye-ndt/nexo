@@ -133,6 +133,7 @@ export const MCPAuthKind = {
     DynamicRegistration: 'dcr',
     Device: 'device',
     Token: 'token',
+    Enable: 'enable',
 } as const
 
 export type MCPAuthKind = (typeof MCPAuthKind)[keyof typeof MCPAuthKind]
