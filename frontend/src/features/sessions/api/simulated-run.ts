@@ -21,7 +21,7 @@ import {
 } from '@/features/approvals/mock-approvals'
 import type {Session, Task, TaskReport} from '@/features/sessions/types'
 import type {Template} from '@/features/templates/types'
-import {replaceSession, sessions} from '@/features/sessions/api/store'
+import {replaceSession, sessions, setSessions} from '@/features/sessions/api/store'
 import {mergeActivity} from '@/features/sessions/api/activity'
 import {mockActivity} from '@/features/sessions/api/mock-activity'
 import {TICK_MS, timers} from '@/features/sessions/api/timers'
@@ -209,6 +209,22 @@ function progress(task: Task, now: number, templates: Template[]): Task {
     }
 }
 
+/**
+ * There is no backend clock or counter here, so both session readouts come off the
+ * nodes: no mock node retries, so what every node holds now is what the run spent.
+ */
+function withRunTotals(session: Session): Session {
+    const started = session.tasks.flatMap((task) => task.run?.startedAt ?? [])
+    const finished = session.tasks.flatMap((task) => task.run?.finishedAt ?? [])
+
+    return {
+        ...session,
+        tokensUsed: session.tasks.reduce((total, task) => total + (task.run?.context?.used ?? 0), 0),
+        startedAt: started.sort()[0],
+        finishedAt: finished.sort().at(-1),
+    }
+}
+
 function advance(session: Session): Session {
     const now = Date.now()
     const templates = cachedTemplates()
@@ -220,12 +236,14 @@ function advance(session: Session): Session {
         ),
     })
 
-    return label({
+    const started = label({
         ...progressed,
         tasks: progressed.tasks.map((task) =>
             isRunnable(progressed, task) ? start(task, now) : task,
         ),
     })
+
+    return withRunTotals(started)
 }
 
 function narrate(session: Session) {
@@ -280,6 +298,9 @@ export function stopRun(sessionId: string) {
     clearTimeout(timer)
     timers.delete(sessionId)
 }
+
+// A session that already settled never ticks, so its totals are stamped once here.
+setSessions(sessions.map(withRunTotals))
 
 for (const session of sessions)
     if (!session.cancelled && hasRunningTask(session)) schedule(session.id)

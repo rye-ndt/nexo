@@ -39,6 +39,7 @@ type sessionMetadata struct {
 	taskIDToTask    map[uuid.UUID]*input_itf.TaskEntity
 	agentIDToHandle map[uuid.UUID]*AgentHandle
 	taskIDToReport  map[uuid.UUID]*core_itf.TaskReport
+	tokensBilled    int
 	cancelled       bool
 	run             chan struct{}
 }
@@ -621,17 +622,41 @@ func (s *v1) Cancel(sessionID uuid.UUID) ([]uuid.UUID, error) {
 		return nil, custom_error.Critical("cannot save task cancel: %v", err)
 	}
 
+	session, found := s.session(sessionID)
+	if found {
+		s.retireTokens(session, agentIDs)
+	}
+
 	publishErrs := make([]error, 0, len(changes)+1)
 
 	for _, c := range changes {
 		publishErrs = append(publishErrs, s.publish(c.progress))
 	}
 
-	if session, found := s.session(sessionID); found {
+	if found {
 		publishErrs = append(publishErrs, s.drainIfDone(session))
 	}
 
 	return agentIDs, firstErr(publishErrs...)
+}
+
+// A cancelled agent never reports, so what it already spent is read before the drop is
+// published: the coordinator answers that event by killing the agent, and a killed
+// agent has no usage left to read.
+func (s *v1) retireTokens(session *sessionMetadata, agentIDs []uuid.UUID) {
+	for _, agentID := range agentIDs {
+		s.creditTokens(session, s.readContextUsage(agentID))
+	}
+}
+
+func (s *v1) creditTokens(session *sessionMetadata, usage *input_itf.ContextUsage) {
+	if usage == nil {
+		return
+	}
+
+	s.locker.Lock()
+	session.tokensBilled += usage.Billed
+	s.locker.Unlock()
 }
 
 func (s *v1) cancelSession(sessionID uuid.UUID) ([]*change, []uuid.UUID, error) {
@@ -831,6 +856,9 @@ func (s *v1) Status(id uuid.UUID) (*core_itf.SessionStatus, error) {
 		WorkingDirPath: session.info.WorkingDirPath,
 		ContextDirPath: session.info.ContextDirPath,
 		Tasks:          tasks,
+		TokensBilled:   session.tokensBilled,
+		StartedAt:      session.info.StartedAt,
+		CompletedAt:    session.info.CompletedAt,
 	}
 
 	s.locker.Unlock()
@@ -846,6 +874,7 @@ func (s *v1) Status(id uuid.UUID) (*core_itf.SessionStatus, error) {
 
 		if usage := s.readContextUsage(agentID); usage != nil {
 			task.ContextUsage = usage
+			status.TokensBilled += usage.Billed
 		}
 
 		task.Activity = s.readActivity(agentID)
@@ -1015,6 +1044,8 @@ func (s *v1) dropTask(agentID uuid.UUID, deadline int64) error {
 		return nil
 	}
 
+	spent := s.readContextUsage(agentID)
+
 	c, err := s.editTask(handle.TaskID, agentID, enums.SessionTaskDropped,
 		func(session *sessionMetadata, task *input_itf.TaskEntity) (func(), error) {
 			current, found := session.agentIDToHandle[agentID]
@@ -1035,7 +1066,13 @@ func (s *v1) dropTask(agentID uuid.UUID, deadline int64) error {
 		return nil
 	}
 
-	return s.settle(c, "task drop")
+	if err := s.persist(c, "task drop"); err != nil {
+		return err
+	}
+
+	s.creditTokens(c.session, spent)
+
+	return firstErr(s.publish(c.progress), s.drainIfDone(c.session))
 }
 
 func (s *v1) session(sessionID uuid.UUID) (*sessionMetadata, bool) {
@@ -1160,6 +1197,7 @@ func (m *sessionMetadata) keepReport(report *core_itf.TaskReport) {
 
 	if report.ContextUsage != nil {
 		kept.ContextUsage = report.ContextUsage
+		m.tokensBilled += report.ContextUsage.Billed
 	}
 }
 

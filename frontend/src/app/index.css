@@ -240,8 +240,16 @@
         stroke: var(--state-done);
     }
 
-    .react-flow__node.is-locked {
-        cursor: default;
+    /*
+        Armed for removal: the whole connection turns the failed colour under the
+        pointer, so the X names the line it will cut. Nested under the edge to outrank
+        the state tones above, which are the only other thing that colours a path.
+    */
+    .react-flow__edge .react-flow__edge-path.is-armed {
+        stroke: var(--state-failed);
+        stroke-width: 2;
+        stroke-dasharray: none;
+        animation: none;
     }
 
     .react-flow__attribution {

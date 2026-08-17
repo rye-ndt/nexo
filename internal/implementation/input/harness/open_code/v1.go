@@ -73,12 +73,17 @@ type openCodeProc struct {
 	ctxWindow int
 	usageMu   sync.Mutex
 	usage     input_itf.ContextUsage
+	billed    int
+	msgID     string
+	msgUsed   int
 }
 
 type openCodeUsage struct {
 	Properties struct {
 		Info struct {
-			Tokens struct {
+			ID        string `json:"id"`
+			SessionID string `json:"sessionID"`
+			Tokens    struct {
 				Input     int `json:"input"`
 				Output    int `json:"output"`
 				Reasoning int `json:"reasoning"`
@@ -97,6 +102,12 @@ func (p *openCodeProc) trackUsage(line []byte) {
 		return
 	}
 
+	// The /event stream carries every session on this port, child sessions of the
+	// Task tool included. Only this proc's own session is this node's context.
+	if id := event.Properties.Info.SessionID; id != "" && id != p.session {
+		return
+	}
+
 	reported := event.Properties.Info.Tokens
 
 	used := reported.Input +
@@ -110,9 +121,28 @@ func (p *openCodeProc) trackUsage(line []byte) {
 	}
 
 	p.usageMu.Lock()
+	// The stream re-reports a message as it grows, so its tokens only join the running
+	// total once the next message starts. An event with no id cannot be matched that
+	// way, so it counts as a turn of its own — and leaves the named message in flight
+	// alone, which would otherwise be billed again when it streams on.
+	if id := event.Properties.Info.ID; id == "" {
+		p.billed += used
+	} else {
+		if id != p.msgID {
+			p.billed += p.msgUsed
+			p.msgID = id
+			p.msgUsed = 0
+		}
+
+		if used > p.msgUsed {
+			p.msgUsed = used
+		}
+	}
+
 	p.usage = input_itf.ContextUsage{
-		Total: p.ctxWindow,
-		Used:  used,
+		Total:  p.ctxWindow,
+		Used:   used,
+		Billed: p.billed + p.msgUsed,
 	}
 	p.usageMu.Unlock()
 }

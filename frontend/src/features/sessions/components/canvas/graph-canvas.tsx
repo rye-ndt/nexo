@@ -1,4 +1,4 @@
-import {useMemo, useState, type MouseEvent} from 'react'
+import {useCallback, useMemo, useState, type MouseEvent} from 'react'
 import {
     Background,
     BackgroundVariant,
@@ -20,6 +20,8 @@ import {
     toFlowNodes,
     type GraphEdge,
 } from '@/features/sessions/components/canvas/flow-graph'
+import {UnlinkEdge} from '@/features/sessions/components/canvas/unlink-edge'
+import {useEdgeHover} from '@/features/sessions/components/canvas/use-edge-hover'
 import {useNodeGestures} from '@/features/sessions/components/canvas/use-node-gestures'
 import {
     CANVAS_CHROME,
@@ -49,6 +51,8 @@ type ConnectionOrigin = {nodeId: string; handleType: HandleType}
 
 const nodeTypes = {task: TaskNode}
 
+const edgeTypes = {unlink: UnlinkEdge}
+
 export function GraphCanvas(props: GraphCanvasProps) {
     return (
         <ReactFlowProvider>
@@ -73,6 +77,7 @@ function Canvas({
     const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null)
     const [connectingFrom, setConnectingFrom] = useState<ConnectionOrigin | null>(null)
     const gestures = useNodeGestures(session.tasks, onMoveTask)
+    const {hoveredEdgeId, hold, release} = useEdgeHover()
 
     const locked = session.finalized
 
@@ -111,7 +116,26 @@ function Canvas({
         ],
     )
 
-    const edges = useMemo(() => toFlowEdges(session, selectedEdgeId), [session, selectedEdgeId])
+    const unlink = useCallback(
+        (sourceId: string, targetId: string) => {
+            release()
+            onDisconnect(sourceId, targetId)
+        },
+        [release, onDisconnect],
+    )
+
+    const edges = useMemo(
+        () =>
+            toFlowEdges({
+                session,
+                selectedEdgeId,
+                hoveredEdgeId,
+                onHold: hold,
+                onRelease: release,
+                onUnlink: unlink,
+            }),
+        [session, selectedEdgeId, hoveredEdgeId, hold, release, unlink],
+    )
 
     const selectNode = (_: unknown, node: TaskNodeType) => {
         setSelectedEdgeId(null)
@@ -158,6 +182,7 @@ function Canvas({
                 nodes={nodes}
                 edges={edges}
                 nodeTypes={nodeTypes}
+                edgeTypes={edgeTypes}
                 fitView
                 fitViewOptions={FIT_VIEW_OPTIONS}
                 minZoom={MIN_ZOOM}
@@ -171,6 +196,8 @@ function Canvas({
                 onNodeDragStop={gestures.drop}
                 onNodeClick={selectNode}
                 onEdgeClick={selectEdge}
+                onEdgeMouseEnter={(_, edge) => hold(edge.id)}
+                onEdgeMouseLeave={release}
                 onPaneClick={clearSelection}
                 onConnectStart={startConnecting}
                 onConnectEnd={stopConnecting}

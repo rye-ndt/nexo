@@ -14,6 +14,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 
@@ -56,6 +58,12 @@ const (
 )
 
 var authURLRe = regexp.MustCompile(`https://[A-Za-z0-9._~:/?#&=%+-]+`)
+
+// A bullet marker only counts with a space after it, so a diff body line such as
+// "+func narration()" keeps its marker and gets skipped instead of reading as prose.
+var markdownNoise = regexp.MustCompile("^(?:[>#]+\\s*|[-*+]\\s+|\\d+[.)]\\s+)")
+
+var markdownEmphasis = strings.NewReplacer("**", "", "__", "", "`", "")
 
 var allowedTools = strings.Join([]string{
 	toolRead, toolEdit, toolWrite, toolGlob, toolGrep, toolBash, toolWebFetch, toolWebSearch,
@@ -138,6 +146,9 @@ type agentProc struct {
 	ctxWindow   int
 	usageMu     sync.Mutex
 	usage       input_itf.ContextUsage
+	billed      int
+	msgID       string
+	msgUsed     int
 	activityMu  sync.Mutex
 	activity    []input_itf.Activity
 	activitySeq int
@@ -156,8 +167,10 @@ type claudeBlock struct {
 }
 
 type claudeEvent struct {
-	Type    string `json:"type"`
-	Message struct {
+	Type            string `json:"type"`
+	ParentToolUseID string `json:"parent_tool_use_id"`
+	Message         struct {
+		ID      string        `json:"id"`
 		Content []claudeBlock `json:"content"`
 		Usage   struct {
 			InputTokens              int `json:"input_tokens"`
@@ -178,7 +191,14 @@ func (a *agentProc) track(line []byte) {
 	a.trackActivity(event)
 }
 
+// A subagent spawned by the Task tool streams its own assistant events with
+// parent_tool_use_id set. Their usage belongs to the subagent's context, not to
+// this node's, so counting them makes the ring collapse and rebound mid-run.
 func (a *agentProc) trackUsage(event *claudeEvent) {
+	if event.ParentToolUseID != "" {
+		return
+	}
+
 	reported := event.Message.Usage
 
 	used := reported.InputTokens +
@@ -191,9 +211,28 @@ func (a *agentProc) trackUsage(event *claudeEvent) {
 	}
 
 	a.usageMu.Lock()
+	// The same message is reported again as it streams, so its tokens only join the
+	// running total once the next message starts. An event with no id cannot be matched
+	// that way, so it counts as a turn of its own — and leaves the named message in
+	// flight alone, which would otherwise be billed again when it streams on.
+	if id := event.Message.ID; id == "" {
+		a.billed += used
+	} else {
+		if id != a.msgID {
+			a.billed += a.msgUsed
+			a.msgID = id
+			a.msgUsed = 0
+		}
+
+		if used > a.msgUsed {
+			a.msgUsed = used
+		}
+	}
+
 	a.usage = input_itf.ContextUsage{
-		Total: a.ctxWindow,
-		Used:  used,
+		Total:  a.ctxWindow,
+		Used:   used,
+		Billed: a.billed + a.msgUsed,
 	}
 	a.usageMu.Unlock()
 }
@@ -239,7 +278,7 @@ func (a *agentProc) snapshotActivity() []input_itf.Activity {
 func digest(block *claudeBlock) string {
 	switch block.Type {
 	case blockText:
-		return clip(firstSentence(block.Text), 140)
+		return narration(block.Text)
 	case blockToolUse:
 		return toolPhrase(block)
 	default:
@@ -265,6 +304,52 @@ func toolPhrase(block *claudeBlock) string {
 		}
 		return "Using " + block.Name
 	}
+}
+
+// The activity feed shows one truncated line per message, so an agent that opens
+// with a heading, a bullet or a code fence is unreadable there whatever the system
+// prompt asked for. Take the first line that reads as a sentence and drop the rest.
+func narration(text string) string {
+	fenced := false
+
+	for _, line := range strings.Split(text, "\n") {
+		trimmed := strings.TrimSpace(line)
+
+		if strings.HasPrefix(trimmed, "```") {
+			fenced = !fenced
+			continue
+		}
+
+		if fenced {
+			continue
+		}
+
+		trimmed = unmark(trimmed)
+		if trimmed == "" {
+			continue
+		}
+
+		if first, _ := utf8.DecodeRuneInString(trimmed); !unicode.IsLetter(first) {
+			continue
+		}
+
+		return clip(firstSentence(trimmed), 140)
+	}
+
+	return ""
+}
+
+func unmark(line string) string {
+	for {
+		next := strings.TrimSpace(markdownNoise.ReplaceAllString(line, ""))
+		if next == line {
+			break
+		}
+
+		line = next
+	}
+
+	return strings.TrimSpace(markdownEmphasis.Replace(line))
 }
 
 func firstSentence(text string) string {

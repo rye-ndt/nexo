@@ -112,7 +112,7 @@ export function useSessionStore() {
             store.updateTask({sessionId, taskId, patch}),
         ),
         moveTask: onActive((sessionId, taskId: string, position: Point) =>
-            store.updateTask({sessionId, taskId, patch: {position}}),
+            store.moveTask({sessionId, taskId, position}),
         ),
         removeTask: onActive((sessionId, taskId: string) => removeTask(sessionId, taskId)),
         saveTaskInputs: onActive((sessionId, taskId: string, values: Record<string, ParamValue>) =>

@@ -1,8 +1,12 @@
 export function formatTokens(tokens: number) {
     if (tokens < 1000) return String(tokens)
+    if (tokens < 1_000_000) return compact(tokens / 1000, 'k')
 
-    const thousands = tokens / 1000
-    return `${thousands < 10 ? thousands.toFixed(1) : Math.round(thousands)}k`
+    return compact(tokens / 1_000_000, 'M')
+}
+
+function compact(value: number, unit: string) {
+    return `${value < 100 ? value.toFixed(1) : Math.round(value)}${unit}`
 }
 
 export function formatPercent(used: number, total: number) {

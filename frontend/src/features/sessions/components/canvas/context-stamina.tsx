@@ -1,20 +1,15 @@
-import {clampRatio, formatPercent, formatTokens} from '@/shared/lib/format'
+import {contextDrained, contextLeft, contextRingClass} from '@/features/sessions/context-ring'
+import {formatPercent, formatTokens} from '@/shared/lib/format'
 import {cn} from '@/shared/lib/utils'
 
 const RADIUS = 8
 
 const CIRCUMFERENCE = 2 * Math.PI * RADIUS
 
-function ringClass(spent: number) {
-    if (spent < 0.7) return 'stroke-progress'
-    if (spent < 0.9) return 'stroke-state-approval'
-    return 'stroke-state-failed'
-}
-
 /** Drains as the node spends its context window: full ring at the start, empty when it runs out. */
 export function ContextStamina({used, total}: {used: number; total: number}) {
-    const spent = total > 0 ? clampRatio(used / total) : 0
-    const left = CIRCUMFERENCE * (1 - spent)
+    const left = contextLeft(used, total)
+    const arc = CIRCUMFERENCE * left
     const reading = `${formatTokens(used)} of ${formatTokens(total)} context used`
 
     return (
@@ -35,11 +30,11 @@ export function ContextStamina({used, total}: {used: number; total: number}) {
                     fill="none"
                     strokeWidth="2.5"
                     strokeLinecap="round"
-                    strokeDasharray={`${left} ${CIRCUMFERENCE}`}
+                    strokeDasharray={`${arc} ${CIRCUMFERENCE}`}
                     className={cn(
-                        'transition-[stroke-dasharray] duration-300 ease-out motion-reduce:transition-none',
-                        ringClass(spent),
-                        spent >= 0.98 && 'animate-pulse motion-reduce:animate-none',
+                        'transition-[stroke-dasharray,stroke] duration-300 ease-out motion-reduce:transition-none',
+                        contextRingClass(left),
+                        contextDrained(left) && 'animate-pulse motion-reduce:animate-none',
                     )}
                 />
             </svg>

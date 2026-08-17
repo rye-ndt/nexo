@@ -22,7 +22,7 @@ type TaskNodeData = {
 
 export type TaskNodeType = Node<TaskNodeData, 'task'>
 
-const UNTITLED = 'Untitled task'
+export const UNTITLED = 'Untitled task'
 
 const TITLE_CLASSES: Record<TaskState, string> = {
     [TaskState.Idle]: 'text-state-approval',

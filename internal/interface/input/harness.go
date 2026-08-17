@@ -22,9 +22,12 @@ type AgentStatus struct {
 	Version       string `json:"version"`
 }
 
+// Used is what the agent's window holds right now and falls back when it compacts.
+// Billed is every token the agent has ever spent, so it only ever grows.
 type ContextUsage struct {
-	Total int `json:"total"`
-	Used  int `json:"used"`
+	Total  int `json:"total"`
+	Used   int `json:"used"`
+	Billed int `json:"billed"`
 }
 
 type Activity struct {

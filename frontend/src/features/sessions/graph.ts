@@ -236,6 +236,18 @@ export function sessionProgress(session: Session) {
     return {done, total: session.tasks.length}
 }
 
+/**
+ * A run that ends on a failure is kept open for a retry, so it never gets a completion
+ * time — fall back to when its last node stopped, or the clock would run forever.
+ */
+export function sessionRunWindow(session: Session) {
+    if (hasActiveTask(session)) return {startedAt: session.startedAt}
+
+    const stops = session.tasks.flatMap((task) => task.run?.finishedAt ?? [])
+
+    return {startedAt: session.startedAt, finishedAt: session.finishedAt ?? stops.sort().at(-1)}
+}
+
 /** Running the session releases the roots; every other task also waits on its upstream — the fan-in join. */
 export function isRunnable(session: Session, task: Task) {
     const upstreamDone = task.dependsOn.every(

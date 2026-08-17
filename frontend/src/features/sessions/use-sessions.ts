@@ -145,6 +145,18 @@ export function useSessions() {
             ),
     )
 
+    // Layout is a view concern, not part of the graph, so it stays editable on a
+    // finalized session — hence editSession rather than editDraft.
+    const moveTask = useSessionMutation(
+        'Could not move the node',
+        (args: {sessionId: string; taskId: string; position: Point}) =>
+            api.moveTask(args.sessionId, args.taskId, args.position),
+        (sessions, {sessionId, taskId, position}) =>
+            editSession(sessions, sessionId, (session) =>
+                graph.withTaskPatch(session, taskId, {position}),
+            ),
+    )
+
     const saveInputs = useSessionMutation(
         'Could not save the inputs',
         (args: {sessionId: string; taskId: string; values: Record<string, ParamValue>}) =>
@@ -218,6 +230,7 @@ export function useSessions() {
         deleteSession: remove.mutate,
         createTask: createTask.mutate,
         updateTask: updateTask.mutate,
+        moveTask: moveTask.mutate,
         saveTaskInputs: saveInputs.mutate,
         savingTaskInputs: saveInputs.isPending,
         answerTaskAcceptance: answerAcceptance.mutate,

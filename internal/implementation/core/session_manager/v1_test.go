@@ -1,6 +1,7 @@
 package session_manager
 
 import (
+	"errors"
 	"sync"
 	"testing"
 	"time"
@@ -593,5 +594,175 @@ func TestExecuteAgainReplacesTheProgressStream(t *testing.T) {
 		}
 	case <-time.After(5 * time.Second):
 		t.Fatal("the current progress stream received nothing")
+	}
+}
+
+type fakeLive struct {
+	mu     sync.Mutex
+	billed map[uuid.UUID]int
+}
+
+func (l *fakeLive) spend(agentID uuid.UUID, billed int) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	l.billed[agentID] = billed
+}
+
+func (l *fakeLive) ContextUsage(agentID uuid.UUID) (*input_itf.ContextUsage, error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	billed, found := l.billed[agentID]
+	if !found {
+		return nil, errors.New("no such agent")
+	}
+
+	return &input_itf.ContextUsage{Total: 200_000, Used: billed, Billed: billed}, nil
+}
+
+func (l *fakeLive) Activity(uuid.UUID) ([]input_itf.Activity, error) {
+	return nil, nil
+}
+
+func trackedManager(t *testing.T) (core_itf.SessionManager, *fakeLive) {
+	t.Helper()
+
+	manager, _ := newManager(t)
+	live := &fakeLive{billed: map[uuid.UUID]int{}}
+	manager.TrackLiveAgents(live)
+
+	return manager, live
+}
+
+func tokensBilled(t *testing.T, manager core_itf.SessionManager, session uuid.UUID) int {
+	t.Helper()
+
+	status, err := manager.Status(session)
+	if err != nil {
+		t.Fatalf("session status: %v", err)
+	}
+
+	return status.TokensBilled
+}
+
+func TestSessionTokensKeepTheAttemptsThatAlreadyEnded(t *testing.T) {
+	manager, live := trackedManager(t)
+	session := newSession(t, manager)
+	taskID := addTask(t, manager, session, "implement", false)
+
+	first := uuid.New()
+	live.spend(first, 1_000)
+
+	if err := manager.Assign(taskID, first); err != nil {
+		t.Fatalf("assign the first attempt: %v", err)
+	}
+
+	if err := manager.Report(first, enums.TaskFailed, []*core_itf.HandoverDoc{{
+		Outcome: "ran out of room",
+	}}); err != nil {
+		t.Fatalf("report the first attempt: %v", err)
+	}
+
+	second := uuid.New()
+	live.spend(second, 400)
+
+	if err := manager.Assign(taskID, second); err != nil {
+		t.Fatalf("assign the retry: %v", err)
+	}
+
+	if got := tokensBilled(t, manager, session); got != 1_400 {
+		t.Fatalf("tokens billed while the retry runs = %d, want the failed attempt plus the live one (1400)", got)
+	}
+
+	if err := manager.Report(second, enums.TaskCompleted, []*core_itf.HandoverDoc{{
+		Outcome: "done",
+	}}); err != nil {
+		t.Fatalf("report the retry: %v", err)
+	}
+
+	if got := tokensBilled(t, manager, session); got != 1_400 {
+		t.Fatalf("tokens billed after the retry reported = %d, want 1400", got)
+	}
+}
+
+func TestCancelKeepsTheTokensTheKilledAgentsSpent(t *testing.T) {
+	manager, live := trackedManager(t)
+	session := newSession(t, manager)
+	taskID := addTask(t, manager, session, "implement", false)
+
+	agentID := uuid.New()
+	live.spend(agentID, 900)
+
+	if err := manager.Assign(taskID, agentID); err != nil {
+		t.Fatalf("assign: %v", err)
+	}
+
+	if _, err := manager.Cancel(session); err != nil {
+		t.Fatalf("cancel: %v", err)
+	}
+
+	if got := tokensBilled(t, manager, session); got != 900 {
+		t.Fatalf("tokens billed after cancel = %d, want the 900 the killed agent spent", got)
+	}
+}
+
+func TestDroppingASilentAgentKeepsTheTokensItSpent(t *testing.T) {
+	manager, live := trackedManager(t)
+	session := newSession(t, manager)
+	taskID := addTask(t, manager, session, "implement", false)
+
+	agentID := uuid.New()
+	live.spend(agentID, 700)
+
+	if err := manager.Assign(taskID, agentID); err != nil {
+		t.Fatalf("assign: %v", err)
+	}
+
+	if err := manager.(*v1).dropTask(agentID, time.Now().Unix()+1); err != nil {
+		t.Fatalf("drop the silent agent: %v", err)
+	}
+
+	if got := statusOf(t, manager, session, taskID); got != enums.TaskCancelled {
+		t.Fatalf("task after the drop = %s, want cancelled", got)
+	}
+
+	if got := tokensBilled(t, manager, session); got != 700 {
+		t.Fatalf("tokens billed after the drop = %d, want the 700 the silent agent spent", got)
+	}
+}
+
+func TestSessionStatusReportsTheRunWindow(t *testing.T) {
+	manager, _ := newManager(t)
+	session := newSession(t, manager)
+	taskID := addTask(t, manager, session, "implement", false)
+
+	before, err := manager.Status(session)
+	if err != nil {
+		t.Fatalf("session status before the run: %v", err)
+	}
+
+	if !before.StartedAt.IsZero() {
+		t.Fatalf("a session with nothing assigned started at %v, want the zero time", before.StartedAt)
+	}
+
+	agentID := uuid.New()
+	reportDone(t, manager, taskID, agentID)
+
+	after, err := manager.Status(session)
+	if err != nil {
+		t.Fatalf("session status after the run: %v", err)
+	}
+
+	if after.StartedAt.IsZero() {
+		t.Fatal("the finished session has no start time to measure from")
+	}
+
+	if after.CompletedAt.IsZero() {
+		t.Fatal("the finished session has no completion time to measure to")
+	}
+
+	if after.CompletedAt.Before(after.StartedAt) {
+		t.Fatalf("the run ended at %v, before it started at %v", after.CompletedAt, after.StartedAt)
 	}
 }

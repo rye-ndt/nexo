@@ -116,7 +116,15 @@ revert never depends on git.
   site — no `newID()` wrapper.
 - Errors go through `custom_error`: `Critical`, `Bypass`, or `TypedCritical`
   with an `enums.ErrorType`.
-- Do not add new comments on code changes, except when explicitly asked to.
+- **Do not add new comments on code changes, except when explicitly asked to.**
+  This holds for every language and every comment form — `//`, `/* */`, `/** */`
+  doc blocks, JSDoc, TSDoc, Go doc comments. A change that explains itself needs
+  no prose; if it cannot, rename the thing or split it instead. Comments already
+  in the file stay unless the code under them changes.
+- **Commit and push straight to `main`.** No feature branches, no pull requests,
+  no worktrees — this is a solo repo with no reviewer on the other end. Commit
+  only when asked, then push to `origin main`. Messages end at their last real
+  line: no `Co-Authored-By`, no "Generated with" trailer.
 
 # Frontend rules
 

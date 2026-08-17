@@ -84,6 +84,11 @@ export type Session = {
     workingDir: string
     contextDir: string
     tasks: Task[]
+    /** Every token the session's nodes have spent, kept once a node is done with them. */
+    tokensUsed?: number
+    /** When the first node was assigned, and when the last one settled. */
+    startedAt?: string
+    finishedAt?: string
 }
 
 export type SessionLocations = {

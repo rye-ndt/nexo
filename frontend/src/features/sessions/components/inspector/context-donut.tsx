@@ -1,4 +1,6 @@
-import {clampRatio, formatPercent, formatTokens} from '@/shared/lib/format'
+import {contextLeft, contextRingClass} from '@/features/sessions/context-ring'
+import {formatPercent, formatTokens} from '@/shared/lib/format'
+import {cn} from '@/shared/lib/utils'
 
 const RADIUS = 32
 
@@ -6,8 +8,8 @@ const CIRCUMFERENCE = 2 * Math.PI * RADIUS
 
 /** Drains like the stamina ring on the node: the arc is the context this node has left. */
 export function ContextDonut({used, total}: {used: number; total: number}) {
-    const spent = total > 0 ? clampRatio(used / total) : 0
-    const left = CIRCUMFERENCE * (1 - spent)
+    const left = contextLeft(used, total)
+    const arc = CIRCUMFERENCE * left
 
     return (
         <div className="relative size-[88px] shrink-0">
@@ -25,11 +27,13 @@ export function ContextDonut({used, total}: {used: number; total: number}) {
                     cy="40"
                     r={RADIUS}
                     fill="none"
-                    stroke="var(--progress)"
                     strokeWidth="7"
                     strokeLinecap="round"
-                    strokeDasharray={`${left} ${CIRCUMFERENCE}`}
-                    className="transition-[stroke-dasharray] duration-300 ease-out motion-reduce:transition-none"
+                    strokeDasharray={`${arc} ${CIRCUMFERENCE}`}
+                    className={cn(
+                        'transition-[stroke-dasharray,stroke] duration-300 ease-out motion-reduce:transition-none',
+                        contextRingClass(left),
+                    )}
                 />
             </svg>
 

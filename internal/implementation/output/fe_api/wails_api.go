@@ -760,6 +760,14 @@ func (a *API) RevokeMCPServer(name string) error {
 	return a.mcpProxy.Revoke(name)
 }
 
+func momentInfo(at time.Time) string {
+	if at.IsZero() {
+		return ""
+	}
+
+	return at.Format(time.RFC3339)
+}
+
 func sessionStatusInfo(status *core_itf.SessionStatus) *output_itf.SessionStatusInfo {
 	if status == nil {
 		return nil
@@ -774,9 +782,12 @@ func sessionStatusInfo(status *core_itf.SessionStatus) *output_itf.SessionStatus
 	sort.Slice(tasks, func(i, j int) bool { return tasks[i].TaskID < tasks[j].TaskID })
 
 	return &output_itf.SessionStatusInfo{
-		SessionID: status.ID.String(),
-		Status:    string(status.Status),
-		Tasks:     tasks,
+		SessionID:    status.ID.String(),
+		Status:       string(status.Status),
+		Tasks:        tasks,
+		TokensBilled: status.TokensBilled,
+		StartedAt:    momentInfo(status.StartedAt),
+		CompletedAt:  momentInfo(status.CompletedAt),
 	}
 }
 

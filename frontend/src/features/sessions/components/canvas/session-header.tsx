@@ -4,6 +4,7 @@ import {Button} from '@/shared/ui/button'
 import {ConfirmDialog} from '@/shared/components/confirm-dialog'
 import {HeaderAction} from '@/features/sessions/components/canvas/header/header-action'
 import {RailToggle} from '@/features/sessions/components/canvas/header/rail-toggle'
+import {RunMeters} from '@/features/sessions/components/canvas/header/run-meters'
 import {SessionDirectories} from '@/features/sessions/components/canvas/header/session-directories'
 import {SessionIdentity} from '@/features/sessions/components/canvas/header/session-identity'
 import {SessionMenu} from '@/features/sessions/components/canvas/session-menu'
@@ -83,6 +84,7 @@ export function SessionHeader({
                         <SessionName session={session} onRename={onRename} />
                         <SessionDirectories session={session} onEdit={onEditLocations} />
                         <SessionIdentity session={session} />
+                        <RunMeters session={session} />
                     </div>
                 )}
 

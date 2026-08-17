@@ -1,12 +1,12 @@
-import type {Dimensions, Edge} from '@xyflow/react'
+import type {Dimensions} from '@xyflow/react'
 
 import {TaskState, type TaskLevel} from '@/shared/lib/enums'
-import {cn} from '@/shared/lib/utils'
-import type {TaskNodeType} from '@/features/sessions/components/canvas/task-node'
+import {UNTITLED, type TaskNodeType} from '@/features/sessions/components/canvas/task-node'
+import type {UnlinkEdgeType} from '@/features/sessions/components/canvas/unlink-edge'
 import type {Point, Session, Task} from '@/features/sessions/types'
 import type {Template} from '@/features/templates/types'
 
-export type GraphEdge = Edge & {pathOptions?: {borderRadius?: number}}
+export type GraphEdge = UnlinkEdgeType
 
 const EDGE_TONES: Partial<Record<TaskState, string>> = {
     [TaskState.Running]: 'is-live',
@@ -24,9 +24,17 @@ type FlowContext = {
     sizes: Record<string, Dimensions>
 }
 
+type EdgeContext = {
+    session: Session
+    selectedEdgeId: string | null
+    hoveredEdgeId: string | null
+    onHold: (edgeId: string) => void
+    onRelease: () => void
+    onUnlink: (sourceId: string, targetId: string) => void
+}
+
 export function toFlowNodes(context: FlowContext): TaskNodeType[] {
     const {session, selectedTaskId, needsInputIds, unlinkable, levelByTask} = context
-    const locked = session.finalized
 
     return session.tasks.map((task) => ({
         id: task.id,
@@ -41,17 +49,18 @@ export function toFlowNodes(context: FlowContext): TaskNodeType[] {
             taskLevel: levelByTask.get(task.id) ?? null,
         },
         selected: task.id === selectedTaskId,
-        draggable: !locked,
+        // Rearranging the board is always allowed; finalizing freezes the graph, not the layout.
+        draggable: true,
         deletable: false,
-        className: cn(
+        className:
             'rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-live',
-            locked && 'is-locked',
-        ),
     }))
 }
 
-export function toFlowEdges(session: Session, selectedEdgeId: string | null): GraphEdge[] {
+export function toFlowEdges(context: EdgeContext): GraphEdge[] {
+    const {session, selectedEdgeId, hoveredEdgeId, onHold, onRelease, onUnlink} = context
     const byId = new Map(session.tasks.map((task) => [task.id, task]))
+    const locked = session.finalized
 
     return session.tasks.flatMap((task) =>
         task.dependsOn.flatMap((sourceId) => {
@@ -65,15 +74,25 @@ export function toFlowEdges(session: Session, selectedEdgeId: string | null): Gr
                     id,
                     source: sourceId,
                     target: task.id,
-                    type: 'smoothstep',
-                    pathOptions: {borderRadius: 12},
+                    type: 'unlink' as const,
                     className: EDGE_TONES[source.state],
                     selected: id === selectedEdgeId,
-                    deletable: !session.finalized,
+                    deletable: !locked,
+                    data: {
+                        revealed: !locked && id === hoveredEdgeId,
+                        label: unlinkLabel(source, task),
+                        onHold: () => onHold(id),
+                        onRelease,
+                        onUnlink: () => onUnlink(sourceId, task.id),
+                    },
                 },
             ]
         }),
     )
+}
+
+function unlinkLabel(source: Task, target: Task) {
+    return `Unlink ${source.title || UNTITLED} from ${target.title || UNTITLED}`
 }
 
 export function taskLevels(tasks: Task[], templates: Template[]) {

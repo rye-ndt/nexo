@@ -1,6 +1,8 @@
 package core_itf
 
 import (
+	"time"
+
 	"hexago/internal/helpers/enums"
 	input_itf "hexago/internal/interface/input"
 
@@ -62,6 +64,9 @@ type SessionStatus struct {
 	WorkingDirPath string
 	ContextDirPath string
 	Tasks          map[uuid.UUID]*TaskReport
+	TokensBilled   int
+	StartedAt      time.Time
+	CompletedAt    time.Time
 }
 
 type InitSession struct {

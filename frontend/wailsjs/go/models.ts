@@ -102,6 +102,7 @@ export namespace input_itf {
 	export class ContextUsage {
 	    total: number;
 	    used: number;
+	    billed: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new ContextUsage(source);
@@ -111,6 +112,7 @@ export namespace input_itf {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.total = source["total"];
 	        this.used = source["used"];
+	        this.billed = source["billed"];
 	    }
 	}
 
@@ -494,6 +496,9 @@ export namespace output_itf {
 	    session_id: string;
 	    status: string;
 	    tasks: SessionTaskInfo[];
+	    tokens_billed: number;
+	    started_at: string;
+	    completed_at: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new SessionStatusInfo(source);
@@ -504,6 +509,9 @@ export namespace output_itf {
 	        this.session_id = source["session_id"];
 	        this.status = source["status"];
 	        this.tasks = this.convertValues(source["tasks"], SessionTaskInfo);
+	        this.tokens_billed = source["tokens_billed"];
+	        this.started_at = source["started_at"];
+	        this.completed_at = source["completed_at"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

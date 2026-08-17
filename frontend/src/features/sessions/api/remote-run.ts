@@ -168,16 +168,23 @@ async function pollRemoteTick(sessionId: string) {
     const session = sessions.find((session) => session.id === sessionId)
     if (!run || !session || session.cancelled) return
 
-    let status: output_itf.SessionStatusInfo | null = null
+    let status: output_itf.SessionStatusInfo | null
 
     try {
         status = await bridge(() => SessionStatus(run.remoteSessionId))
     } catch {
+        status = null
+    }
+
+    const afterPoll = sessions.find((session) => session.id === sessionId)
+    if (!afterPoll) return
+
+    if (!status) {
         run.failedPolls += 1
 
         if (run.failedPolls >= MAX_FAILED_POLLS) {
             runs.delete(sessionId)
-            replaceSession(loseRun(session))
+            replaceSession(loseRun(afterPoll))
             return
         }
     }
@@ -185,7 +192,7 @@ async function pollRemoteTick(sessionId: string) {
     if (status) {
         run.failedPolls = 0
 
-        const next = replaceSession(applyRemoteStatus(session, run, status))
+        const next = replaceSession(applyRemoteStatus(afterPoll, run, status))
         if (!hasActiveTask(next)) {
             runs.delete(sessionId)
             return
@@ -224,6 +231,9 @@ function applyRemoteStatus(
 
     return label({
         ...session,
+        tokensUsed: status.tokens_billed ?? session.tokensUsed,
+        startedAt: status.started_at || session.startedAt,
+        finishedAt: status.completed_at || undefined,
         tasks: session.tasks.map((task) => {
             const info = infoByClientId.get(task.id)
             return info ? applyRemoteTask(task, info, now) : task

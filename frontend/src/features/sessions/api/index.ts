@@ -232,6 +232,19 @@ export async function updateTask(
     return structuredClone(next)
 }
 
+/**
+ * Where a node sits says nothing about what the run will do, so a finalized graph
+ * can still be rearranged. Every other task edit goes through findOpenSession.
+ */
+export async function moveTask(sessionId: string, taskId: string, position: Point): Promise<Task> {
+    await hydrate()
+
+    const session = findSession(sessionId)
+    const next = {...findTask(session, taskId), position}
+    replaceSession(withTaskPatch(session, taskId, {position}))
+    return structuredClone(next)
+}
+
 export async function deleteTask(sessionId: string, taskId: string): Promise<void> {
     await hydrate()
     replaceSession(withoutTask(findOpenSession(sessionId), taskId))

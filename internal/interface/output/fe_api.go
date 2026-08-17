@@ -105,9 +105,12 @@ type SessionTaskInfo struct {
 }
 
 type SessionStatusInfo struct {
-	SessionID string             `json:"session_id"`
-	Status    string             `json:"status"`
-	Tasks     []*SessionTaskInfo `json:"tasks"`
+	SessionID    string             `json:"session_id"`
+	Status       string             `json:"status"`
+	Tasks        []*SessionTaskInfo `json:"tasks"`
+	TokensBilled int                `json:"tokens_billed"`
+	StartedAt    string             `json:"started_at"`
+	CompletedAt  string             `json:"completed_at"`
 }
 
 type AgentDefaultInfo struct {
