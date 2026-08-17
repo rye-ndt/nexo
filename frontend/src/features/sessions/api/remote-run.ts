@@ -11,9 +11,10 @@
 
 import {bridge, hasWailsRuntime} from '@/shared/api/bridge'
 import {listTemplates} from '@/features/templates/api'
-import {TaskLevel, TaskState} from '@/shared/lib/enums'
+import {TaskState} from '@/shared/lib/enums'
 import {hasActiveTask, isFinished, label} from '@/features/sessions/graph'
 import {resolvedPrompt} from '@/features/sessions/task-inputs'
+import {specOf} from '@/features/sessions/task-spec'
 import type {
     ActivityLine,
     ContextUsage,
@@ -69,23 +70,22 @@ export function forgetRemoteIds(sessionId: string) {
 
 async function buildRunSpec(session: Session): Promise<output_itf.RunSessionSpec> {
     const templates = await listTemplates()
-    const templateById = new Map(templates.map((template) => [template.id, template]))
 
     return new output_itf.RunSessionSpec({
         working_dir_path: session.workingDir.trim(),
         context_dir_path: session.contextDir.trim(),
         tasks: session.tasks.map((task) => {
-            const template = task.templateId ? templateById.get(task.templateId) : undefined
+            const spec = specOf(task, templates)
             return {
                 client_id: task.id,
                 name: task.title,
                 prompt: resolvedPrompt(task),
-                task_level: template?.taskLevel ?? TaskLevel.Daily,
-                system_prompts: template?.systemPrompts.map((prompt) => prompt.value) ?? [],
-                output_structure: template?.outputStructure ?? '',
+                task_level: spec.taskLevel,
+                system_prompts: spec.systemPrompts,
+                output_structure: spec.outputStructure,
                 depends_on: [...task.dependsOn],
                 auto_retry: false,
-                manual_accept_required: template?.manualAcceptRequired ?? false,
+                manual_accept_required: spec.manualAcceptRequired,
             }
         }),
     })

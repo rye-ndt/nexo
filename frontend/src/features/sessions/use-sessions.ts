@@ -4,7 +4,14 @@ import * as api from '@/features/sessions/api'
 import * as graph from '@/features/sessions/graph'
 import {TaskState} from '@/shared/lib/enums'
 import type {ParamValue} from '@/features/templates/types'
-import type {Point, Session, SessionDraft, Task, TaskDraft} from '@/features/sessions/types'
+import type {
+    Point,
+    Session,
+    SessionDraft,
+    SessionLocations,
+    Task,
+    TaskDraft,
+} from '@/features/sessions/types'
 
 const SESSIONS_KEY = ['sessions']
 
@@ -78,6 +85,13 @@ export function useSessions() {
 
             return [{...graph.duplicateSession(source), id: sessionId}, ...sessions]
         },
+    )
+
+    const importSession = useSessionMutation(
+        'Could not import the session',
+        (args: {session: Session; locations: SessionLocations}) =>
+            api.importSession(args.session, args.locations),
+        (sessions, {session, locations}) => [{...session, ...locations}, ...sessions],
     )
 
     const rename = useSessionMutation(
@@ -220,6 +234,7 @@ export function useSessions() {
         sessions: data ?? [],
         createSession: create.mutate,
         cloneSession: clone.mutate,
+        importSession: importSession.mutate,
         renameSession: rename.mutate,
         setSessionLocations: setLocations.mutate,
         finalizeSession: finalize.mutate,

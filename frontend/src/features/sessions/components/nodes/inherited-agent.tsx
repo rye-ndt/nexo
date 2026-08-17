@@ -3,7 +3,22 @@ import {SlidersHorizontal} from 'lucide-react'
 import {TaskLevelTag} from '@/shared/components/task-level-tag'
 import {type TaskLevel} from '@/shared/lib/enums'
 
-export function InheritedAgent({taskLevel}: {taskLevel: TaskLevel | undefined}) {
+const CHOSEN_UNDER = 'Which agent runs this level is set under Settings → Preferences.'
+
+function explain(taskLevel: TaskLevel | null | undefined, fromTemplate: boolean) {
+    if (!taskLevel) return 'Set once this node has a template.'
+    if (fromTemplate) return `Inherited from the template. ${CHOSEN_UNDER}`
+
+    return `Set when this session was exported. ${CHOSEN_UNDER}`
+}
+
+export function InheritedAgent({
+    taskLevel,
+    fromTemplate,
+}: {
+    taskLevel: TaskLevel | null | undefined
+    fromTemplate: boolean
+}) {
     return (
         <div className="flex flex-col gap-2 border-b border-border px-4 py-3">
             <div className="flex items-center justify-between gap-3">
@@ -17,11 +32,7 @@ export function InheritedAgent({taskLevel}: {taskLevel: TaskLevel | undefined}) 
                     )}
                 </span>
             </div>
-            <p className="text-sm text-muted-foreground">
-                {taskLevel
-                    ? 'Inherited from the template. Which agent runs this level is set under Settings → Preferences.'
-                    : 'Set once this node has a template.'}
-            </p>
+            <p className="text-sm text-muted-foreground">{explain(taskLevel, fromTemplate)}</p>
         </div>
     )
 }

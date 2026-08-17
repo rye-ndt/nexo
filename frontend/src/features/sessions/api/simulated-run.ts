@@ -10,7 +10,7 @@
 import {ApprovalKind, TaskState} from '@/shared/lib/enums'
 import {mockOutcome} from '@/features/sessions/mock-sessions'
 import {hasRunningTask, isRunnable, label, withTaskPatch} from '@/features/sessions/graph'
-import {templateOf} from '@/features/sessions/task-inputs'
+import {specOf} from '@/features/sessions/task-spec'
 import {cachedAutopilot} from '@/features/settings/api/preferences'
 import {cachedTemplates} from '@/features/templates/api'
 import type {ApprovalOption} from '@/features/approvals/types'
@@ -179,7 +179,7 @@ function start(task: Task, now: number): Task {
 
 function gated(task: Task, templates: Template[]) {
     if (cachedAutopilot()) return false
-    return templateOf(task, templates)?.manualAcceptRequired === true
+    return specOf(task, templates).manualAcceptRequired
 }
 
 function progress(task: Task, now: number, templates: Template[]): Task {
@@ -219,7 +219,10 @@ function withRunTotals(session: Session): Session {
 
     return {
         ...session,
-        tokensUsed: session.tasks.reduce((total, task) => total + (task.run?.context?.used ?? 0), 0),
+        tokensUsed: session.tasks.reduce(
+            (total, task) => total + (task.run?.context?.used ?? 0),
+            0,
+        ),
         startedAt: started.sort()[0],
         finishedAt: finished.sort().at(-1),
     }

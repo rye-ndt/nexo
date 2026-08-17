@@ -49,6 +49,7 @@ import {DeleteSessionDraft} from '@wailsjs/go/wails_api/API'
 
 export {taskActivity} from '@/features/sessions/api/activity'
 export {fetchTaskDiff, revertSessionTo} from '@/features/sessions/api/task-diff'
+export {exportSession, importSession, readSessionFile} from '@/features/sessions/api/archive'
 
 export async function listSessions(): Promise<Session[]> {
     await hydrate()

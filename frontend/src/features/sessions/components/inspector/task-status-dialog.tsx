@@ -3,28 +3,35 @@ import {HandoverDocs} from '@/features/sessions/components/inspector/handover-do
 import {RevertStepDialog} from '@/features/sessions/components/inspector/revert-step-dialog'
 import {TaskDiff} from '@/features/sessions/components/inspector/task-diff'
 import type {Session, Task} from '@/features/sessions/types'
+import {templateOf} from '@/features/sessions/task-inputs'
+import {taskLevelOf} from '@/features/sessions/task-spec'
 import {agentDefaultFor} from '@/features/settings/agent-default'
 import type {AgentDefault} from '@/features/settings/types'
 import {useAgentDefaults} from '@/features/settings/use-agent-defaults'
 import {ParamFields} from '@/features/templates/components/param-fields'
 import {toFieldValues} from '@/features/templates/template'
 import type {Template} from '@/features/templates/types'
-import {useTemplate} from '@/features/templates/use-templates'
+import {useTemplates} from '@/features/templates/use-templates'
 import {DialogShell} from '@/shared/components/dialog-shell'
 import {StateBadge} from '@/shared/components/task-state'
 import {useElapsed} from '@/shared/hooks/use-elapsed'
 import {useToggle} from '@/shared/hooks/use-toggle'
-import {TASK_LEVEL_LABELS, TaskState, THINKING_LEVEL_LABELS} from '@/shared/lib/enums'
+import {
+    TASK_LEVEL_LABELS,
+    type TaskLevel,
+    TaskState,
+    THINKING_LEVEL_LABELS,
+} from '@/shared/lib/enums'
 import {formatMoment, formatPercent} from '@/shared/lib/format'
 import {Button} from '@/shared/ui/button'
 
 /** A step only has a snapshot to go back to once it has reported. */
 const REVERTABLE = new Set<TaskState>([TaskState.Done, TaskState.Failed])
 
-function summarize(template?: Template, agentDefault?: AgentDefault) {
+function summarize(taskLevel: TaskLevel | null, template?: Template, agentDefault?: AgentDefault) {
     return [
         template?.name,
-        template && TASK_LEVEL_LABELS[template.taskLevel],
+        taskLevel && TASK_LEVEL_LABELS[taskLevel],
         agentDefault &&
             `${agentDefault.modelLabel} · ${THINKING_LEVEL_LABELS[agentDefault.thinkingLevel]}`,
     ]
@@ -85,8 +92,10 @@ export function TaskStatusDialog({
     onClose: () => void
 }) {
     const {defaults} = useAgentDefaults()
-    const template = useTemplate(task.templateId)
-    const agentDefault = agentDefaultFor(defaults, template?.taskLevel)
+    const {templates} = useTemplates()
+    const template = templateOf(task, templates)
+    const taskLevel = taskLevelOf(task, templates)
+    const agentDefault = agentDefaultFor(defaults, taskLevel ?? undefined)
     const confirm = useToggle()
 
     const run = task.run
@@ -104,7 +113,7 @@ export function TaskStatusDialog({
             <DialogShell
                 onClose={onClose}
                 title={task.title || 'Untitled node'}
-                description={summarize(template, agentDefault)}
+                description={summarize(taskLevel, template, agentDefault)}
                 aside={<StateBadge state={task.state} />}
                 footer={
                     <>

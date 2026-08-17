@@ -54,12 +54,12 @@ export function createSession(draft: SessionDraft): Session {
 }
 
 /** Deep copy: new session id, new task ids, remapped edges, run history cleared. */
-export function duplicateSession(session: Session): Session {
+export function duplicateSession(session: Session, name = `${session.name} copy`): Session {
     const idMap = new Map(session.tasks.map((task) => [task.id, crypto.randomUUID()]))
 
     return {
         id: crypto.randomUUID(),
-        name: `${session.name} copy`,
+        name,
         createdAt: new Date().toISOString(),
         finalized: false,
         started: false,
@@ -74,6 +74,7 @@ export function duplicateSession(session: Session): Session {
             position: {...task.position},
             dependsOn: task.dependsOn.map((id) => idMap.get(id)!).filter(Boolean),
             templateId: task.templateId,
+            spec: task.spec,
             values: task.values ? {...task.values} : undefined,
         })),
     }

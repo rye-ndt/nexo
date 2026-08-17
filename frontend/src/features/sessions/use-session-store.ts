@@ -5,6 +5,7 @@ import * as graph from '@/features/sessions/graph'
 import type {ParamValue} from '@/features/templates/types'
 import type {
     Point,
+    Session,
     SessionDraft,
     SessionLocations,
     Task,
@@ -58,6 +59,11 @@ export function useSessionStore() {
         const sessionId = crypto.randomUUID()
         store.cloneSession({sourceId, sessionId})
         selectSession(sessionId)
+    }
+
+    const importSession = (session: Session, locations: SessionLocations) => {
+        store.importSession({session, locations})
+        selectSession(session.id)
     }
 
     const deleteSession = (sessionId: string) => {
@@ -144,6 +150,7 @@ export function useSessionStore() {
 
         addSession,
         cloneSession,
+        importSession,
         deleteSession,
 
         cancelling: store.cancellingSession,

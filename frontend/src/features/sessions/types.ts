@@ -1,4 +1,4 @@
-import type {FileChangeType, TaskState} from '@/shared/lib/enums'
+import type {FileChangeType, TaskLevel, TaskState} from '@/shared/lib/enums'
 import type {ParamValue} from '@/features/templates/types'
 
 export type Point = {
@@ -53,6 +53,14 @@ export type Run = {
     context?: ContextUsage
 }
 
+/** What a template would have told the run, carried by a node that no longer has one. */
+export type TaskSpec = {
+    taskLevel: TaskLevel
+    systemPrompts: string[]
+    outputStructure: string
+    manualAcceptRequired: boolean
+}
+
 export type Task = {
     id: string
     title: string
@@ -61,6 +69,7 @@ export type Task = {
     position: Point
     dependsOn: string[]
     templateId?: string
+    spec?: TaskSpec
     values?: Record<string, ParamValue>
     agentId?: string
     run?: Run

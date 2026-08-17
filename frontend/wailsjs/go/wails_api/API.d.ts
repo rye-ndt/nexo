@@ -32,7 +32,11 @@ export function CompleteOnboarding():Promise<void>;
 
 export function DeleteSessionDraft(arg1:string):Promise<void>;
 
+export function ExportSession(arg1:string,arg2:string):Promise<void>;
+
 export function ExportTemplates(arg1:Array<string>,arg2:string):Promise<number>;
+
+export function ImportSession(arg1:string):Promise<string>;
 
 export function ImportTemplates(arg1:string):Promise<number>;
 

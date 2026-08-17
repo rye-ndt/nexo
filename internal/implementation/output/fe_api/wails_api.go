@@ -2,6 +2,7 @@ package wails_api
 
 import (
 	"context"
+	"encoding/json"
 	"sort"
 	"strings"
 	"time"
@@ -29,17 +30,18 @@ const (
 )
 
 type API struct {
-	ctx          context.Context
-	agentManager core_itf.AgentManager
-	mcpProxy     core_itf.MCPProxyServer
-	approvals    core_itf.ApprovalBroker
-	templates    core_itf.AgentTemplateManager
-	sessions     core_itf.SessionManager
-	coordinator  core_itf.Coordinator
-	history      input_itf.WorkspaceHistory
-	userConfig   output_itf.UserConfig
-	drafts       input_itf.DraftStorage
-	templateHelp core_itf.TemplateHelper
+	ctx            context.Context
+	agentManager   core_itf.AgentManager
+	mcpProxy       core_itf.MCPProxyServer
+	approvals      core_itf.ApprovalBroker
+	templates      core_itf.AgentTemplateManager
+	sessions       core_itf.SessionManager
+	coordinator    core_itf.Coordinator
+	history        input_itf.WorkspaceHistory
+	userConfig     output_itf.UserConfig
+	drafts         input_itf.DraftStorage
+	sessionArchive input_itf.SessionArchive
+	templateHelp   core_itf.TemplateHelper
 }
 
 var _ output_itf.FEAPI = (*API)(nil)
@@ -54,21 +56,23 @@ type Deps struct {
 	History        input_itf.WorkspaceHistory
 	UserConfig     output_itf.UserConfig
 	Drafts         input_itf.DraftStorage
+	SessionArchive input_itf.SessionArchive
 	TemplateHelper core_itf.TemplateHelper
 }
 
 func New(deps *Deps) *API {
 	return &API{
-		agentManager: deps.AgentManager,
-		mcpProxy:     deps.MCPProxy,
-		approvals:    deps.Approvals,
-		templates:    deps.Templates,
-		sessions:     deps.Sessions,
-		coordinator:  deps.Coordinator,
-		history:      deps.History,
-		userConfig:   deps.UserConfig,
-		drafts:       deps.Drafts,
-		templateHelp: deps.TemplateHelper,
+		agentManager:   deps.AgentManager,
+		mcpProxy:       deps.MCPProxy,
+		approvals:      deps.Approvals,
+		templates:      deps.Templates,
+		sessions:       deps.Sessions,
+		coordinator:    deps.Coordinator,
+		history:        deps.History,
+		userConfig:     deps.UserConfig,
+		drafts:         deps.Drafts,
+		sessionArchive: deps.SessionArchive,
+		templateHelp:   deps.TemplateHelper,
 	}
 }
 
@@ -503,6 +507,23 @@ func (a *API) ChooseSaveFile(title string, defaultName string, pattern string) (
 		Filters:              fileFilters(pattern),
 		CanCreateDirectories: true,
 	})
+}
+
+func (a *API) ExportSession(path string, doc string) error {
+	return a.sessionArchive.Write(path, &input_itf.SessionExport{
+		Version:    input_itf.ArchiveVersion,
+		ExportedAt: helpers.NewUTC(),
+		Session:    json.RawMessage(doc),
+	})
+}
+
+func (a *API) ImportSession(path string) (string, error) {
+	read, err := a.sessionArchive.Read(path)
+	if err != nil {
+		return "", err
+	}
+
+	return string(read.Session), nil
 }
 
 func fileFilters(pattern string) []runtime.FileFilter {

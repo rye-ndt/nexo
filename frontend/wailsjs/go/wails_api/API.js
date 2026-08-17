@@ -58,8 +58,16 @@ export function DeleteSessionDraft(arg1) {
   return window['go']['wails_api']['API']['DeleteSessionDraft'](arg1);
 }
 
+export function ExportSession(arg1, arg2) {
+  return window['go']['wails_api']['API']['ExportSession'](arg1, arg2);
+}
+
 export function ExportTemplates(arg1, arg2) {
   return window['go']['wails_api']['API']['ExportTemplates'](arg1, arg2);
+}
+
+export function ImportSession(arg1) {
+  return window['go']['wails_api']['API']['ImportSession'](arg1);
 }
 
 export function ImportTemplates(arg1) {

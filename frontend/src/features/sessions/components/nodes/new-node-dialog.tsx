@@ -83,7 +83,7 @@ export function NewNodeDialog({
         >
             {chosen ? (
                 <>
-                    <InheritedAgent taskLevel={chosen.taskLevel} />
+                    <InheritedAgent taskLevel={chosen.taskLevel} fromTemplate />
                     <NodeForm
                         key={chosen.id}
                         params={chosen.params}

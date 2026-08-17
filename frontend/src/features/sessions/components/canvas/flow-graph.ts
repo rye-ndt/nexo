@@ -3,6 +3,7 @@ import type {Dimensions} from '@xyflow/react'
 import {TaskState, type TaskLevel} from '@/shared/lib/enums'
 import {UNTITLED, type TaskNodeType} from '@/features/sessions/components/canvas/task-node'
 import type {UnlinkEdgeType} from '@/features/sessions/components/canvas/unlink-edge'
+import {taskLevelOf} from '@/features/sessions/task-spec'
 import type {Point, Session, Task} from '@/features/sessions/types'
 import type {Template} from '@/features/templates/types'
 
@@ -96,9 +97,7 @@ function unlinkLabel(source: Task, target: Task) {
 }
 
 export function taskLevels(tasks: Task[], templates: Template[]) {
-    const levelOf = new Map(templates.map((template) => [template.id, template.taskLevel]))
-
     return new Map<string, TaskLevel | null>(
-        tasks.map((task) => [task.id, levelOf.get(task.templateId ?? '') ?? null]),
+        tasks.map((task) => [task.id, taskLevelOf(task, templates)]),
     )
 }

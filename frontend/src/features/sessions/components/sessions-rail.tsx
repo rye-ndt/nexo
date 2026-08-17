@@ -1,4 +1,4 @@
-import {Plus} from 'lucide-react'
+import {Plus, Upload} from 'lucide-react'
 
 import {SessionRow} from '@/features/sessions/components/session-row'
 import {Button} from '@/shared/ui/button'
@@ -11,34 +11,55 @@ export function SessionsRail({
     activeSessionId,
     onSelect,
     onCreate,
+    onImport,
     onClone,
+    onExport,
     onDelete,
 }: {
     sessions: Session[]
     activeSessionId: string | null
     onSelect: (sessionId: string) => void
     onCreate: () => void
+    onImport: () => void
     onClone: (sessionId: string) => void
+    onExport: (sessionId: string) => void
     onDelete: (sessionId: string) => void
 }) {
     return (
         <aside className="surface-card flex h-full w-[280px] shrink-0 flex-col overflow-hidden ring-1 ring-border-strong">
             <div className="flex h-14 shrink-0 items-center justify-between border-b border-border pr-2 pl-4">
                 <span className="micro-label">Sessions</span>
-                <Tooltip>
-                    <TooltipTrigger asChild>
-                        <Button
-                            variant="ghost"
-                            size="icon-sm"
-                            aria-label="New session"
-                            onClick={onCreate}
-                            className="text-muted-foreground hover:bg-muted hover:text-foreground"
-                        >
-                            <Plus />
-                        </Button>
-                    </TooltipTrigger>
-                    <TooltipContent side="bottom">New session</TooltipContent>
-                </Tooltip>
+                <div className="flex items-center gap-1">
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            <Button
+                                variant="ghost"
+                                size="icon-sm"
+                                aria-label="Import session"
+                                onClick={onImport}
+                                className="text-muted-foreground hover:bg-muted hover:text-foreground"
+                            >
+                                <Upload />
+                            </Button>
+                        </TooltipTrigger>
+                        <TooltipContent side="bottom">Import session</TooltipContent>
+                    </Tooltip>
+
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            <Button
+                                variant="ghost"
+                                size="icon-sm"
+                                aria-label="New session"
+                                onClick={onCreate}
+                                className="text-muted-foreground hover:bg-muted hover:text-foreground"
+                            >
+                                <Plus />
+                            </Button>
+                        </TooltipTrigger>
+                        <TooltipContent side="bottom">New session</TooltipContent>
+                    </Tooltip>
+                </div>
             </div>
 
             {sessions.length === 0 ? (
@@ -62,6 +83,7 @@ export function SessionsRail({
                                 active={session.id === activeSessionId}
                                 onSelect={onSelect}
                                 onClone={onClone}
+                                onExport={onExport}
                                 onDelete={onDelete}
                             />
                         ))}

@@ -20,6 +20,7 @@ import (
 	"hexago/internal/implementation/input/harness/claude_code"
 	"hexago/internal/implementation/input/harness/open_code"
 	"hexago/internal/implementation/input/http_cli"
+	"hexago/internal/implementation/input/session_archive"
 	"hexago/internal/implementation/input/storage"
 	"hexago/internal/implementation/input/template_archive"
 	"hexago/internal/implementation/input/workspace_history"
@@ -154,6 +155,7 @@ func wire(assets fs.FS) (*App, error) {
 		History:        history,
 		UserConfig:     userCfg,
 		Drafts:         store.DraftStore(),
+		SessionArchive: session_archive.InitV1(),
 		TemplateHelper: templateHelper,
 	})
 

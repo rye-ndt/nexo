@@ -7,9 +7,11 @@ import {InheritedAgent} from '@/features/sessions/components/nodes/inherited-age
 import {MissingInputsNote} from '@/features/sessions/components/nodes/missing-inputs'
 import {NodeForm} from '@/features/sessions/components/nodes/node-form'
 import {Button} from '@/shared/ui/button'
-import {useTemplate} from '@/features/templates/use-templates'
+import {useTemplates} from '@/features/templates/use-templates'
 import {useToggle} from '@/shared/hooks/use-toggle'
 import {missingRequired, toFieldValues, toParamValues} from '@/features/templates/template'
+import {templateOf} from '@/features/sessions/task-inputs'
+import {taskLevelOf} from '@/features/sessions/task-spec'
 import type {Task} from '@/features/sessions/types'
 import type {FieldValue} from '@/features/templates/types'
 
@@ -24,7 +26,8 @@ export function EditNodeDialog({
     onDelete: () => void
     onClose: () => void
 }) {
-    const template = useTemplate(task.templateId)
+    const {templates} = useTemplates()
+    const template = templateOf(task, templates)
 
     const [title, setTitle] = useState(task.title)
     const [prompt, setPrompt] = useState(task.prompt)
@@ -93,7 +96,10 @@ export function EditNodeDialog({
                 <p className="text-sm text-muted-foreground">Fixed when the node was created.</p>
             </div>
 
-            <InheritedAgent taskLevel={template?.taskLevel} />
+            <InheritedAgent
+                taskLevel={taskLevelOf(task, templates)}
+                fromTemplate={Boolean(template)}
+            />
 
             <NodeForm
                 params={template?.params ?? []}

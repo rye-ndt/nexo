@@ -70,6 +70,10 @@ const READINGS: Record<string, Reading> = {
         title: 'That file is not a template export',
         hint: 'Nothing was imported. Export a fresh file from the app that has the templates.',
     },
+    err_session_file_invalid: {
+        title: 'That file is not a session export',
+        hint: 'Nothing was imported. Export a fresh file from the app that has the session.',
+    },
     err_template_conflict: {
         title: 'Those templates clash with the ones you have',
         hint: 'Nothing was imported. Delete the ones named here, then import again — an imported template keeps the id it was exported with, so renaming yours is not enough.',

@@ -634,6 +634,43 @@ export const MOCK_SESSIONS: Session[] = [
     },
 ]
 
+const ARCHIVE_VERSION = 1
+const SESSION_FILE_INVALID = 'err_session_file_invalid'
+
+export function mockSessionArchive(body: string): string {
+    const archive = {
+        version: ARCHIVE_VERSION,
+        exported_at: new Date().toISOString(),
+        session: JSON.parse(body),
+    }
+
+    return `${JSON.stringify(archive, null, 2)}\n`
+}
+
+export function mockSessionBody(file: string): string {
+    let archive: {version?: number; session?: unknown}
+
+    try {
+        archive = JSON.parse(file)
+    } catch {
+        throw new Error(
+            `[Err] Type: ${SESSION_FILE_INVALID} - Message: that file is not a session file - Critical: critical`,
+        )
+    }
+
+    if (archive?.version !== ARCHIVE_VERSION)
+        throw new Error(
+            `[Err] Type: ${SESSION_FILE_INVALID} - Message: that file is a version ${archive?.version} session file, and this app reads version ${ARCHIVE_VERSION} - Critical: critical`,
+        )
+
+    if (!archive.session)
+        throw new Error(
+            `[Err] Type: ${SESSION_FILE_INVALID} - Message: that file holds no session - Critical: critical`,
+        )
+
+    return JSON.stringify(archive.session)
+}
+
 function seedOf(id: string) {
     let seed = 0
     for (let index = 0; index < id.length; index += 1)

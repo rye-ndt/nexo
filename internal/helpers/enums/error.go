@@ -30,4 +30,6 @@ const (
 
 	ErrTemplateFileInvalid ErrorType = "err_template_file_invalid"
 	ErrTemplateConflict    ErrorType = "err_template_conflict"
+
+	ErrSessionFileInvalid ErrorType = "err_session_file_invalid"
 )

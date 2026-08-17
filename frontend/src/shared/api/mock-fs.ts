@@ -33,6 +33,8 @@ const FILES: Record<string, string[]> = {
         'templates-sound.json',
         'templates-torn.json',
         'templates-incomplete.json',
+        'session-sound.json',
+        'session-torn.json',
     ],
 }
 
@@ -79,6 +81,62 @@ const CONTENTS: Record<string, string> = {
         2,
     ),
     '/Users/rye/Downloads/templates-torn.json': '{ this was edited by hand and is not json',
+    '/Users/rye/Downloads/session-sound.json': JSON.stringify(
+        {
+            version: 1,
+            exported_at: '2026-08-14T11:20:00Z',
+            session: {
+                id: '0198e3a1-0000-7000-8000-000000000101',
+                name: 'Gateway credential sweep',
+                createdAt: '2026-08-14T11:20:00Z',
+                finalized: false,
+                started: false,
+                cancelled: false,
+                workingDir: '/Users/rye/dev/agent-harness',
+                contextDir: '/Users/rye/dev/agent-harness/.harness/context',
+                tasks: [
+                    {
+                        id: '0198e3a1-0000-7000-8000-000000000102',
+                        title: 'Read how credentials are revoked',
+                        prompt: 'Follow a revoked credential from the proxy to the agent and say what still holds a copy of it.',
+                        state: 'idle',
+                        position: {x: 0, y: 120},
+                        dependsOn: [],
+                        spec: {
+                            taskLevel: 'heavy_task',
+                            systemPrompts: [
+                                'You review code. Report only defects you can point to a line for, ranked by severity.',
+                            ],
+                            outputStructure:
+                                'verdict: ship | fix first\nfindings: what you can prove',
+                            manualAcceptRequired: true,
+                        },
+                        values: {},
+                    },
+                    {
+                        id: '0198e3a1-0000-7000-8000-000000000103',
+                        title: 'Cover the revoke path',
+                        prompt: 'Write the tests that prove a revoked credential never reaches a running agent.',
+                        state: 'idle',
+                        position: {x: 340, y: 120},
+                        dependsOn: ['0198e3a1-0000-7000-8000-000000000102'],
+                        spec: {
+                            taskLevel: 'daily_task',
+                            systemPrompts: [
+                                'You write tests. Cover the branches a reader would doubt, run them, and report failures verbatim.',
+                            ],
+                            outputStructure: '',
+                            manualAcceptRequired: false,
+                        },
+                        values: {},
+                    },
+                ],
+            },
+        },
+        null,
+        2,
+    ),
+    '/Users/rye/Downloads/session-torn.json': '{ not json',
     '/Users/rye/Downloads/templates-incomplete.json': JSON.stringify(
         {
             version: 1,

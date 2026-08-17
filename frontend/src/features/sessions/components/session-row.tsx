@@ -45,12 +45,14 @@ export function SessionRow({
     active,
     onSelect,
     onClone,
+    onExport,
     onDelete,
 }: {
     session: Session
     active: boolean
     onSelect: (sessionId: string) => void
     onClone: (sessionId: string) => void
+    onExport: (sessionId: string) => void
     onDelete: (sessionId: string) => void
 }) {
     const status = sessionStatus(session)
@@ -58,6 +60,7 @@ export function SessionRow({
 
     const select = () => onSelect(session.id)
     const clone = () => onClone(session.id)
+    const exportSession = () => onExport(session.id)
     const remove = () => onDelete(session.id)
     const stopPropagation = (event: MouseEvent<HTMLButtonElement>) => event.stopPropagation()
 
@@ -108,6 +111,7 @@ export function SessionRow({
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-40">
                     <DropdownMenuItem onSelect={clone}>Duplicate</DropdownMenuItem>
+                    <DropdownMenuItem onSelect={exportSession}>Export</DropdownMenuItem>
                     <DropdownMenuItem variant="destructive" onSelect={remove}>
                         Delete
                     </DropdownMenuItem>
