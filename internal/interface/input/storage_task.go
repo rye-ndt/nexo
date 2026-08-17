@@ -50,6 +50,7 @@ type TaskEntity struct {
 	ID                   uuid.UUID
 	SessionID            uuid.UUID
 	Name                 string
+	TaskLevel            enums.TaskLevel
 	PreferredModel       enums.ModelName
 	ThinkingLevel        enums.ThinkingLevel
 	SystemPrompts        []string

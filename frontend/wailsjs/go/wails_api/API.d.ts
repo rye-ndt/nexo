@@ -70,6 +70,8 @@ export function SessionStatus(arg1:string):Promise<output_itf.SessionStatusInfo>
 
 export function SetAgentDefault(arg1:string,arg2:string,arg3:string):Promise<void>;
 
+export function SetAgentDefaultPrices(arg1:string,arg2:string,arg3:string,arg4:string):Promise<void>;
+
 export function SetAutopilot(arg1:boolean):Promise<void>;
 
 export function SetMCPCredential(arg1:string,arg2:string):Promise<void>;

@@ -27,29 +27,38 @@ export const MOCK_AGENT_DEFAULT_OPTIONS: AgentDefaultOptions = {
     ],
 }
 
+/**
+ * The real app ships every price blank and waits to be told. The mock fills them in
+ * so a run under the plain vite server shows what it cost; clearing a field is how
+ * the unpriced state is reached from here.
+ */
 export const MOCK_AGENT_DEFAULTS: AgentDefault[] = [
     {
         taskLevel: TaskLevel.Lightweight,
         model: 'haiku',
         modelLabel: 'Claude Haiku',
         thinkingLevel: ThinkingLevel.Low,
+        prices: {input: '1', cachedInput: '0.1', output: '5'},
     },
     {
         taskLevel: TaskLevel.Daily,
         model: 'sonnet',
         modelLabel: 'Claude Sonnet',
         thinkingLevel: ThinkingLevel.Medium,
+        prices: {input: '3', cachedInput: '0.3', output: '15'},
     },
     {
         taskLevel: TaskLevel.Heavy,
         model: 'opus',
         modelLabel: 'Claude Opus',
         thinkingLevel: ThinkingLevel.High,
+        prices: {input: '15', cachedInput: '1.5', output: '75'},
     },
     {
         taskLevel: TaskLevel.MaximumEffort,
         model: 'opus',
         modelLabel: 'Claude Opus',
         thinkingLevel: ThinkingLevel.Max,
+        prices: {input: '15', cachedInput: '1.5', output: '75'},
     },
 ]

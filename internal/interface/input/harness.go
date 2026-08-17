@@ -23,11 +23,18 @@ type AgentStatus struct {
 }
 
 // Used is what the agent's window holds right now and falls back when it compacts.
-// Billed is every token the agent has ever spent, so it only ever grows.
+// The other three only ever grow: they are what the vendor charges for, summed over
+// every turn. Billed is the output the agent wrote. Input is the prompt it was
+// charged full price to read, cache writes included. Cached is the prompt it read
+// back out of the cache, which every vendor bills at a fraction of the input rate —
+// on a long run it dwarfs Input, so folding the two together would overstate the
+// bill several times over.
 type ContextUsage struct {
 	Total  int `json:"total"`
 	Used   int `json:"used"`
 	Billed int `json:"billed"`
+	Input  int `json:"input"`
+	Cached int `json:"cached"`
 }
 
 type Activity struct {

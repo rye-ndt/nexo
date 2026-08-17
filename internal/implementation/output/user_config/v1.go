@@ -75,13 +75,7 @@ func read(path string) (*file, error) {
 	}
 
 	for _, level := range enums.TaskLevels() {
-		stored := cfg.AgentDefaults[level]
-		if stored != nil && helpers.ValidateStruct(stored) == nil {
-			continue
-		}
-
-		seed := seedAgentDefaults[level]
-		cfg.AgentDefaults[level] = &output_itf.AgentDefault{Model: seed.Model, ThinkingLevel: seed.ThinkingLevel}
+		cfg.AgentDefaults[level] = repaired(level, cfg.AgentDefaults[level])
 	}
 
 	for level := range cfg.AgentDefaults {
@@ -93,6 +87,53 @@ func read(path string) (*file, error) {
 	return cfg, nil
 }
 
+func repaired(level enums.TaskLevel, stored *output_itf.AgentDefault) *output_itf.AgentDefault {
+	if stored != nil {
+		if helpers.ValidateStruct(stored) == nil {
+			return cloneAgentDefault(stored)
+		}
+
+		withoutPrices := &output_itf.AgentDefault{Model: stored.Model, ThinkingLevel: stored.ThinkingLevel}
+		if helpers.ValidateStruct(withoutPrices) == nil {
+			return withoutPrices
+		}
+	}
+
+	seed := seedAgentDefaults[level]
+
+	return &output_itf.AgentDefault{Model: seed.Model, ThinkingLevel: seed.ThinkingLevel}
+}
+
+func cloneAgentDefault(stored *output_itf.AgentDefault) *output_itf.AgentDefault {
+	return &output_itf.AgentDefault{
+		Model:         stored.Model,
+		ThinkingLevel: stored.ThinkingLevel,
+		Prices:        clonePrices(stored.Prices),
+	}
+}
+
+func clonePrices(prices *output_itf.TokenPrices) *output_itf.TokenPrices {
+	if prices == nil {
+		return nil
+	}
+
+	return &output_itf.TokenPrices{
+		Input:       clonePrice(prices.Input),
+		CachedInput: clonePrice(prices.CachedInput),
+		Output:      clonePrice(prices.Output),
+	}
+}
+
+func clonePrice(price *float64) *float64 {
+	if price == nil {
+		return nil
+	}
+
+	copied := *price
+
+	return &copied
+}
+
 func (c *v1) AgentDefaults() map[enums.TaskLevel]*output_itf.AgentDefault {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
@@ -100,7 +141,7 @@ func (c *v1) AgentDefaults() map[enums.TaskLevel]*output_itf.AgentDefault {
 	defaults := make(map[enums.TaskLevel]*output_itf.AgentDefault, len(c.cfg.AgentDefaults))
 
 	for level, stored := range c.cfg.AgentDefaults {
-		defaults[level] = &output_itf.AgentDefault{Model: stored.Model, ThinkingLevel: stored.ThinkingLevel}
+		defaults[level] = cloneAgentDefault(stored)
 	}
 
 	return defaults
@@ -119,7 +160,7 @@ func (c *v1) AgentDefault(level enums.TaskLevel) (*output_itf.AgentDefault, erro
 		return nil, custom_error.Critical("task level %q has no agent default", level.String())
 	}
 
-	return &output_itf.AgentDefault{Model: stored.Model, ThinkingLevel: stored.ThinkingLevel}, nil
+	return cloneAgentDefault(stored), nil
 }
 
 func (c *v1) SetAgentDefault(level enums.TaskLevel, agentDefault *output_itf.AgentDefault) error {
@@ -131,7 +172,12 @@ func (c *v1) SetAgentDefault(level enums.TaskLevel, agentDefault *output_itf.Age
 		return custom_error.Critical("agent default for %q is empty", level.String())
 	}
 
-	if err := helpers.ValidateStruct(agentDefault); err != nil {
+	next := &output_itf.AgentDefault{
+		Model:         agentDefault.Model,
+		ThinkingLevel: agentDefault.ThinkingLevel,
+	}
+
+	if err := helpers.ValidateStruct(next); err != nil {
 		return custom_error.Critical("invalid agent default for %q: %v", level.String(), err)
 	}
 
@@ -139,9 +185,43 @@ func (c *v1) SetAgentDefault(level enums.TaskLevel, agentDefault *output_itf.Age
 	defer c.mu.Unlock()
 
 	previous := c.cfg.AgentDefaults[level]
+	if previous != nil {
+		next.Prices = clonePrices(previous.Prices)
+	}
+
+	c.cfg.AgentDefaults[level] = next
+
+	if err := c.write(); err != nil {
+		c.cfg.AgentDefaults[level] = previous
+		return err
+	}
+
+	return nil
+}
+
+func (c *v1) SetAgentDefaultPrices(level enums.TaskLevel, prices *output_itf.TokenPrices) error {
+	if !level.Valid() {
+		return custom_error.Critical("unknown task level %q", level.String())
+	}
+
+	if prices != nil {
+		if err := helpers.ValidateStruct(prices); err != nil {
+			return custom_error.Critical("invalid prices for %q: %v", level.String(), err)
+		}
+	}
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	previous := c.cfg.AgentDefaults[level]
+	if previous == nil {
+		return custom_error.Critical("task level %q has no agent default", level.String())
+	}
+
 	c.cfg.AgentDefaults[level] = &output_itf.AgentDefault{
-		Model:         agentDefault.Model,
-		ThinkingLevel: agentDefault.ThinkingLevel,
+		Model:         previous.Model,
+		ThinkingLevel: previous.ThinkingLevel,
+		Prices:        clonePrices(prices),
 	}
 
 	if err := c.write(); err != nil {

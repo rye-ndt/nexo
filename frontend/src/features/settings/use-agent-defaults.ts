@@ -2,6 +2,7 @@ import {useMutation, useQuery, useQueryClient} from '@tanstack/react-query'
 
 import * as api from '@/features/settings/api/preferences'
 import type {TaskLevel, ThinkingLevel} from '@/shared/lib/enums'
+import type {TokenPrices} from '@/features/settings/types'
 
 const AGENT_DEFAULTS_KEY = ['agent-defaults']
 const AGENT_DEFAULT_OPTIONS_KEY = ['agent-default-options']
@@ -10,6 +11,11 @@ type AgentDefaultEdit = {
     taskLevel: TaskLevel
     model: string
     thinkingLevel: ThinkingLevel
+}
+
+type AgentPricesEdit = {
+    taskLevel: TaskLevel
+    prices: TokenPrices
 }
 
 export function useAgentDefaults() {
@@ -33,11 +39,19 @@ export function useAgentDefaults() {
         onSuccess: () => queryClient.invalidateQueries({queryKey: AGENT_DEFAULTS_KEY}),
     })
 
+    const savePrices = useMutation({
+        meta: {action: 'Could not save that price'},
+        mutationFn: ({taskLevel, prices}: AgentPricesEdit) =>
+            api.setAgentDefaultPrices(taskLevel, prices),
+        onSuccess: () => queryClient.invalidateQueries({queryKey: AGENT_DEFAULTS_KEY}),
+    })
+
     return {
         defaults: defaults.data ?? [],
         options: options.data,
         loading: defaults.isPending || options.isPending,
         pendingTaskLevel: save.isPending ? save.variables.taskLevel : null,
         setAgentDefault: save.mutate,
+        setAgentDefaultPrices: savePrices.mutate,
     }
 }

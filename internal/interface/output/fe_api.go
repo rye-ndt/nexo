@@ -95,29 +95,48 @@ type TaskActivityInfo struct {
 	Text string `json:"text"`
 }
 
+// Spent is every token this node has cost across all of its attempts; CostUSD is what
+// that comes to at the prices its task level carries, and is only meaningful when
+// Priced is true.
 type SessionTaskInfo struct {
 	TaskID       string                  `json:"task_id"`
 	AgentID      string                  `json:"agent_id"`
+	TaskLevel    string                  `json:"task_level"`
 	Status       string                  `json:"status"`
 	HandoverDocs []*HandoverDocInfo      `json:"handover_docs"`
 	ContextUsage *input_itf.ContextUsage `json:"context_usage"`
+	Spent        *input_itf.ContextUsage `json:"spent"`
+	CostUSD      float64                 `json:"cost_usd"`
+	Priced       bool                    `json:"priced"`
 	Activity     []*TaskActivityInfo     `json:"activity"`
 }
 
+// Priced is false as soon as one node that spent something sits at a task level with
+// no prices filled in, because a total missing one node reads as the whole bill.
 type SessionStatusInfo struct {
 	SessionID    string             `json:"session_id"`
 	Status       string             `json:"status"`
 	Tasks        []*SessionTaskInfo `json:"tasks"`
 	TokensBilled int                `json:"tokens_billed"`
+	TokensInput  int                `json:"tokens_input"`
+	TokensCached int                `json:"tokens_cached"`
+	CostUSD      float64            `json:"cost_usd"`
+	Priced       bool               `json:"priced"`
 	StartedAt    string             `json:"started_at"`
 	CompletedAt  string             `json:"completed_at"`
 }
 
+// The prices are the text the user typed, empty when the field is blank, so a price
+// that never round-trips through a number keeps the difference between "zero" and
+// "not told".
 type AgentDefaultInfo struct {
-	TaskLevel     string `json:"task_level"`
-	Model         string `json:"model"`
-	ModelLabel    string `json:"model_label"`
-	ThinkingLevel string `json:"thinking_level"`
+	TaskLevel        string `json:"task_level"`
+	Model            string `json:"model"`
+	ModelLabel       string `json:"model_label"`
+	ThinkingLevel    string `json:"thinking_level"`
+	InputPrice       string `json:"input_price"`
+	CachedInputPrice string `json:"cached_input_price"`
+	OutputPrice      string `json:"output_price"`
 }
 
 type ModelOptionInfo struct {

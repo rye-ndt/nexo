@@ -129,6 +129,7 @@ var migrations = []string{
 	`ALTER TABLE tasks DROP COLUMN allowed_file_paths`,
 	`ALTER TABLE mcp_credentials DROP COLUMN encrypted_refresh_key`,
 	`ALTER TABLE agent_templates ADD COLUMN output_structure TEXT NOT NULL DEFAULT ''`,
+	`ALTER TABLE tasks ADD COLUMN task_level TEXT NOT NULL DEFAULT ''`,
 }
 
 const templateColumns = `id, name, role, task_level, retryable, manual_accept_required, params, system_prompts, output_structure, created_at, updated_at`
@@ -583,14 +584,15 @@ func saveTask(e execer, t *input_itf.TaskEntity) error {
 	}
 
 	_, err = e.Exec(`INSERT OR REPLACE INTO tasks
-		(id, session_id, name, preferred_model, thinking_level, system_prompts,
+		(id, session_id, name, task_level, preferred_model, thinking_level, system_prompts,
 		auto_retry, manual_accept_required,
 		extra_guidance, retry_count, status, depends_on_task_ids,
 		last_report_id, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		t.ID.String(),
 		t.SessionID.String(),
 		t.Name,
+		string(t.TaskLevel),
 		string(t.PreferredModel),
 		string(t.ThinkingLevel),
 		string(systemPrompts),

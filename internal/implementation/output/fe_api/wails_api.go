@@ -3,7 +3,9 @@ package wails_api
 import (
 	"context"
 	"encoding/json"
+	"math"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -14,6 +16,7 @@ import (
 	"hexago/internal/helpers"
 	"hexago/internal/helpers/custom_error"
 	"hexago/internal/helpers/enums"
+	"hexago/internal/helpers/pricing"
 	core_itf "hexago/internal/interface/core"
 	input_itf "hexago/internal/interface/input"
 	output_itf "hexago/internal/interface/output"
@@ -548,15 +551,72 @@ func (a *API) AgentDefaults() ([]*output_itf.AgentDefaultInfo, error) {
 			continue
 		}
 
+		prices := agentDefault.Prices
+		if prices == nil {
+			prices = &output_itf.TokenPrices{}
+		}
+
 		infos = append(infos, &output_itf.AgentDefaultInfo{
-			TaskLevel:     level.String(),
-			Model:         agentDefault.Model.String(),
-			ModelLabel:    agentDefault.Model.DisplayName(),
-			ThinkingLevel: agentDefault.ThinkingLevel.String(),
+			TaskLevel:        level.String(),
+			Model:            agentDefault.Model.String(),
+			ModelLabel:       agentDefault.Model.DisplayName(),
+			ThinkingLevel:    agentDefault.ThinkingLevel.String(),
+			InputPrice:       priceText(prices.Input),
+			CachedInputPrice: priceText(prices.CachedInput),
+			OutputPrice:      priceText(prices.Output),
 		})
 	}
 
 	return infos, nil
+}
+
+func priceText(price *float64) string {
+	if price == nil {
+		return ""
+	}
+
+	return strconv.FormatFloat(*price, 'f', -1, 64)
+}
+
+func parsePrice(raw string) (*float64, error) {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return nil, nil
+	}
+
+	price, err := strconv.ParseFloat(trimmed, 64)
+	if err != nil || price < 0 || math.IsNaN(price) || math.IsInf(price, 0) {
+		return nil, custom_error.Critical("%q is not a price", raw)
+	}
+
+	return &price, nil
+}
+
+func (a *API) SetAgentDefaultPrices(taskLevel string, input string, cachedInput string, output string) error {
+	inputPrice, err := parsePrice(input)
+	if err != nil {
+		return err
+	}
+
+	cachedPrice, err := parsePrice(cachedInput)
+	if err != nil {
+		return err
+	}
+
+	outputPrice, err := parsePrice(output)
+	if err != nil {
+		return err
+	}
+
+	if inputPrice == nil && cachedPrice == nil && outputPrice == nil {
+		return a.userConfig.SetAgentDefaultPrices(enums.TaskLevel(taskLevel), nil)
+	}
+
+	return a.userConfig.SetAgentDefaultPrices(enums.TaskLevel(taskLevel), &output_itf.TokenPrices{
+		Input:       inputPrice,
+		CachedInput: cachedPrice,
+		Output:      outputPrice,
+	})
 }
 
 func (a *API) SetAgentDefault(taskLevel string, model string, thinkingLevel string) error {
@@ -602,13 +662,16 @@ func (a *API) AgentDefaultOptions() (*output_itf.AgentDefaultOptionsInfo, error)
 }
 
 func (a *API) addSessionTask(sessionID uuid.UUID, task *output_itf.RunTaskSpec, deps []uuid.UUID, autopilot bool) (uuid.UUID, error) {
-	agentDefault, err := a.userConfig.AgentDefault(enums.TaskLevel(task.TaskLevel))
+	level := enums.TaskLevel(task.TaskLevel)
+
+	agentDefault, err := a.userConfig.AgentDefault(level)
 	if err != nil {
 		return uuid.Nil, err
 	}
 
 	return a.sessions.AddTask(sessionID, &core_itf.AddTask{
 		Name:                 task.Name,
+		TaskLevel:            level,
 		AutoRetry:            task.AutoRetry,
 		ManualAcceptRequired: task.ManualAcceptRequired && !autopilot,
 		ExtraGuidance:        task.Prompt,
@@ -644,7 +707,7 @@ func (a *API) SessionStatus(sessionID string) (*output_itf.SessionStatusInfo, er
 			return nil, err
 		}
 
-		return sessionStatusInfo(status), nil
+		return a.sessionStatusInfo(status), nil
 	})
 }
 
@@ -789,15 +852,25 @@ func momentInfo(at time.Time) string {
 	return at.Format(time.RFC3339)
 }
 
-func sessionStatusInfo(status *core_itf.SessionStatus) *output_itf.SessionStatusInfo {
+func (a *API) sessionStatusInfo(status *core_itf.SessionStatus) *output_itf.SessionStatusInfo {
 	if status == nil {
 		return nil
 	}
 
 	tasks := make([]*output_itf.SessionTaskInfo, 0, len(status.Tasks))
+	cost := 0.0
+	priced := true
 
 	for taskID, report := range status.Tasks {
-		tasks = append(tasks, sessionTaskInfo(taskID, report))
+		task := a.sessionTaskInfo(taskID, report)
+		tasks = append(tasks, task)
+
+		switch {
+		case task.Priced:
+			cost += task.CostUSD
+		case spentAnything(task.Spent):
+			priced = false
+		}
 	}
 
 	sort.Slice(tasks, func(i, j int) bool { return tasks[i].TaskID < tasks[j].TaskID })
@@ -807,12 +880,38 @@ func sessionStatusInfo(status *core_itf.SessionStatus) *output_itf.SessionStatus
 		Status:       string(status.Status),
 		Tasks:        tasks,
 		TokensBilled: status.TokensBilled,
+		TokensInput:  status.TokensInput,
+		TokensCached: status.TokensCached,
+		CostUSD:      cost,
+		Priced:       priced,
 		StartedAt:    momentInfo(status.StartedAt),
 		CompletedAt:  momentInfo(status.CompletedAt),
 	}
 }
 
-func sessionTaskInfo(taskID uuid.UUID, report *core_itf.TaskReport) *output_itf.SessionTaskInfo {
+func spentAnything(spent *input_itf.ContextUsage) bool {
+	return spent != nil && (spent.Input > 0 || spent.Cached > 0 || spent.Billed > 0)
+}
+
+func (a *API) taskCost(level enums.TaskLevel, spent *input_itf.ContextUsage) (float64, bool) {
+	if spent == nil || !level.Valid() {
+		return 0, false
+	}
+
+	agentDefault, err := a.userConfig.AgentDefault(level)
+	if err != nil || agentDefault == nil || agentDefault.Prices == nil {
+		return 0, false
+	}
+
+	rates, ok := pricing.NewRates(agentDefault.Prices.Input, agentDefault.Prices.CachedInput, agentDefault.Prices.Output)
+	if !ok {
+		return 0, false
+	}
+
+	return rates.Cost(pricing.Tokens{Input: spent.Input, Cached: spent.Cached, Output: spent.Billed}), true
+}
+
+func (a *API) sessionTaskInfo(taskID uuid.UUID, report *core_itf.TaskReport) *output_itf.SessionTaskInfo {
 	info := &output_itf.SessionTaskInfo{
 		TaskID:       taskID.String(),
 		HandoverDocs: []*output_itf.HandoverDocInfo{},
@@ -825,6 +924,9 @@ func sessionTaskInfo(taskID uuid.UUID, report *core_itf.TaskReport) *output_itf.
 
 	info.Status = string(report.Status)
 	info.ContextUsage = report.ContextUsage
+	info.TaskLevel = report.TaskLevel.String()
+	info.Spent = report.Spent
+	info.CostUSD, info.Priced = a.taskCost(report.TaskLevel, report.Spent)
 
 	if report.AgentID != uuid.Nil {
 		info.AgentID = report.AgentID.String()

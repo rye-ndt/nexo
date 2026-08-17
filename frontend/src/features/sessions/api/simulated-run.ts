@@ -4,14 +4,17 @@
  * run that walks the graph in order. A node whose template asks for manual
  * acceptance halts the walk until `resolveAcceptance` answers it, and a node
  * whose title names one of the forks below halts partway through its own run,
- * blocked on the approval it raised, until the operator answers that.
+ * blocked on the approval it raised, until the operator answers that. What a run
+ * costs is priced off the agent defaults the settings panel edits, so blanking a
+ * level's input or output price in Settings → Preferences is what puts a run back into
+ * the unpriced state.
  */
 
-import {ApprovalKind, TaskState} from '@/shared/lib/enums'
+import {ApprovalKind, TaskState, type TaskLevel} from '@/shared/lib/enums'
 import {mockOutcome} from '@/features/sessions/mock-sessions'
 import {hasRunningTask, isRunnable, label, withTaskPatch} from '@/features/sessions/graph'
 import {specOf} from '@/features/sessions/task-spec'
-import {cachedAutopilot} from '@/features/settings/api/preferences'
+import {cachedAgentDefaults, cachedAutopilot} from '@/features/settings/api/preferences'
 import {cachedTemplates} from '@/features/templates/api'
 import type {ApprovalOption} from '@/features/approvals/types'
 import {
@@ -19,7 +22,7 @@ import {
     mockApprovalAnswer,
     raiseMockApproval,
 } from '@/features/approvals/mock-approvals'
-import type {Session, Task, TaskReport} from '@/features/sessions/types'
+import type {Session, Spend, Task, TaskReport} from '@/features/sessions/types'
 import type {Template} from '@/features/templates/types'
 import {replaceSession, sessions, setSessions} from '@/features/sessions/api/store'
 import {mergeActivity} from '@/features/sessions/api/activity'
@@ -173,6 +176,7 @@ function start(task: Task, now: number): Task {
             startedAt: new Date(now).toISOString(),
             finishedAt: undefined,
             context: {used: Math.round(contextTotal * contextPeak * 0.2), total: contextTotal},
+            spent: task.run?.spent ?? {input: 0, cached: 0, output: 0},
         },
     }
 }
@@ -190,11 +194,16 @@ function progress(task: Task, now: number, templates: Template[]): Task {
         used: Math.round(outcome.contextTotal * outcome.contextPeak * (0.2 + 0.8 * share)),
         total: outcome.contextTotal,
     }
+    const spent = {
+        input: Math.max(task.run?.spent?.input ?? 0, Math.round(outcome.inputTotal * share)),
+        cached: Math.max(task.run?.spent?.cached ?? 0, Math.round(outcome.cachedTotal * share)),
+        output: Math.max(task.run?.spent?.output ?? 0, Math.round(outcome.outputTotal * share)),
+    }
 
     const forked = share >= FORK_SHARE ? atFork(task, now, outcome.durationMs) : undefined
-    if (forked) return {...forked, run: {...forked.run, context}}
+    if (forked) return {...forked, run: {...forked.run, context, spent}}
 
-    if (share < 1) return {...task, run: {...task.run, context}}
+    if (share < 1) return {...task, run: {...task.run, context, spent}}
 
     const state =
         outcome.state === TaskState.Done && gated(task, templates)
@@ -204,25 +213,76 @@ function progress(task: Task, now: number, templates: Template[]): Task {
     return {
         ...task,
         state,
-        run: {...task.run, finishedAt: new Date(now).toISOString(), context},
+        run: {...task.run, finishedAt: new Date(now).toISOString(), context, spent},
         report: {...outcome.report, status: state},
     }
 }
 
+type Rates = {input: number; cached: number; output: number}
+
+function ratesOf(taskLevel: TaskLevel): Rates | undefined {
+    const prices = cachedAgentDefaults().find((current) => current.taskLevel === taskLevel)?.prices
+    if (!prices || prices.input === '' || prices.output === '') return undefined
+
+    return {
+        input: Number(prices.input),
+        cached: Number(prices.cachedInput === '' ? prices.input : prices.cachedInput),
+        output: Number(prices.output),
+    }
+}
+
+function spentAnything(spent?: Spend) {
+    return !!spent && (spent.input > 0 || spent.cached > 0 || spent.output > 0)
+}
+
+function costOf(spent: Spend, rates: Rates) {
+    return (
+        (spent.input * rates.input + spent.cached * rates.cached + spent.output * rates.output) /
+        1_000_000
+    )
+}
+
+function withCost(task: Task, templates: Template[]): Task {
+    const spent = task.run?.spent
+    if (!spent) return task
+
+    const rates = ratesOf(specOf(task, templates).taskLevel)
+    if (!rates) return {...task, run: {...task.run, costUsd: undefined, priced: false}}
+
+    return {...task, run: {...task.run, costUsd: costOf(spent, rates), priced: true}}
+}
+
 /**
- * There is no backend clock or counter here, so both session readouts come off the
- * nodes: no mock node retries, so what every node holds now is what the run spent.
+ * There is no backend clock, counter or price table here, so every run readout comes
+ * off the nodes. A node keeps the tokens all of its attempts have spent, which only
+ * ever grow, and is priced at the agent default for its task level: that level counts
+ * as priced only when it carries both an input and an output price, a blank cached
+ * price falls back to the input one, and the cost is
+ * (input * inputPrice + cached * cachedPrice + output * outputPrice) / 1_000_000.
+ * The session sums what its nodes spent and what the priced ones cost, and goes
+ * unpriced as soon as one node that spent something has no prices behind it.
  */
 function withRunTotals(session: Session): Session {
-    const started = session.tasks.flatMap((task) => task.run?.startedAt ?? [])
-    const finished = session.tasks.flatMap((task) => task.run?.finishedAt ?? [])
+    const templates = cachedTemplates()
+    const tasks = session.tasks.map((task) => withCost(task, templates))
+
+    const spends = tasks.flatMap((task) => task.run?.spent ?? [])
+    const started = tasks.flatMap((task) => task.run?.startedAt ?? [])
+    const finished = tasks.flatMap((task) => task.run?.finishedAt ?? [])
 
     return {
         ...session,
-        tokensUsed: session.tasks.reduce(
-            (total, task) => total + (task.run?.context?.used ?? 0),
-            0,
+        tasks,
+        spent: spends.reduce(
+            (total, spend) => ({
+                input: total.input + spend.input,
+                cached: total.cached + spend.cached,
+                output: total.output + spend.output,
+            }),
+            {input: 0, cached: 0, output: 0},
         ),
+        costUsd: tasks.reduce((total, task) => total + (task.run?.costUsd ?? 0), 0),
+        priced: !tasks.some((task) => spentAnything(task.run?.spent) && !task.run?.priced),
         startedAt: started.sort()[0],
         finishedAt: finished.sort().at(-1),
     }

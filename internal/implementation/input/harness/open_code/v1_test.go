@@ -7,12 +7,16 @@ import (
 
 const ctxWindow = 200_000
 
-func messageUpdated(sessionID string, input int) string {
+func usageLine(sessionID, id string, in, out, reasoning, cacheRead, cacheWrite int) string {
 	return fmt.Sprintf(
-		`{"type":"message.updated","properties":{"info":{"sessionID":%q,"tokens":`+
-			`{"input":%d,"output":0,"reasoning":0,"cache":{"read":0,"write":0}}}}}`,
-		sessionID, input,
+		`{"type":"message.updated","properties":{"info":{"id":%q,"sessionID":%q,"tokens":`+
+			`{"input":%d,"output":%d,"reasoning":%d,"cache":{"read":%d,"write":%d}}}}}`,
+		id, sessionID, in, out, reasoning, cacheRead, cacheWrite,
 	)
+}
+
+func messageUpdated(sessionID string, output int) string {
+	return usageLine(sessionID, "", 0, output, 0, 0, 0)
 }
 
 func TestUsageSumsEveryTokenBucket(t *testing.T) {
@@ -53,12 +57,33 @@ func TestUsageFollowsTheLatestOwnSessionTurn(t *testing.T) {
 	}
 }
 
-func turn(id string, input int) string {
-	return fmt.Sprintf(
-		`{"type":"message.updated","properties":{"info":{"id":%q,"sessionID":"ses_main",`+
-			`"tokens":{"input":%d,"output":0,"reasoning":0,"cache":{"read":0,"write":0}}}}}`,
-		id, input,
-	)
+func turn(id string, output int) string {
+	return usageLine("ses_main", id, 0, output, 0, 0, 0)
+}
+
+func turnTokens(id string, in, out, cacheRead, cacheWrite int) string {
+	return usageLine("ses_main", id, in, out, 0, cacheRead, cacheWrite)
+}
+
+func childTurnTokens(id string, in, out, cacheRead, cacheWrite int) string {
+	return usageLine("ses_child", id, in, out, 0, cacheRead, cacheWrite)
+}
+
+// The prompt is re-read whole on every turn, so a billed total that counted the input
+// side would grow with the conversation rather than with what the agent wrote.
+func TestBilledCountsOutputAndReasoningOnly(t *testing.T) {
+	proc := &openCodeProc{session: "ses_main", ctxWindow: ctxWindow}
+
+	proc.trackUsage([]byte(`{"properties":{"info":{"id":"msg_01","sessionID":"ses_main","tokens":` +
+		`{"input":10,"output":20,"reasoning":300,"cache":{"read":4000,"write":50000}}}}}`))
+
+	usage := proc.snapshotUsage()
+	if usage.Billed != 320 {
+		t.Fatalf("billed = %d, want the output and reasoning tokens (320)", usage.Billed)
+	}
+	if usage.Used != 54330 {
+		t.Fatalf("used = %d, want every bucket (54330)", usage.Used)
+	}
 }
 
 func TestBilledAddsUpEveryTurn(t *testing.T) {
@@ -109,6 +134,89 @@ func TestBilledLeavesChildSessionsOut(t *testing.T) {
 
 	if billed := proc.snapshotUsage().Billed; billed != 100 {
 		t.Fatalf("billed = %d, want this session's 100", billed)
+	}
+}
+
+// A cache write is billed near the full input rate and a cache read at a tenth of
+// it, so the two have to land in different counters to price a run at all.
+func TestInputTakesCacheWritesAndCachedTakesCacheReads(t *testing.T) {
+	proc := &openCodeProc{session: "ses_main", ctxWindow: ctxWindow}
+
+	proc.trackUsage([]byte(turnTokens("msg_01", 10, 20, 300, 4000)))
+
+	usage := proc.snapshotUsage()
+	if usage.Input != 4010 {
+		t.Fatalf("input = %d, want the fresh input plus the cache write (4010)", usage.Input)
+	}
+	if usage.Cached != 300 {
+		t.Fatalf("cached = %d, want the cache read (300)", usage.Cached)
+	}
+	if usage.Used != 4330 {
+		t.Fatalf("used = %d, want every bucket (4330)", usage.Used)
+	}
+}
+
+func TestInputAndCachedAddUpEveryTurn(t *testing.T) {
+	proc := &openCodeProc{session: "ses_main", ctxWindow: ctxWindow}
+
+	proc.trackUsage([]byte(turnTokens("msg_01", 10, 5, 100, 1000)))
+	proc.trackUsage([]byte(turnTokens("msg_02", 20, 5, 200, 2000)))
+
+	usage := proc.snapshotUsage()
+	if usage.Input != 3030 {
+		t.Fatalf("input = %d, want 3030", usage.Input)
+	}
+	if usage.Cached != 300 {
+		t.Fatalf("cached = %d, want 300", usage.Cached)
+	}
+}
+
+func TestInputAndCachedCountARestreamedTurnOnce(t *testing.T) {
+	proc := &openCodeProc{session: "ses_main", ctxWindow: ctxWindow}
+
+	proc.trackUsage([]byte(turnTokens("msg_01", 10, 5, 100, 1000)))
+	proc.trackUsage([]byte(turnTokens("msg_01", 10, 9, 100, 1200)))
+
+	usage := proc.snapshotUsage()
+	if usage.Input != 1210 {
+		t.Fatalf("input = %d, want 1210", usage.Input)
+	}
+	if usage.Cached != 100 {
+		t.Fatalf("cached = %d, want 100", usage.Cached)
+	}
+}
+
+func TestEveryCounterRollsOverOnTheSameEvent(t *testing.T) {
+	proc := &openCodeProc{session: "ses_main", ctxWindow: ctxWindow}
+
+	proc.trackUsage([]byte(turnTokens("msg_01", 10, 5, 100, 1000)))
+	proc.trackUsage([]byte(turnTokens("", 7, 3, 50, 0)))
+	proc.trackUsage([]byte(turnTokens("msg_01", 10, 8, 100, 1200)))
+
+	usage := proc.snapshotUsage()
+	if usage.Billed != 11 {
+		t.Fatalf("billed = %d, want the unnamed 3 plus the named turn's 8 (11)", usage.Billed)
+	}
+	if usage.Input != 1217 {
+		t.Fatalf("input = %d, want the unnamed 7 plus the named turn's 1210 (1217)", usage.Input)
+	}
+	if usage.Cached != 150 {
+		t.Fatalf("cached = %d, want the unnamed 50 plus the named turn's 100 (150)", usage.Cached)
+	}
+}
+
+func TestInputAndCachedLeaveChildSessionsOut(t *testing.T) {
+	proc := &openCodeProc{session: "ses_main", ctxWindow: ctxWindow}
+
+	proc.trackUsage([]byte(turnTokens("msg_01", 10, 5, 100, 1000)))
+	proc.trackUsage([]byte(childTurnTokens("msg_child", 900, 900, 900, 900)))
+
+	usage := proc.snapshotUsage()
+	if usage.Input != 1010 {
+		t.Fatalf("input = %d, want this session's 1010", usage.Input)
+	}
+	if usage.Cached != 100 {
+		t.Fatalf("cached = %d, want this session's 100", usage.Cached)
 	}
 }
 

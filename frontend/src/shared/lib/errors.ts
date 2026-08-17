@@ -88,7 +88,7 @@ const READINGS: Record<string, Reading> = {
     },
     err_chrome_launch_failed: {
         title: 'Chrome would not start with remote debugging on',
-        hint: 'Quit the Chrome window Nexo opened, then enable it again. Your everyday Chrome can stay open — Nexo drives its own copy of your profile.',
+        hint: 'Quit the Chrome window Nexo opened, then enable it again. Nexo drives its own copy of your profile on its own port, so your everyday Chrome can stay open.',
     },
     err_chrome_not_connected: {
         title: 'Chrome is not running',

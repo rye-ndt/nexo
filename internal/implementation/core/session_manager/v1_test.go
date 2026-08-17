@@ -598,27 +598,31 @@ func TestExecuteAgainReplacesTheProgressStream(t *testing.T) {
 }
 
 type fakeLive struct {
-	mu     sync.Mutex
-	billed map[uuid.UUID]int
+	mu    sync.Mutex
+	usage map[uuid.UUID]input_itf.ContextUsage
 }
 
 func (l *fakeLive) spend(agentID uuid.UUID, billed int) {
+	l.spendUsage(agentID, input_itf.ContextUsage{Total: 200_000, Used: billed, Billed: billed})
+}
+
+func (l *fakeLive) spendUsage(agentID uuid.UUID, usage input_itf.ContextUsage) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	l.billed[agentID] = billed
+	l.usage[agentID] = usage
 }
 
 func (l *fakeLive) ContextUsage(agentID uuid.UUID) (*input_itf.ContextUsage, error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	billed, found := l.billed[agentID]
+	usage, found := l.usage[agentID]
 	if !found {
 		return nil, errors.New("no such agent")
 	}
 
-	return &input_itf.ContextUsage{Total: 200_000, Used: billed, Billed: billed}, nil
+	return &usage, nil
 }
 
 func (l *fakeLive) Activity(uuid.UUID) ([]input_itf.Activity, error) {
@@ -629,13 +633,13 @@ func trackedManager(t *testing.T) (core_itf.SessionManager, *fakeLive) {
 	t.Helper()
 
 	manager, _ := newManager(t)
-	live := &fakeLive{billed: map[uuid.UUID]int{}}
+	live := &fakeLive{usage: map[uuid.UUID]input_itf.ContextUsage{}}
 	manager.TrackLiveAgents(live)
 
 	return manager, live
 }
 
-func tokensBilled(t *testing.T, manager core_itf.SessionManager, session uuid.UUID) int {
+func sessionStatusOf(t *testing.T, manager core_itf.SessionManager, session uuid.UUID) *core_itf.SessionStatus {
 	t.Helper()
 
 	status, err := manager.Status(session)
@@ -643,7 +647,49 @@ func tokensBilled(t *testing.T, manager core_itf.SessionManager, session uuid.UU
 		t.Fatalf("session status: %v", err)
 	}
 
-	return status.TokensBilled
+	return status
+}
+
+func tokensBilled(t *testing.T, manager core_itf.SessionManager, session uuid.UUID) int {
+	t.Helper()
+
+	return sessionStatusOf(t, manager, session).TokensBilled
+}
+
+func spentOn(t *testing.T, status *core_itf.SessionStatus, taskID uuid.UUID) *input_itf.ContextUsage {
+	t.Helper()
+
+	report, found := status.Tasks[taskID]
+	if !found {
+		t.Fatalf("task %v missing from session status", taskID)
+	}
+
+	if report.Spent == nil {
+		t.Fatalf("task %v has no spend of its own", taskID)
+	}
+
+	return report.Spent
+}
+
+// The point of per-task accumulation: a node's bill and the session's bill can never
+// tell different stories.
+func assertTotalsSumTheTasks(t *testing.T, status *core_itf.SessionStatus) {
+	t.Helper()
+
+	billed, input, cached := 0, 0, 0
+
+	for taskID := range status.Tasks {
+		spent := spentOn(t, status, taskID)
+
+		billed += spent.Billed
+		input += spent.Input
+		cached += spent.Cached
+	}
+
+	if status.TokensBilled != billed || status.TokensInput != input || status.TokensCached != cached {
+		t.Fatalf("session totals (billed %d, input %d, cached %d) do not sum the tasks (%d, %d, %d)",
+			status.TokensBilled, status.TokensInput, status.TokensCached, billed, input, cached)
+	}
 }
 
 func TestSessionTokensKeepTheAttemptsThatAlreadyEnded(t *testing.T) {
@@ -729,6 +775,225 @@ func TestDroppingASilentAgentKeepsTheTokensItSpent(t *testing.T) {
 
 	if got := tokensBilled(t, manager, session); got != 700 {
 		t.Fatalf("tokens billed after the drop = %d, want the 700 the silent agent spent", got)
+	}
+}
+
+func TestRetriedTaskKeepsEveryAttemptOnItsOwnBill(t *testing.T) {
+	manager, live := trackedManager(t)
+	session := newSession(t, manager)
+
+	retried := addTask(t, manager, session, "implement", false)
+	other := addTask(t, manager, session, "document", false)
+
+	first := uuid.New()
+	live.spend(first, 1_000)
+
+	if err := manager.Assign(retried, first); err != nil {
+		t.Fatalf("assign the first attempt: %v", err)
+	}
+
+	if err := manager.Report(first, enums.TaskFailed, []*core_itf.HandoverDoc{{
+		Outcome: "ran out of room",
+	}}); err != nil {
+		t.Fatalf("report the first attempt: %v", err)
+	}
+
+	second := uuid.New()
+	live.spend(second, 400)
+
+	if err := manager.Assign(retried, second); err != nil {
+		t.Fatalf("assign the retry: %v", err)
+	}
+
+	if err := manager.Report(second, enums.TaskCompleted, []*core_itf.HandoverDoc{{
+		Outcome: "done",
+	}}); err != nil {
+		t.Fatalf("report the retry: %v", err)
+	}
+
+	third := uuid.New()
+	live.spend(third, 250)
+	reportDone(t, manager, other, third)
+
+	status := sessionStatusOf(t, manager, session)
+
+	if got := spentOn(t, status, retried).Billed; got != 1_400 {
+		t.Fatalf("the retried task spent %d, want both of its attempts (1400)", got)
+	}
+
+	if got := spentOn(t, status, other).Billed; got != 250 {
+		t.Fatalf("the untouched task spent %d, want only its own 250", got)
+	}
+
+	if status.TokensBilled != 1_650 {
+		t.Fatalf("session billed %d, want 1650", status.TokensBilled)
+	}
+
+	assertTotalsSumTheTasks(t, status)
+}
+
+func TestInputAndCachedTokensAreBilledPerTask(t *testing.T) {
+	manager, live := trackedManager(t)
+	session := newSession(t, manager)
+
+	first := addTask(t, manager, session, "implement", false)
+	second := addTask(t, manager, session, "document", false)
+
+	firstAgent := uuid.New()
+	live.spendUsage(firstAgent, input_itf.ContextUsage{
+		Total: 200_000, Used: 30_000, Billed: 900, Input: 4_000, Cached: 120_000,
+	})
+
+	secondAgent := uuid.New()
+	live.spendUsage(secondAgent, input_itf.ContextUsage{
+		Total: 200_000, Used: 10_000, Billed: 100, Input: 700, Cached: 9_000,
+	})
+
+	reportDone(t, manager, first, firstAgent)
+	reportDone(t, manager, second, secondAgent)
+
+	status := sessionStatusOf(t, manager, session)
+
+	if spent := spentOn(t, status, first); spent.Input != 4_000 || spent.Cached != 120_000 {
+		t.Fatalf("the first task spent %d input and %d cached, want 4000 and 120000", spent.Input, spent.Cached)
+	}
+
+	if spent := spentOn(t, status, second); spent.Input != 700 || spent.Cached != 9_000 {
+		t.Fatalf("the second task spent %d input and %d cached, want 700 and 9000", spent.Input, spent.Cached)
+	}
+
+	if status.TokensInput != 4_700 || status.TokensCached != 129_000 {
+		t.Fatalf("session input %d and cached %d, want 4700 and 129000", status.TokensInput, status.TokensCached)
+	}
+
+	assertTotalsSumTheTasks(t, status)
+}
+
+func TestCancelBillsTheKilledAgentToTheTaskItWasWorking(t *testing.T) {
+	manager, live := trackedManager(t)
+	session := newSession(t, manager)
+
+	killed := addTask(t, manager, session, "implement", false)
+	idle := addTask(t, manager, session, "document", false)
+
+	agentID := uuid.New()
+	live.spendUsage(agentID, input_itf.ContextUsage{
+		Total: 200_000, Used: 40_000, Billed: 900, Input: 2_000, Cached: 50_000,
+	})
+
+	if err := manager.Assign(killed, agentID); err != nil {
+		t.Fatalf("assign: %v", err)
+	}
+
+	if _, err := manager.Cancel(session); err != nil {
+		t.Fatalf("cancel: %v", err)
+	}
+
+	status := sessionStatusOf(t, manager, session)
+
+	spent := spentOn(t, status, killed)
+	if spent.Billed != 900 || spent.Input != 2_000 || spent.Cached != 50_000 {
+		t.Fatalf("the cancelled task spent %+v, want what the killed agent had used", spent)
+	}
+
+	if got := spentOn(t, status, idle).Billed; got != 0 {
+		t.Fatalf("a task no agent ever took spent %d, want 0", got)
+	}
+
+	assertTotalsSumTheTasks(t, status)
+}
+
+func TestDroppingASilentAgentBillsItsTask(t *testing.T) {
+	manager, live := trackedManager(t)
+	session := newSession(t, manager)
+
+	dropped := addTask(t, manager, session, "implement", false)
+	idle := addTask(t, manager, session, "document", false)
+
+	agentID := uuid.New()
+	live.spendUsage(agentID, input_itf.ContextUsage{
+		Total: 200_000, Used: 20_000, Billed: 700, Input: 1_500, Cached: 30_000,
+	})
+
+	if err := manager.Assign(dropped, agentID); err != nil {
+		t.Fatalf("assign: %v", err)
+	}
+
+	if err := manager.(*v1).dropTask(agentID, time.Now().Unix()+1); err != nil {
+		t.Fatalf("drop the silent agent: %v", err)
+	}
+
+	status := sessionStatusOf(t, manager, session)
+
+	spent := spentOn(t, status, dropped)
+	if spent.Billed != 700 || spent.Input != 1_500 || spent.Cached != 30_000 {
+		t.Fatalf("the dropped task spent %+v, want what the silent agent had used", spent)
+	}
+
+	if got := spentOn(t, status, idle).Billed; got != 0 {
+		t.Fatalf("a task no agent ever took spent %d, want 0", got)
+	}
+
+	assertTotalsSumTheTasks(t, status)
+}
+
+func TestARunningAgentIsBilledToItsTaskExactlyOnce(t *testing.T) {
+	manager, live := trackedManager(t)
+	session := newSession(t, manager)
+
+	taskID := addTask(t, manager, session, "implement", false)
+
+	agentID := uuid.New()
+	live.spendUsage(agentID, input_itf.ContextUsage{
+		Total: 200_000, Used: 15_000, Billed: 500, Input: 1_200, Cached: 20_000,
+	})
+
+	if err := manager.Assign(taskID, agentID); err != nil {
+		t.Fatalf("assign: %v", err)
+	}
+
+	running := sessionStatusOf(t, manager, session)
+
+	spent := spentOn(t, running, taskID)
+	if spent.Billed != 500 || spent.Input != 1_200 || spent.Cached != 20_000 {
+		t.Fatalf("the running task spent %+v, want the agent's live window", spent)
+	}
+
+	assertTotalsSumTheTasks(t, running)
+
+	if err := manager.Report(agentID, enums.TaskCompleted, []*core_itf.HandoverDoc{{
+		Outcome: "done",
+	}}); err != nil {
+		t.Fatalf("report: %v", err)
+	}
+
+	reported := sessionStatusOf(t, manager, session)
+
+	after := spentOn(t, reported, taskID)
+	if after.Billed != 500 || after.Input != 1_200 || after.Cached != 20_000 {
+		t.Fatalf("the reported task spent %+v, want the same window counted once", after)
+	}
+
+	assertTotalsSumTheTasks(t, reported)
+}
+
+func TestTaskLevelSurvivesFromAddTaskToStatus(t *testing.T) {
+	manager, _ := newManager(t)
+	session := newSession(t, manager)
+
+	taskID, err := manager.AddTask(session, &core_itf.AddTask{
+		Name:       "implement",
+		TaskLevel:  enums.HeavyTask,
+		AgentSpecs: &core_itf.AgentRequest{Name: enums.Sonnet},
+	})
+	if err != nil {
+		t.Fatalf("add task: %v", err)
+	}
+
+	status := sessionStatusOf(t, manager, session)
+
+	if got := status.Tasks[taskID].TaskLevel; got != enums.HeavyTask {
+		t.Fatalf("task level = %q, want %q", got, enums.HeavyTask)
 	}
 }
 

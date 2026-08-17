@@ -73,9 +73,7 @@ type openCodeProc struct {
 	ctxWindow int
 	usageMu   sync.Mutex
 	usage     input_itf.ContextUsage
-	billed    int
-	msgID     string
-	msgUsed   int
+	meter     harness_helper.TurnMeter
 }
 
 type openCodeUsage struct {
@@ -121,28 +119,18 @@ func (p *openCodeProc) trackUsage(line []byte) {
 	}
 
 	p.usageMu.Lock()
-	// The stream re-reports a message as it grows, so its tokens only join the running
-	// total once the next message starts. An event with no id cannot be matched that
-	// way, so it counts as a turn of its own — and leaves the named message in flight
-	// alone, which would otherwise be billed again when it streams on.
-	if id := event.Properties.Info.ID; id == "" {
-		p.billed += used
-	} else {
-		if id != p.msgID {
-			p.billed += p.msgUsed
-			p.msgID = id
-			p.msgUsed = 0
-		}
-
-		if used > p.msgUsed {
-			p.msgUsed = used
-		}
-	}
+	total := p.meter.Observe(event.Properties.Info.ID, harness_helper.TokenCounts{
+		Billed: reported.Output + reported.Reasoning,
+		Input:  reported.Input + reported.Cache.Write,
+		Cached: reported.Cache.Read,
+	})
 
 	p.usage = input_itf.ContextUsage{
 		Total:  p.ctxWindow,
 		Used:   used,
-		Billed: p.billed + p.msgUsed,
+		Billed: total.Billed,
+		Input:  total.Input,
+		Cached: total.Cached,
 	}
 	p.usageMu.Unlock()
 }

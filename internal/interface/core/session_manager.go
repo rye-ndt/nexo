@@ -11,6 +11,7 @@ import (
 
 type AddTask struct {
 	Name                 string
+	TaskLevel            enums.TaskLevel
 	AutoRetry            bool
 	ManualAcceptRequired bool
 	ExtraGuidance        string
@@ -42,12 +43,17 @@ type HandoverDoc struct {
 	KnownGaps         map[string]string
 }
 
+// ContextUsage is the window of the attempt being looked at, which is what the node's
+// ring draws. Spent is every token the node has ever cost, every attempt of it summed,
+// which is what it is billed for — the two differ as soon as a node is retried.
 type TaskReport struct {
 	TaskID       uuid.UUID
 	AgentID      uuid.UUID
+	TaskLevel    enums.TaskLevel
 	Status       enums.TaskStatus
 	HandoverDocs []*HandoverDoc
 	ContextUsage *input_itf.ContextUsage
+	Spent        *input_itf.ContextUsage
 	Activity     []input_itf.Activity
 }
 
@@ -58,6 +64,8 @@ type SessionProgress struct {
 	Event     enums.SessionEvent
 }
 
+// TokensBilled, TokensInput and TokensCached are the sum of what every task in Tasks
+// has spent, so the session total and its nodes can never tell different stories.
 type SessionStatus struct {
 	ID             uuid.UUID
 	Status         enums.SessionStatus
@@ -65,6 +73,8 @@ type SessionStatus struct {
 	ContextDirPath string
 	Tasks          map[uuid.UUID]*TaskReport
 	TokensBilled   int
+	TokensInput    int
+	TokensCached   int
 	StartedAt      time.Time
 	CompletedAt    time.Time
 }

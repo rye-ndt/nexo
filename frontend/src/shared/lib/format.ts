@@ -9,6 +9,19 @@ function compact(value: number, unit: string) {
     return `${value < 100 ? value.toFixed(1) : Math.round(value)}${unit}`
 }
 
+/**
+ * A run that has barely started costs fractions of a cent, and rounding those to
+ * $0.00 reads as free. Anything under a cent keeps enough places to stay a number.
+ */
+export function formatUSD(dollars: number) {
+    const places = dollars > 0 && dollars < 0.01 ? 4 : 2
+
+    return `$${dollars.toLocaleString([], {
+        minimumFractionDigits: places,
+        maximumFractionDigits: places,
+    })}`
+}
+
 export function formatPercent(used: number, total: number) {
     if (total <= 0) return 0
     return Math.round(clampRatio(used / total) * 100)

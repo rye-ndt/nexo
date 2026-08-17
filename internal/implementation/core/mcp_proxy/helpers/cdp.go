@@ -124,6 +124,27 @@ func CDPCloseTarget(httpCli input_itf.HttpCli, endpoint, targetID string) error 
 	return nil
 }
 
+func CDPQuitBrowser(browserWS string, timeout time.Duration) error {
+	dialer := &websocket.Dialer{HandshakeTimeout: timeout}
+
+	conn, _, err := dialer.Dial(browserWS, nil)
+	if err != nil {
+		return custom_error.TypedCritical(enums.ErrChromeNotConnected, "cannot attach to chrome to close it: %v", err)
+	}
+
+	defer conn.Close()
+
+	if err := conn.SetWriteDeadline(time.Now().Add(timeout)); err != nil {
+		return custom_error.TypedCritical(enums.ErrChromeNotConnected, "cannot ask chrome to close: %v", err)
+	}
+
+	if err := conn.WriteJSON(map[string]any{"id": 1, "method": "Browser.close"}); err != nil {
+		return custom_error.TypedCritical(enums.ErrChromeNotConnected, "cannot ask chrome to close: %v", err)
+	}
+
+	return nil
+}
+
 func DialCDP(target *CDPTarget, timeout time.Duration) (*CDPSession, error) {
 	dialer := &websocket.Dialer{HandshakeTimeout: timeout}
 

@@ -20,6 +20,7 @@ import type {
     ContextUsage,
     HandoverDoc,
     Session,
+    Spend,
     Task,
 } from '@/features/sessions/types'
 import {RemoteTaskStatus} from '@/features/sessions/api/remote-enums'
@@ -231,7 +232,13 @@ function applyRemoteStatus(
 
     return label({
         ...session,
-        tokensUsed: status.tokens_billed ?? session.tokensUsed,
+        spent: {
+            input: status.tokens_input ?? 0,
+            cached: status.tokens_cached ?? 0,
+            output: status.tokens_billed ?? 0,
+        },
+        costUsd: status.cost_usd ?? 0,
+        priced: status.priced ?? false,
         startedAt: status.started_at || session.startedAt,
         finishedAt: status.completed_at || undefined,
         tasks: session.tasks.map((task) => {
@@ -250,12 +257,21 @@ function applyRemoteTask(task: Task, info: output_itf.SessionTaskInfo, now: stri
     const startedAt = task.run?.startedAt ?? now
     const finishedAt = state === TaskState.Running ? undefined : (task.run?.finishedAt ?? now)
     const context = toContextUsage(info.context_usage) ?? task.run?.context
+    const spent = toSpend(info.spent) ?? task.run?.spent
 
     return {
         ...task,
         state,
         agentId: info.agent_id || task.agentId,
-        run: {...task.run, startedAt, finishedAt, context},
+        run: {
+            ...task.run,
+            startedAt,
+            finishedAt,
+            context,
+            spent,
+            costUsd: info.cost_usd ?? 0,
+            priced: info.priced ?? false,
+        },
         report:
             state === TaskState.Running
                 ? task.report
@@ -269,6 +285,11 @@ function applyRemoteTask(task: Task, info: output_itf.SessionTaskInfo, now: stri
 function toContextUsage(info?: input_itf.ContextUsage): ContextUsage | undefined {
     if (!info || !info.total) return undefined
     return {used: info.used ?? 0, total: info.total}
+}
+
+function toSpend(info?: input_itf.ContextUsage): Spend | undefined {
+    if (!info) return undefined
+    return {input: info.input ?? 0, cached: info.cached ?? 0, output: info.billed ?? 0}
 }
 
 function toActivityLine(info: output_itf.TaskActivityInfo): ActivityLine {

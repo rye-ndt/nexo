@@ -13,12 +13,13 @@ import {
     MOCK_AGENT_DEFAULTS,
     MOCK_AUTOPILOT,
 } from '@/features/settings/mock-preferences'
-import type {AgentDefault, AgentDefaultOptions} from '@/features/settings/types'
+import type {AgentDefault, AgentDefaultOptions, TokenPrices} from '@/features/settings/types'
 import {
     AgentDefaultOptions as FetchAgentDefaultOptions,
     AgentDefaults as FetchAgentDefaults,
     Autopilot as FetchAutopilot,
     SetAgentDefault as SaveAgentDefault,
+    SetAgentDefaultPrices as SaveAgentDefaultPrices,
     SetAutopilot as SaveAutopilot,
 } from '@wailsjs/go/wails_api/API'
 
@@ -52,6 +53,11 @@ export async function listAgentDefaults(): Promise<AgentDefault[]> {
             model: info.model,
             modelLabel: info.model_label,
             thinkingLevel: info.thinking_level,
+            prices: {
+                input: info.input_price ?? '',
+                cachedInput: info.cached_input_price ?? '',
+                output: info.output_price ?? '',
+            },
         })
     }
 
@@ -97,6 +103,34 @@ export async function setAgentDefault(
     )
 }
 
+export async function setAgentDefaultPrices(taskLevel: string, prices: TokenPrices): Promise<void> {
+    if (!isTaskLevel(taskLevel)) throw new Error(`${taskLevel} is not a task level.`)
+
+    const trimmed: TokenPrices = {
+        input: prices.input.trim(),
+        cachedInput: prices.cachedInput.trim(),
+        output: prices.output.trim(),
+    }
+
+    if (hasWailsRuntime()) {
+        await bridge(() =>
+            SaveAgentDefaultPrices(taskLevel, trimmed.input, trimmed.cachedInput, trimmed.output),
+        )
+        return
+    }
+
+    for (const price of Object.values(trimmed)) {
+        if (price !== '' && !(Number(price) >= 0))
+            throw new Error(`${price} is not a price. Enter dollars per million tokens.`)
+    }
+
+    await roundtrip()
+
+    defaults = defaults.map((current) =>
+        current.taskLevel === taskLevel ? {...current, prices: trimmed} : current,
+    )
+}
+
 export async function autopilot(): Promise<boolean> {
     if (hasWailsRuntime()) autopilotOn = await bridge(FetchAutopilot)
     return autopilotOn
@@ -115,6 +149,11 @@ export async function setAutopilot(on: boolean): Promise<void> {
 
 export function cachedAutopilot(): boolean {
     return autopilotOn
+}
+
+/** What the vite mock has been told so far, for the simulated run's price lookup. */
+export function cachedAgentDefaults(): AgentDefault[] {
+    return defaults
 }
 
 function isTaskLevel(value: string): value is TaskLevel {

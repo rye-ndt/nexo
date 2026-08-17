@@ -34,12 +34,15 @@ type AgentHandle struct {
 	LastHeartBeat int64
 }
 
+// spentByTask carries only the three cumulative counters of ContextUsage. Total and
+// Used are readings of one attempt's window, so summing them over attempts says
+// nothing.
 type sessionMetadata struct {
 	info            *input_itf.SessionEntity
 	taskIDToTask    map[uuid.UUID]*input_itf.TaskEntity
 	agentIDToHandle map[uuid.UUID]*AgentHandle
 	taskIDToReport  map[uuid.UUID]*core_itf.TaskReport
-	tokensBilled    int
+	spentByTask     map[uuid.UUID]input_itf.ContextUsage
 	cancelled       bool
 	run             chan struct{}
 }
@@ -248,6 +251,7 @@ func (s *v1) NewSession(p *core_itf.InitSession) (uuid.UUID, error) {
 		taskIDToTask:    map[uuid.UUID]*input_itf.TaskEntity{},
 		agentIDToHandle: map[uuid.UUID]*AgentHandle{},
 		taskIDToReport:  map[uuid.UUID]*core_itf.TaskReport{},
+		spentByTask:     map[uuid.UUID]input_itf.ContextUsage{},
 	}
 	s.locker.Unlock()
 
@@ -270,6 +274,7 @@ func (s *v1) AddTask(sessionID uuid.UUID, task *core_itf.AddTask) (uuid.UUID, er
 		ID:                   uid,
 		SessionID:            sessionID,
 		Name:                 task.Name,
+		TaskLevel:            task.TaskLevel,
 		PreferredModel:       task.AgentSpecs.Name,
 		ThinkingLevel:        task.AgentSpecs.ThinkingLevel,
 		SystemPrompts:        withOutputStructure(task.AgentSpecs.SystemPrompts, task.OutputStructure),
@@ -607,9 +612,14 @@ func handoverDocEntities(docs []*core_itf.HandoverDoc) []*input_itf.HandoverDocE
 }
 
 func (s *v1) Cancel(sessionID uuid.UUID) ([]uuid.UUID, error) {
-	changes, agentIDs, err := s.cancelSession(sessionID)
+	changes, retired, err := s.cancelSession(sessionID)
 	if err != nil {
 		return nil, err
+	}
+
+	agentIDs := make([]uuid.UUID, 0, len(retired))
+	for _, handle := range retired {
+		agentIDs = append(agentIDs, handle.AgentID)
 	}
 
 	if err := s.save(changes...); err != nil {
@@ -624,7 +634,7 @@ func (s *v1) Cancel(sessionID uuid.UUID) ([]uuid.UUID, error) {
 
 	session, found := s.session(sessionID)
 	if found {
-		s.retireTokens(session, agentIDs)
+		s.retireTokens(session, retired)
 	}
 
 	publishErrs := make([]error, 0, len(changes)+1)
@@ -642,24 +652,25 @@ func (s *v1) Cancel(sessionID uuid.UUID) ([]uuid.UUID, error) {
 
 // A cancelled agent never reports, so what it already spent is read before the drop is
 // published: the coordinator answers that event by killing the agent, and a killed
-// agent has no usage left to read.
-func (s *v1) retireTokens(session *sessionMetadata, agentIDs []uuid.UUID) {
-	for _, agentID := range agentIDs {
-		s.creditTokens(session, s.readContextUsage(agentID))
+// agent has no usage left to read. The handles come from cancelSession because the
+// session no longer holds them by the time the tokens are credited.
+func (s *v1) retireTokens(session *sessionMetadata, retired []*AgentHandle) {
+	for _, handle := range retired {
+		s.creditTokens(session, handle.TaskID, s.readContextUsage(handle.AgentID))
 	}
 }
 
-func (s *v1) creditTokens(session *sessionMetadata, usage *input_itf.ContextUsage) {
+func (s *v1) creditTokens(session *sessionMetadata, taskID uuid.UUID, usage *input_itf.ContextUsage) {
 	if usage == nil {
 		return
 	}
 
 	s.locker.Lock()
-	session.tokensBilled += usage.Billed
+	session.creditSpent(taskID, usage)
 	s.locker.Unlock()
 }
 
-func (s *v1) cancelSession(sessionID uuid.UUID) ([]*change, []uuid.UUID, error) {
+func (s *v1) cancelSession(sessionID uuid.UUID) ([]*change, []*AgentHandle, error) {
 	s.locker.Lock()
 	defer s.locker.Unlock()
 
@@ -710,17 +721,20 @@ func (s *v1) cancelSession(sessionID uuid.UUID) ([]*change, []uuid.UUID, error) 
 		})
 	}
 
-	agentIDs := make([]uuid.UUID, 0, len(session.agentIDToHandle))
-	for agentID := range session.agentIDToHandle {
-		agentIDs = append(agentIDs, agentID)
+	retired := make([]*AgentHandle, 0, len(session.agentIDToHandle))
+	for _, handle := range session.agentIDToHandle {
+		clone := *handle
+		retired = append(retired, &clone)
 	}
 
-	sort.Slice(agentIDs, func(i, j int) bool { return agentIDs[i].String() < agentIDs[j].String() })
+	sort.Slice(retired, func(i, j int) bool {
+		return retired[i].AgentID.String() < retired[j].AgentID.String()
+	})
 
 	session.agentIDToHandle = map[uuid.UUID]*AgentHandle{}
 	session.cancelled = true
 
-	return changes, agentIDs, nil
+	return changes, retired, nil
 }
 
 func (s *v1) resume(session *sessionMetadata) {
@@ -836,10 +850,14 @@ func (s *v1) Status(id uuid.UUID) (*core_itf.SessionStatus, error) {
 	tasks := map[uuid.UUID]*core_itf.TaskReport{}
 
 	for taskID, task := range session.taskIDToTask {
+		spent := session.spentByTask[taskID]
+
 		report := &core_itf.TaskReport{
 			TaskID:       taskID,
+			TaskLevel:    task.TaskLevel,
 			Status:       task.Status,
 			HandoverDocs: []*core_itf.HandoverDoc{},
+			Spent:        &spent,
 		}
 
 		if reported, found := session.taskIDToReport[taskID]; found {
@@ -856,7 +874,6 @@ func (s *v1) Status(id uuid.UUID) (*core_itf.SessionStatus, error) {
 		WorkingDirPath: session.info.WorkingDirPath,
 		ContextDirPath: session.info.ContextDirPath,
 		Tasks:          tasks,
-		TokensBilled:   session.tokensBilled,
 		StartedAt:      session.info.StartedAt,
 		CompletedAt:    session.info.CompletedAt,
 	}
@@ -864,6 +881,8 @@ func (s *v1) Status(id uuid.UUID) (*core_itf.SessionStatus, error) {
 	s.locker.Unlock()
 
 	// Outside the lock: reading usage takes the same lock to reach the reader.
+	// An agent still working has not reported, so its window is what the task has
+	// spent on top of the attempts already accumulated.
 	for taskID, agentID := range taskToAgent {
 		task, found := status.Tasks[taskID]
 		if !found {
@@ -874,10 +893,18 @@ func (s *v1) Status(id uuid.UUID) (*core_itf.SessionStatus, error) {
 
 		if usage := s.readContextUsage(agentID); usage != nil {
 			task.ContextUsage = usage
-			status.TokensBilled += usage.Billed
+
+			spent := creditedWith(*task.Spent, usage)
+			task.Spent = &spent
 		}
 
 		task.Activity = s.readActivity(agentID)
+	}
+
+	for _, task := range status.Tasks {
+		status.TokensBilled += task.Spent.Billed
+		status.TokensInput += task.Spent.Input
+		status.TokensCached += task.Spent.Cached
 	}
 
 	return status, nil
@@ -1070,7 +1097,7 @@ func (s *v1) dropTask(agentID uuid.UUID, deadline int64) error {
 		return err
 	}
 
-	s.creditTokens(c.session, spent)
+	s.creditTokens(c.session, handle.TaskID, spent)
 
 	return firstErr(s.publish(c.progress), s.drainIfDone(c.session))
 }
@@ -1197,8 +1224,24 @@ func (m *sessionMetadata) keepReport(report *core_itf.TaskReport) {
 
 	if report.ContextUsage != nil {
 		kept.ContextUsage = report.ContextUsage
-		m.tokensBilled += report.ContextUsage.Billed
+		m.creditSpent(report.TaskID, report.ContextUsage)
 	}
+}
+
+func (m *sessionMetadata) creditSpent(taskID uuid.UUID, usage *input_itf.ContextUsage) {
+	m.spentByTask[taskID] = creditedWith(m.spentByTask[taskID], usage)
+}
+
+func creditedWith(spent input_itf.ContextUsage, usage *input_itf.ContextUsage) input_itf.ContextUsage {
+	if usage == nil {
+		return spent
+	}
+
+	spent.Billed += usage.Billed
+	spent.Input += usage.Input
+	spent.Cached += usage.Cached
+
+	return spent
 }
 
 func sessionStatus(info *input_itf.SessionEntity) enums.SessionStatus {

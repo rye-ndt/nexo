@@ -182,6 +182,7 @@ export const MOCK_SESSIONS: Session[] = [
                     startedAt: secondsAgo(430),
                     finishedAt: secondsAgo(295),
                     context: {used: 61200, total: 200000},
+                    spent: {input: 21600, cached: 280800, output: 5400},
                 },
                 report: {
                     status: 'awaiting_accept',
@@ -260,6 +261,7 @@ export const MOCK_SESSIONS: Session[] = [
                     startedAt: secondsAgo(280),
                     finishedAt: secondsAgo(196),
                     context: {used: 38400, total: 200000},
+                    spent: {input: 19500, cached: 179400, output: 3900},
                 },
                 report: {
                     status: 'done',
@@ -295,7 +297,11 @@ export const MOCK_SESSIONS: Session[] = [
                     max_cases: 8,
                     focus: 'The wait never exceeds the last entry in the table.',
                 },
-                run: {startedAt: secondsAgo(14), context: {used: 74600, total: 200000}},
+                run: {
+                    startedAt: secondsAgo(14),
+                    context: {used: 74600, total: 200000},
+                    spent: {input: 15600, cached: 106600, output: 2600},
+                },
             },
             {
                 id: 'task-14',
@@ -332,6 +338,7 @@ export const MOCK_SESSIONS: Session[] = [
                     startedAt: '2026-07-28T14:41:02Z',
                     finishedAt: '2026-07-28T14:47:39Z',
                     context: {used: 41200, total: 200000},
+                    spent: {input: 18800, cached: 225600, output: 4700},
                 },
                 report: {
                     status: 'done',
@@ -376,6 +383,7 @@ export const MOCK_SESSIONS: Session[] = [
                     finishedAt: '2026-07-28T15:02:55Z',
                     retryCount: 1,
                     context: {used: 152800, total: 200000},
+                    spent: {input: 56000, cached: 705600, output: 11200},
                 },
                 report: {
                     status: 'done',
@@ -428,6 +436,7 @@ export const MOCK_SESSIONS: Session[] = [
                     startedAt: '2026-07-28T15:03:20Z',
                     finishedAt: '2026-07-28T15:06:01Z',
                     context: {used: 22400, total: 200000},
+                    spent: {input: 8700, cached: 127600, output: 2900},
                 },
                 report: {
                     status: 'done',
@@ -473,6 +482,7 @@ export const MOCK_SESSIONS: Session[] = [
                     startedAt: '2026-07-31T08:06:12Z',
                     finishedAt: '2026-07-31T08:14:47Z',
                     context: {used: 88900, total: 200000},
+                    spent: {input: 29200, cached: 401500, output: 7300},
                 },
                 report: {
                     status: 'done',
@@ -515,6 +525,7 @@ export const MOCK_SESSIONS: Session[] = [
                     finishedAt: '2026-07-31T08:29:04Z',
                     retryCount: 2,
                     context: {used: 191300, total: 200000},
+                    spent: {input: 75600, cached: 982800, output: 12600},
                 },
                 report: {
                     status: 'failed',
@@ -579,6 +590,7 @@ export const MOCK_SESSIONS: Session[] = [
                     startedAt: '2026-08-02T10:31:04Z',
                     finishedAt: '2026-08-02T10:38:22Z',
                     context: {used: 46700, total: 200000},
+                    spent: {input: 20400, cached: 260100, output: 5100},
                 },
                 report: {
                     status: 'done',
@@ -683,6 +695,9 @@ type MockOutcome = {
     durationMs: number
     contextTotal: number
     contextPeak: number
+    inputTotal: number
+    cachedTotal: number
+    outputTotal: number
     report: TaskReport
 }
 
@@ -721,11 +736,16 @@ export function mockOutcome(task: Task): MockOutcome {
               },
           })
 
+    const outputTotal = 3200 + (seed % 23) * 400
+
     return {
         state: failed ? 'failed' : 'done',
         durationMs: 9000 + (seed % 7) * 1600,
         contextTotal: 200000,
         contextPeak: 0.42 + (seed % 47) / 100,
+        inputTotal: outputTotal * (3 + (seed % 4)),
+        cachedTotal: outputTotal * (44 + (seed % 37)),
+        outputTotal,
         report: {
             status: failed ? 'failed' : 'done',
             handoverDocs: [doc],

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -23,6 +24,7 @@ const (
 	chromeProbeInterval = 250 * time.Millisecond
 	chromeProfileMode   = 0o700
 	chromeSeedFileMode  = 0o600
+	chromePortFile      = "NexoDevToolsEndpoint"
 )
 
 var chromeSkippedDirs = map[string]any{
@@ -40,39 +42,44 @@ var chromeSkippedDirs = map[string]any{
 	"Crashpad":          struct{}{},
 }
 
+type chromeVersion struct {
+	WebSocketDebuggerURL string `json:"webSocketDebuggerUrl"`
+}
+
 type ChromeLauncher struct {
 	locker        sync.Mutex
 	httpCli       input_itf.HttpCli
-	endpoint      string
 	debugPort     int
 	profileDir    string
 	launchTimeout time.Duration
+	callTimeout   time.Duration
+	endpoint      string
+	browserWS     string
 	proc          *exec.Cmd
 }
 
 func NewChromeLauncher(cfg *input_itf.MCPChromeConfig, dataDir string, httpCli input_itf.HttpCli) *ChromeLauncher {
 	return &ChromeLauncher{
 		httpCli:       httpCli,
-		endpoint:      fmt.Sprintf("http://%s:%d", constances.GlobalLocalHost, cfg.DebugPort),
 		debugPort:     cfg.DebugPort,
 		profileDir:    filepath.Join(dataDir, cfg.ProfileDir),
 		launchTimeout: cfg.LaunchTimeout,
+		callTimeout:   cfg.CallTimeout,
 	}
 }
 
 func (l *ChromeLauncher) Endpoint() string {
-	return l.endpoint
-}
+	l.locker.Lock()
+	defer l.locker.Unlock()
 
-func (l *ChromeLauncher) running() bool {
-	return l.httpCli.GetJSON(l.endpoint+"/json/version", &map[string]any{}) == nil
+	return l.endpoint
 }
 
 func (l *ChromeLauncher) Ensure() error {
 	l.locker.Lock()
 	defer l.locker.Unlock()
 
-	if l.running() {
+	if l.connect() == nil {
 		return nil
 	}
 
@@ -87,8 +94,18 @@ func (l *ChromeLauncher) Ensure() error {
 		}
 	}
 
+	port, err := freeLoopbackPort(l.debugPort)
+	if err != nil {
+		return err
+	}
+
+	if err := l.forgetPort(); err != nil {
+		return err
+	}
+
 	cmd := exec.Command(binary,
-		"--remote-debugging-port="+strconv.Itoa(l.debugPort),
+		"--remote-debugging-address="+constances.GlobalLocalHost,
+		"--remote-debugging-port="+strconv.Itoa(port),
 		"--user-data-dir="+l.profileDir,
 		"--no-first-run",
 		"--no-default-browser-check",
@@ -98,24 +115,40 @@ func (l *ChromeLauncher) Ensure() error {
 		return custom_error.TypedCritical(enums.ErrChromeLaunchFailed, "cannot start Chrome: %v", err)
 	}
 
-	go func() {
-		_ = cmd.Wait()
-	}()
-
 	l.proc = cmd
 
+	exited := make(chan struct{})
+
+	go func() {
+		_ = cmd.Wait()
+		close(exited)
+	}()
+
 	deadline := time.Now().Add(l.launchTimeout)
+
 	for time.Now().Before(deadline) {
-		if l.running() {
-			return nil
+		if l.attach(port) == nil {
+			return l.rememberPort(port)
 		}
 
-		time.Sleep(chromeProbeInterval)
+		select {
+		case <-exited:
+			l.proc = nil
+
+			return custom_error.TypedCritical(
+				enums.ErrChromeLaunchFailed,
+				"Chrome quit before it opened its debugging port; another Chrome may already be running on the profile at %s",
+				l.profileDir,
+			)
+		case <-time.After(chromeProbeInterval):
+		}
 	}
+
+	l.kill()
 
 	return custom_error.TypedCritical(
 		enums.ErrChromeLaunchFailed,
-		"Chrome did not start listening on %s within %s", l.endpoint, l.launchTimeout,
+		"Chrome did not start listening on %s:%d within %s", constances.GlobalLocalHost, port, l.launchTimeout,
 	)
 }
 
@@ -123,18 +156,149 @@ func (l *ChromeLauncher) Stop() error {
 	l.locker.Lock()
 	defer l.locker.Unlock()
 
-	if l.proc == nil || l.proc.Process == nil {
+	defer func() {
+		l.endpoint = ""
+		l.browserWS = ""
+		_ = l.forgetPort()
+	}()
+
+	if l.proc != nil && l.proc.Process != nil {
+		proc := l.proc.Process
+		l.proc = nil
+
+		if err := proc.Kill(); err != nil && !errors.Is(err, os.ErrProcessDone) {
+			return custom_error.TypedCritical(enums.ErrChromeLaunchFailed, "cannot stop Chrome: %v", err)
+		}
+
 		return nil
 	}
 
-	proc := l.proc.Process
-	l.proc = nil
+	return l.closeAdopted()
+}
 
-	if err := proc.Kill(); err != nil && !errors.Is(err, os.ErrProcessDone) {
-		return custom_error.TypedCritical(enums.ErrChromeLaunchFailed, "cannot stop Chrome: %v", err)
+func (l *ChromeLauncher) connect() error {
+	port, browserWS, err := l.rememberedPort()
+	if err != nil {
+		return err
+	}
+
+	if err := l.attach(port); err != nil {
+		return err
+	}
+
+	if l.browserWS != browserWS {
+		l.endpoint = ""
+		l.browserWS = ""
+
+		return custom_error.TypedCritical(
+			enums.ErrChromeNotConnected,
+			"port %d is answered by another browser, not the Chrome that Nexo left running", port,
+		)
 	}
 
 	return nil
+}
+
+func (l *ChromeLauncher) attach(port int) error {
+	endpoint := fmt.Sprintf("http://%s:%d", constances.GlobalLocalHost, port)
+
+	version := &chromeVersion{}
+	if err := l.httpCli.GetJSON(endpoint+"/json/version", version); err != nil {
+		return custom_error.TypedCritical(enums.ErrChromeNotConnected, "nothing answers on %s: %v", endpoint, err)
+	}
+
+	if version.WebSocketDebuggerURL == "" {
+		return custom_error.TypedCritical(
+			enums.ErrChromeNotConnected,
+			"%s is answered by something that does not speak the devtools protocol", endpoint,
+		)
+	}
+
+	l.endpoint = endpoint
+	l.browserWS = version.WebSocketDebuggerURL
+
+	return nil
+}
+
+func (l *ChromeLauncher) rememberedPort() (int, string, error) {
+	raw, err := os.ReadFile(filepath.Join(l.profileDir, chromePortFile))
+	if err != nil {
+		return 0, "", custom_error.TypedCritical(enums.ErrChromeNotConnected, "Nexo has no Chrome running: %v", err)
+	}
+
+	lines := strings.SplitN(strings.TrimSpace(string(raw)), "\n", 2)
+	if len(lines) < 2 {
+		return 0, "", custom_error.TypedCritical(enums.ErrChromeNotConnected, "the remembered chrome endpoint is incomplete")
+	}
+
+	port, err := strconv.Atoi(strings.TrimSpace(lines[0]))
+	if err != nil || port <= 0 {
+		return 0, "", custom_error.TypedCritical(enums.ErrChromeNotConnected, "the remembered chrome port %q is unreadable", lines[0])
+	}
+
+	browserWS := strings.TrimSpace(lines[1])
+	if browserWS == "" {
+		return 0, "", custom_error.TypedCritical(enums.ErrChromeNotConnected, "the remembered chrome endpoint has no browser websocket")
+	}
+
+	return port, browserWS, nil
+}
+
+func (l *ChromeLauncher) rememberPort(port int) error {
+	body := strconv.Itoa(port) + "\n" + l.browserWS + "\n"
+
+	if err := os.WriteFile(filepath.Join(l.profileDir, chromePortFile), []byte(body), chromeSeedFileMode); err != nil {
+		return custom_error.TypedCritical(enums.ErrChromeLaunchFailed, "cannot record the chrome debugging endpoint: %v", err)
+	}
+
+	return nil
+}
+
+func (l *ChromeLauncher) forgetPort() error {
+	err := os.Remove(filepath.Join(l.profileDir, chromePortFile))
+	if err == nil || errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+
+	return custom_error.TypedCritical(enums.ErrChromeLaunchFailed, "cannot clear the stale chrome debugging endpoint: %v", err)
+}
+
+func (l *ChromeLauncher) closeAdopted() error {
+	if l.browserWS == "" && l.connect() != nil {
+		return nil
+	}
+
+	return CDPQuitBrowser(l.browserWS, l.callTimeout)
+}
+
+func (l *ChromeLauncher) kill() {
+	if l.proc == nil || l.proc.Process == nil {
+		l.proc = nil
+
+		return
+	}
+
+	_ = l.proc.Process.Kill()
+	l.proc = nil
+}
+
+func freeLoopbackPort(preferred int) (int, error) {
+	for _, port := range []int{preferred, 0} {
+		listener, err := net.Listen("tcp4", net.JoinHostPort(constances.GlobalLocalHost, strconv.Itoa(port)))
+		if err != nil {
+			continue
+		}
+
+		bound := listener.Addr().(*net.TCPAddr).Port
+
+		if err := listener.Close(); err != nil {
+			return 0, custom_error.TypedCritical(enums.ErrChromeLaunchFailed, "cannot release the reserved chrome port: %v", err)
+		}
+
+		return bound, nil
+	}
+
+	return 0, custom_error.TypedCritical(enums.ErrChromeLaunchFailed, "cannot reserve a local port for Chrome")
 }
 
 func chromeBinary() string {

@@ -160,9 +160,7 @@ type agentProc struct {
 	ctxWindow   int
 	usageMu     sync.Mutex
 	usage       input_itf.ContextUsage
-	billed      int
-	msgID       string
-	msgUsed     int
+	meter       harness_helper.TurnMeter
 	activityMu  sync.Mutex
 	activity    []input_itf.Activity
 	activitySeq int
@@ -225,28 +223,18 @@ func (a *agentProc) trackUsage(event *claudeEvent) {
 	}
 
 	a.usageMu.Lock()
-	// The same message is reported again as it streams, so its tokens only join the
-	// running total once the next message starts. An event with no id cannot be matched
-	// that way, so it counts as a turn of its own — and leaves the named message in
-	// flight alone, which would otherwise be billed again when it streams on.
-	if id := event.Message.ID; id == "" {
-		a.billed += used
-	} else {
-		if id != a.msgID {
-			a.billed += a.msgUsed
-			a.msgID = id
-			a.msgUsed = 0
-		}
-
-		if used > a.msgUsed {
-			a.msgUsed = used
-		}
-	}
+	total := a.meter.Observe(event.Message.ID, harness_helper.TokenCounts{
+		Billed: reported.OutputTokens,
+		Input:  reported.InputTokens + reported.CacheCreationInputTokens,
+		Cached: reported.CacheReadInputTokens,
+	})
 
 	a.usage = input_itf.ContextUsage{
 		Total:  a.ctxWindow,
 		Used:   used,
-		Billed: a.billed + a.msgUsed,
+		Billed: total.Billed,
+		Input:  total.Input,
+		Cached: total.Cached,
 	}
 	a.usageMu.Unlock()
 }

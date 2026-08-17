@@ -44,7 +44,6 @@ export function useMCPServers() {
         authorize: authorize.mutate,
         setToken: setToken.mutate,
         savingId: setToken.isPending ? (setToken.variables?.serverId ?? null) : null,
-        savingToken: setToken.isPending,
         revoke: revoke.mutate,
         revokingId: revoke.isPending ? revoke.variables : null,
     }

@@ -103,6 +103,8 @@ export namespace input_itf {
 	    total: number;
 	    used: number;
 	    billed: number;
+	    input: number;
+	    cached: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new ContextUsage(source);
@@ -113,6 +115,8 @@ export namespace input_itf {
 	        this.total = source["total"];
 	        this.used = source["used"];
 	        this.billed = source["billed"];
+	        this.input = source["input"];
+	        this.cached = source["cached"];
 	    }
 	}
 
@@ -125,6 +129,9 @@ export namespace output_itf {
 	    model: string;
 	    model_label: string;
 	    thinking_level: string;
+	    input_price: string;
+	    cached_input_price: string;
+	    output_price: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new AgentDefaultInfo(source);
@@ -136,6 +143,9 @@ export namespace output_itf {
 	        this.model = source["model"];
 	        this.model_label = source["model_label"];
 	        this.thinking_level = source["thinking_level"];
+	        this.input_price = source["input_price"];
+	        this.cached_input_price = source["cached_input_price"];
+	        this.output_price = source["output_price"];
 	    }
 	}
 	export class ModelOptionInfo {
@@ -455,9 +465,13 @@ export namespace output_itf {
 	export class SessionTaskInfo {
 	    task_id: string;
 	    agent_id: string;
+	    task_level: string;
 	    status: string;
 	    handover_docs: HandoverDocInfo[];
 	    context_usage?: input_itf.ContextUsage;
+	    spent?: input_itf.ContextUsage;
+	    cost_usd: number;
+	    priced: boolean;
 	    activity: TaskActivityInfo[];
 	
 	    static createFrom(source: any = {}) {
@@ -468,9 +482,13 @@ export namespace output_itf {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.task_id = source["task_id"];
 	        this.agent_id = source["agent_id"];
+	        this.task_level = source["task_level"];
 	        this.status = source["status"];
 	        this.handover_docs = this.convertValues(source["handover_docs"], HandoverDocInfo);
 	        this.context_usage = this.convertValues(source["context_usage"], input_itf.ContextUsage);
+	        this.spent = this.convertValues(source["spent"], input_itf.ContextUsage);
+	        this.cost_usd = source["cost_usd"];
+	        this.priced = source["priced"];
 	        this.activity = this.convertValues(source["activity"], TaskActivityInfo);
 	    }
 	
@@ -497,6 +515,10 @@ export namespace output_itf {
 	    status: string;
 	    tasks: SessionTaskInfo[];
 	    tokens_billed: number;
+	    tokens_input: number;
+	    tokens_cached: number;
+	    cost_usd: number;
+	    priced: boolean;
 	    started_at: string;
 	    completed_at: string;
 	
@@ -510,6 +532,10 @@ export namespace output_itf {
 	        this.status = source["status"];
 	        this.tasks = this.convertValues(source["tasks"], SessionTaskInfo);
 	        this.tokens_billed = source["tokens_billed"];
+	        this.tokens_input = source["tokens_input"];
+	        this.tokens_cached = source["tokens_cached"];
+	        this.cost_usd = source["cost_usd"];
+	        this.priced = source["priced"];
 	        this.started_at = source["started_at"];
 	        this.completed_at = source["completed_at"];
 	    }

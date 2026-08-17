@@ -46,11 +46,26 @@ export type TaskReport = {
     handoverDocs: HandoverDoc[]
 }
 
+/**
+ * Every token this node has cost, all of its attempts summed. Input is prompt read
+ * at full price, cached is prompt read back out of the vendor's cache at a fraction
+ * of it, output is what the agent wrote.
+ */
+export type Spend = {
+    input: number
+    cached: number
+    output: number
+}
+
 export type Run = {
     startedAt?: string
     finishedAt?: string
     retryCount?: number
     context?: ContextUsage
+    spent?: Spend
+    /** What `spent` comes to at the prices this node's task level carries. */
+    costUsd?: number
+    priced?: boolean
 }
 
 /** What a template would have told the run, carried by a node that no longer has one. */
@@ -93,8 +108,11 @@ export type Session = {
     workingDir: string
     contextDir: string
     tasks: Task[]
-    /** Every token the session's nodes have spent, kept once a node is done with them. */
-    tokensUsed?: number
+    /** What every node has spent, summed — the nodes and the total always agree. */
+    spent?: Spend
+    costUsd?: number
+    /** False as soon as one node that spent something sits at a level with no prices. */
+    priced?: boolean
     /** When the first node was assigned, and when the last one settled. */
     startedAt?: string
     finishedAt?: string

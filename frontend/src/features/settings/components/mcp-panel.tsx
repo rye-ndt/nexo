@@ -62,19 +62,9 @@ const KIND_COPY: Record<MCPAuthKind, KindCopy> = {
 }
 
 export function MCPPanel() {
-    const {
-        servers,
-        loading,
-        pendingId,
-        authorize,
-        setToken,
-        savingId,
-        savingToken,
-        revoke,
-        revokingId,
-    } = useMCPServers()
+    const {servers, loading, pendingId, authorize, setToken, savingId, revoke, revokingId} =
+        useMCPServers()
 
-    const busy = pendingId !== null || savingToken || revokingId !== null
     const isEmpty = !loading && servers.length === 0
 
     return (
@@ -99,7 +89,6 @@ export function MCPPanel() {
                         <MCPServerRow
                             key={server.id}
                             server={server}
-                            busy={busy}
                             pending={pendingId === server.id || savingId === server.id}
                             revoking={revokingId === server.id}
                             onAuthorize={authorize}
@@ -120,7 +109,6 @@ export function MCPPanel() {
 
 function MCPServerRow({
     server,
-    busy,
     pending,
     revoking,
     onAuthorize,
@@ -128,7 +116,6 @@ function MCPServerRow({
     onRevoke,
 }: {
     server: MCPServer
-    busy: boolean
     pending: boolean
     revoking: boolean
     onAuthorize: (serverId: string) => void
@@ -137,6 +124,7 @@ function MCPServerRow({
 }) {
     const confirmingRevoke = useToggle()
     const copy = KIND_COPY[server.kind]
+    const busy = pending || revoking
 
     const revoke = () => {
         onRevoke(server.id)

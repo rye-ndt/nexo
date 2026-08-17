@@ -468,9 +468,7 @@ func (s *v1) enableChrome() error {
 }
 
 func (s *v1) disableChrome() error {
-	if err := s.chrome.Stop(); err != nil {
-		return err
-	}
+	stopped := s.chrome.Stop()
 
 	if err := s.db.DeleteCredentials(constances.ChromeLocalServer); err != nil {
 		return custom_error.TypedCritical(
@@ -483,7 +481,7 @@ func (s *v1) disableChrome() error {
 
 	s.uncache(constances.ChromeLocalServer)
 
-	return nil
+	return stopped
 }
 
 func chromeKeyEvent(name string) (map[string]any, *toolResult) {

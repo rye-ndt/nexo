@@ -156,6 +156,12 @@ func (s *v1) List() ([]*core_itf.MCPAuthInfo, error) {
 			URL:        m.URL,
 		}
 
+		if m.AuthFlow == enums.MCPAuthFlowEnable {
+			if live := s.chrome.Endpoint(); live != "" {
+				item.URL = live
+			}
+		}
+
 		if info, found := authenticated[m.Name]; found {
 			item.Authenticated = info.ExpiredAt.After(helpers.NewUTC())
 			item.InitializedAt = info.UpdatedAt

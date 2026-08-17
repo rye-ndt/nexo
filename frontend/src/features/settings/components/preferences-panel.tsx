@@ -8,7 +8,7 @@ import {useAutopilot} from '@/features/settings/use-autopilot'
 import {Switch} from '@/shared/ui/switch'
 import type {ThinkingLevel} from '@/shared/lib/enums'
 import {cn} from '@/shared/lib/utils'
-import type {AgentDefault} from '@/features/settings/types'
+import type {AgentDefault, TokenPrices} from '@/features/settings/types'
 
 function AutopilotSection() {
     const {autopilot, loading, saving, setAutopilot} = useAutopilot()
@@ -39,7 +39,8 @@ function AutopilotSection() {
 }
 
 export function PreferencesPanel() {
-    const {defaults, options, loading, pendingTaskLevel, setAgentDefault} = useAgentDefaults()
+    const {defaults, options, loading, pendingTaskLevel, setAgentDefault, setAgentDefaultPrices} =
+        useAgentDefaults()
 
     const changeModel = (agentDefault: AgentDefault) => (model: string) =>
         setAgentDefault({
@@ -55,6 +56,9 @@ export function PreferencesPanel() {
             thinkingLevel,
         })
 
+    const changePrices = (agentDefault: AgentDefault) => (prices: TokenPrices) =>
+        setAgentDefaultPrices({taskLevel: agentDefault.taskLevel, prices})
+
     return (
         <div className="flex flex-col">
             <AutopilotSection />
@@ -65,7 +69,9 @@ export function PreferencesPanel() {
                     <p className="text-sm text-muted-foreground">
                         Every node inherits its model and effort from its task level. Change a row
                         and every node at that level follows, including nodes you have already
-                        drawn.
+                        drawn. Prices are optional and in US dollars per million tokens; they are
+                        only used to show what a run cost. A blank cached price charges cache reads
+                        at the input price.
                     </p>
                 </div>
 
@@ -89,6 +95,7 @@ export function PreferencesPanel() {
                                 saving={pendingTaskLevel === agentDefault.taskLevel}
                                 onChangeModel={changeModel(agentDefault)}
                                 onChangeThinkingLevel={changeThinkingLevel(agentDefault)}
+                                onChangePrices={changePrices(agentDefault)}
                             />
                         ))}
                     </div>
