@@ -47,6 +47,7 @@ export function createSession(draft: SessionDraft): Session {
         finalized: false,
         started: false,
         cancelled: false,
+        paused: false,
         workingDir: draft.workingDir.trim(),
         contextDir: draft.contextDir.trim(),
         tasks: [],
@@ -64,6 +65,7 @@ export function duplicateSession(session: Session, name = `${session.name} copy`
         finalized: false,
         started: false,
         cancelled: false,
+        paused: false,
         workingDir: session.workingDir,
         contextDir: session.contextDir,
         tasks: session.tasks.map((task) => ({
@@ -80,6 +82,34 @@ export function duplicateSession(session: Session, name = `${session.name} copy`
     }
 }
 
+export function pauseRun(session: Session): Session {
+    return {
+        ...session,
+        paused: true,
+        tasks: session.tasks.map((task) =>
+            task.state === TaskState.AwaitingAccept || isFinished(task.state)
+                ? task
+                : notStarted(task),
+        ),
+    }
+}
+
+export function resumeRun(session: Session): Session {
+    return label({...session, paused: false})
+}
+
+export function isPausable(session: Session): boolean {
+    return !session.paused && isCancellable(session)
+}
+
+export function isResumable(session: Session): boolean {
+    return session.paused
+}
+
+function notStarted(task: Task): Task {
+    return {...task, state: TaskState.Idle, run: undefined, report: undefined}
+}
+
 /** Cancel is terminal: finished nodes keep their reports, everything else loses its work. */
 export function cancelRun(session: Session): Session {
     const now = new Date().toISOString()
@@ -87,6 +117,7 @@ export function cancelRun(session: Session): Session {
     return {
         ...session,
         cancelled: true,
+        paused: false,
         tasks: session.tasks.map((task) => {
             if (KEPT_ON_CANCEL.has(task.state)) return task
 
@@ -107,22 +138,19 @@ export function rewindTo(session: Session, taskId: string): Session {
     return {
         ...session,
         started: false,
+        paused: false,
         tasks: session.tasks.map((task) => {
             const kept =
                 task.id === taskId || (!undone.has(task.id) && KEPT_ON_CANCEL.has(task.state))
 
-            if (kept) return task
-
-            return {...task, state: TaskState.Idle, run: undefined, report: undefined}
+            return kept ? task : notStarted(task)
         }),
     }
 }
 
 export function isCancellable(session: Session): boolean {
     if (!session.started || session.cancelled) return false
-    return session.tasks.some(
-        (task) => !KEPT_ON_CANCEL.has(task.state) && task.state !== TaskState.Cancelled,
-    )
+    return session.tasks.some((task) => !isFinished(task.state))
 }
 
 /** What an agent writing a new template is told about the session it is being written for. */
@@ -210,6 +238,7 @@ export function sessionStatus(session: Session): SessionStatus {
     if (session.cancelled) return SessionStatus.Cancelled
     if (!session.finalized) return SessionStatus.Draft
     if (!session.started) return SessionStatus.Ready
+    if (session.paused) return SessionStatus.Paused
     if (session.tasks.some((task) => task.state === TaskState.Failed)) return SessionStatus.Failed
     if (session.tasks.every((task) => task.state === TaskState.Done)) return SessionStatus.Done
     return SessionStatus.Running

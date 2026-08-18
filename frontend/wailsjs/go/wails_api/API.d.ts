@@ -44,7 +44,11 @@ export function InstallAgent(arg1:string):Promise<void>;
 
 export function MCPServers():Promise<Array<output_itf.MCPServerInfo>>;
 
+export function ModelPrices():Promise<Array<output_itf.ModelPriceInfo>>;
+
 export function Onboarded():Promise<boolean>;
+
+export function PauseSession(arg1:string):Promise<void>;
 
 export function PendingApprovals():Promise<Array<output_itf.ApprovalInfo>>;
 
@@ -70,11 +74,11 @@ export function SessionStatus(arg1:string):Promise<output_itf.SessionStatusInfo>
 
 export function SetAgentDefault(arg1:string,arg2:string,arg3:string):Promise<void>;
 
-export function SetAgentDefaultPrices(arg1:string,arg2:string,arg3:string,arg4:string):Promise<void>;
-
 export function SetAutopilot(arg1:boolean):Promise<void>;
 
 export function SetMCPCredential(arg1:string,arg2:string):Promise<void>;
+
+export function SetModelPrices(arg1:string,arg2:string,arg3:string,arg4:string):Promise<void>;
 
 export function Shutdown(arg1:context.Context):Promise<void>;
 

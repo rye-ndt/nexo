@@ -127,6 +127,18 @@ export function useSessions() {
             editSession(sessions, sessionId, (session) => ({...session, started: true})),
     )
 
+    const pause = useSessionMutation(
+        'Could not pause the run',
+        (args: {sessionId: string}) => api.pauseSession(args.sessionId),
+        (sessions, {sessionId}) => editSession(sessions, sessionId, graph.pauseRun),
+    )
+
+    const resume = useSessionMutation(
+        'Could not resume the run',
+        (args: {sessionId: string}) => api.resumeSession(args.sessionId),
+        (sessions, {sessionId}) => editSession(sessions, sessionId, graph.resumeRun),
+    )
+
     const cancel = useSessionMutation(
         'Could not cancel the run',
         (args: {sessionId: string}) => api.cancelSession(args.sessionId),
@@ -240,6 +252,10 @@ export function useSessions() {
         finalizeSession: finalize.mutate,
         startSession: start.mutate,
         startingSession: start.isPending,
+        pauseSession: pause.mutate,
+        pausingSession: pause.isPending,
+        resumeSession: resume.mutate,
+        resumingSession: resume.isPending,
         cancelSession: cancel.mutate,
         cancellingSession: cancel.isPending,
         deleteSession: remove.mutate,

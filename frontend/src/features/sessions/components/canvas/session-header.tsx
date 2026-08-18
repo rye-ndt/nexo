@@ -15,17 +15,20 @@ import {
     sessionActions,
     type SessionActionHandlers,
 } from '@/features/sessions/session-actions'
-import {CANCEL_CONFIRM, FINALIZE_CONFIRM} from '@/features/sessions/session-copy'
+import {CANCEL_CONFIRM, FINALIZE_CONFIRM, PAUSE_CONFIRM} from '@/features/sessions/session-copy'
 import {useToggle} from '@/shared/hooks/use-toggle'
 import type {Session} from '@/features/sessions/types'
 
 export function SessionHeader({
     session,
     cancelling,
+    pausing,
     onRename,
     onEditLocations,
     onFinalize,
     onRun,
+    onPause,
+    onResume,
     onCancel,
     onClone,
     onNewNode,
@@ -35,10 +38,13 @@ export function SessionHeader({
 }: {
     session: Session | null
     cancelling: boolean
+    pausing: boolean
     onRename: (name: string) => void
     onEditLocations: () => void
     onFinalize: () => void
     onRun: () => void
+    onPause: (onSettled: () => void) => void
+    onResume: () => void
     onCancel: (onSettled: () => void) => void
     onClone: () => void
     onNewNode: () => void
@@ -47,6 +53,7 @@ export function SessionHeader({
     onToggleRail: () => void
 }) {
     const confirmingFinalize = useToggle()
+    const confirmingPause = useToggle()
     const confirmingCancel = useToggle()
 
     const handlers: SessionActionHandlers = {
@@ -54,6 +61,8 @@ export function SessionHeader({
         [SessionActionId.Clone]: onClone,
         [SessionActionId.Finalize]: confirmingFinalize.open,
         [SessionActionId.Run]: onRun,
+        [SessionActionId.Pause]: confirmingPause.open,
+        [SessionActionId.Resume]: onResume,
         [SessionActionId.Cancel]: confirmingCancel.open,
     }
 
@@ -63,6 +72,8 @@ export function SessionHeader({
         confirmingFinalize.close()
         onFinalize()
     }
+
+    const pauseRun = () => onPause(confirmingPause.close)
 
     const cancelRun = () => onCancel(confirmingCancel.close)
 
@@ -124,6 +135,18 @@ export function SessionHeader({
                     confirmLabel={FINALIZE_CONFIRM.confirmLabel}
                     onConfirm={finalize}
                     onClose={confirmingFinalize.close}
+                />
+            )}
+
+            {confirmingPause.on && session && (
+                <ConfirmDialog
+                    title={PAUSE_CONFIRM.title}
+                    description={PAUSE_CONFIRM.description}
+                    confirmLabel={pausing ? 'Pausing…' : PAUSE_CONFIRM.confirmLabel}
+                    dismissLabel={PAUSE_CONFIRM.dismissLabel}
+                    busy={pausing}
+                    onConfirm={pauseRun}
+                    onClose={confirmingPause.close}
                 />
             )}
 

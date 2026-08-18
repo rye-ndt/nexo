@@ -1,10 +1,17 @@
 import type {MouseEvent} from 'react'
-import {CircleStop, Lock, MoreHorizontal} from 'lucide-react'
+import {CircleStop, Lock, MoreHorizontal, Pause} from 'lucide-react'
 import type {LucideIcon} from 'lucide-react'
 
 import {SessionSpine} from '@/features/sessions/components/session-spine'
 import {SESSION_TITLE_CLASSES} from '@/features/sessions/session-status'
-import {CANCELLED_HINT, FINALIZED_HINT} from '@/features/sessions/session-copy'
+import {CANCELLED_HINT, FINALIZED_HINT, PAUSED_HINT} from '@/features/sessions/session-copy'
+import {
+    ContextMenu,
+    ContextMenuContent,
+    ContextMenuItem,
+    ContextMenuLabel,
+    ContextMenuTrigger,
+} from '@/shared/ui/context-menu'
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -27,6 +34,14 @@ function markerFor(session: Session, status: SessionStatus): Marker | null {
             label: 'Cancelled',
             hint: CANCELLED_HINT,
             className: 'text-state-idle',
+        }
+
+    if (status === SessionStatus.Paused)
+        return {
+            icon: Pause,
+            label: 'Paused',
+            hint: PAUSED_HINT,
+            className: 'text-state-approval',
         }
 
     if (session.finalized)
@@ -59,65 +74,89 @@ export function SessionRow({
     const marker = markerFor(session, status)
 
     const select = () => onSelect(session.id)
-    const clone = () => onClone(session.id)
-    const exportSession = () => onExport(session.id)
-    const remove = () => onDelete(session.id)
     const stopPropagation = (event: MouseEvent<HTMLButtonElement>) => event.stopPropagation()
 
+    const entries = [
+        {label: 'Duplicate', run: () => onClone(session.id)},
+        {label: 'Export', run: () => onExport(session.id)},
+        {label: 'Delete', destructive: true, run: () => onDelete(session.id)},
+    ]
+
     return (
-        <div className="group relative">
-            <button
-                type="button"
-                onClick={select}
-                aria-current={active}
-                className={cn(
-                    'flex w-full flex-col gap-2 rounded-xl px-3 py-3 pr-8 text-left transition-colors duration-[120ms] outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/50',
-                    active && 'bg-live-tint hover:bg-live-tint',
-                )}
-            >
-                <span className="flex min-w-0 items-center gap-2">
-                    <span
-                        className={cn(
-                            'truncate text-base font-medium',
-                            SESSION_TITLE_CLASSES[status],
-                        )}
-                    >
-                        {session.name}
-                    </span>
-                    {marker && <LockMarker marker={marker} />}
-                </span>
-
-                <SessionSpine session={session} />
-
-                <SessionMeta session={session} />
-            </button>
-
-            {active && (
-                <span className="pointer-events-none absolute inset-0 overflow-hidden rounded-xl">
-                    <span className="absolute inset-y-0 left-0 w-1 bg-live" />
-                </span>
-            )}
-
-            <DropdownMenu>
-                <DropdownMenuTrigger asChild>
+        <ContextMenu>
+            <ContextMenuTrigger asChild>
+                <div className="group relative">
                     <button
                         type="button"
-                        aria-label={`Options for ${session.name}`}
-                        onClick={stopPropagation}
-                        className="absolute top-2 right-1 flex size-7 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-opacity duration-[120ms] outline-none hover:bg-muted hover:text-foreground focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring/50 group-hover:opacity-100 aria-expanded:opacity-100"
+                        onClick={select}
+                        aria-current={active}
+                        className={cn(
+                            'flex w-full flex-col gap-2 rounded-xl px-3 py-3 pr-8 text-left transition-colors duration-[120ms] outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/50',
+                            active && 'bg-live-tint hover:bg-live-tint',
+                        )}
                     >
-                        <MoreHorizontal className="size-3.5" />
+                        <span className="flex min-w-0 items-center gap-2">
+                            <span
+                                className={cn(
+                                    'truncate text-base font-medium',
+                                    SESSION_TITLE_CLASSES[status],
+                                )}
+                            >
+                                {session.name}
+                            </span>
+                            {marker && <LockMarker marker={marker} />}
+                        </span>
+
+                        <SessionSpine session={session} />
+
+                        <SessionMeta session={session} />
                     </button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-40">
-                    <DropdownMenuItem onSelect={clone}>Duplicate</DropdownMenuItem>
-                    <DropdownMenuItem onSelect={exportSession}>Export</DropdownMenuItem>
-                    <DropdownMenuItem variant="destructive" onSelect={remove}>
-                        Delete
-                    </DropdownMenuItem>
-                </DropdownMenuContent>
-            </DropdownMenu>
-        </div>
+
+                    {active && (
+                        <span className="pointer-events-none absolute inset-0 overflow-hidden rounded-xl">
+                            <span className="absolute inset-y-0 left-0 w-1 bg-live" />
+                        </span>
+                    )}
+
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <button
+                                type="button"
+                                aria-label={`Options for ${session.name}`}
+                                onClick={stopPropagation}
+                                className="absolute top-2 right-1 flex size-7 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-opacity duration-[120ms] outline-none hover:bg-muted hover:text-foreground focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring/50 group-hover:opacity-100 aria-expanded:opacity-100"
+                            >
+                                <MoreHorizontal className="size-3.5" />
+                            </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-40">
+                            {entries.map(({label, destructive, run}) => (
+                                <DropdownMenuItem
+                                    key={label}
+                                    variant={destructive ? 'destructive' : 'default'}
+                                    onSelect={run}
+                                >
+                                    {label}
+                                </DropdownMenuItem>
+                            ))}
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+                </div>
+            </ContextMenuTrigger>
+
+            <ContextMenuContent className="max-w-64">
+                <ContextMenuLabel>{session.name}</ContextMenuLabel>
+                {entries.map(({label, destructive, run}) => (
+                    <ContextMenuItem
+                        key={label}
+                        variant={destructive ? 'destructive' : 'default'}
+                        onSelect={run}
+                    >
+                        {label}
+                    </ContextMenuItem>
+                ))}
+            </ContextMenuContent>
+        </ContextMenu>
     )
 }
 

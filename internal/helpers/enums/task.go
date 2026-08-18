@@ -51,6 +51,25 @@ func (s TaskStatus) Cancellable() bool {
 	return slices.Contains(cancellable, s)
 }
 
+type SessionHalt string
+
+const (
+	HaltNone      SessionHalt = ""
+	HaltPaused    SessionHalt = "paused"
+	HaltCancelled SessionHalt = "cancelled"
+)
+
+func (h SessionHalt) Park(s TaskStatus) (TaskStatus, bool) {
+	switch {
+	case h == HaltCancelled && s.Cancellable():
+		return TaskCancelled, true
+	case h == HaltPaused && s == TaskProcessing:
+		return TaskNotTaken, true
+	default:
+		return s, false
+	}
+}
+
 type SessionEvent string
 
 const (
@@ -84,6 +103,7 @@ type SessionStatus string
 const (
 	SessionInit       SessionStatus = "init"
 	SessionProcessing SessionStatus = "processing"
+	SessionPaused     SessionStatus = "paused"
 	SessionCompleted  SessionStatus = "completed"
 )
 

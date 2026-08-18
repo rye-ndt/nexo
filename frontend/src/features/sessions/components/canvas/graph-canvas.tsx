@@ -1,4 +1,4 @@
-import {useCallback, useMemo, useState, type MouseEvent} from 'react'
+import {useCallback, useMemo, useRef, useState, type MouseEvent} from 'react'
 import {
     Background,
     BackgroundVariant,
@@ -11,6 +11,8 @@ import {
     type OnConnectStartParams,
 } from '@xyflow/react'
 
+import {CanvasMenu, type CanvasTarget} from '@/features/sessions/components/canvas/canvas-menu'
+import {ContextMenu, ContextMenuTrigger} from '@/shared/ui/context-menu'
 import {EmptyCanvas} from '@/features/sessions/components/canvas/empty-canvas'
 import {ZoomCluster} from '@/features/sessions/components/canvas/zoom-cluster'
 import {TaskNode} from '@/features/sessions/components/canvas/task-node'
@@ -25,6 +27,7 @@ import {useEdgeHover} from '@/features/sessions/components/canvas/use-edge-hover
 import {useNodeGestures} from '@/features/sessions/components/canvas/use-node-gestures'
 import {
     CANVAS_CHROME,
+    FIT_MS,
     FIT_VIEW_OPTIONS,
     MAX_ZOOM,
     MIN_ZOOM,
@@ -45,9 +48,12 @@ type GraphCanvasProps = {
     onConnect: (sourceId: string, targetId: string) => void
     onDisconnect: (sourceId: string, targetId: string) => void
     onNewNode: (position: Point) => void
+    onDeleteTask: (taskId: string) => void
 }
 
 type ConnectionOrigin = {nodeId: string; handleType: HandleType}
+
+type Cursor = {clientX: number; clientY: number}
 
 const nodeTypes = {task: TaskNode}
 
@@ -70,12 +76,15 @@ function Canvas({
     onConnect,
     onDisconnect,
     onNewNode,
+    onDeleteTask,
 }: GraphCanvasProps) {
-    const {screenToFlowPosition} = useReactFlow()
+    const {screenToFlowPosition, fitView} = useReactFlow()
     const {templates} = useTemplates()
 
     const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null)
     const [connectingFrom, setConnectingFrom] = useState<ConnectionOrigin | null>(null)
+    const [menuTarget, setMenuTarget] = useState<CanvasTarget | null>(null)
+    const armedTarget = useRef<CanvasTarget | null>(null)
     const gestures = useNodeGestures(session.tasks, onMoveTask)
     const {hoveredEdgeId, hold, release} = useEdgeHover()
 
@@ -169,52 +178,103 @@ function Canvas({
 
     const addAtOrigin = () => onNewNode(ORIGIN)
 
-    const addAtCursor = (event: MouseEvent<HTMLDivElement>) => {
-        if (locked || (event.target as HTMLElement).closest(CANVAS_CHROME)) return
-
+    const nodePositionAt = (event: Cursor) => {
         const at = screenToFlowPosition({x: event.clientX, y: event.clientY})
-        onNewNode({x: at.x - NODE_CURSOR_OFFSET.x, y: at.y - NODE_CURSOR_OFFSET.y})
+        return {x: at.x - NODE_CURSOR_OFFSET.x, y: at.y - NODE_CURSOR_OFFSET.y}
     }
 
-    return (
-        <div className="relative min-h-0 flex-1 bg-background" onDoubleClick={addAtCursor}>
-            <ReactFlow<TaskNodeType, GraphEdge>
-                nodes={nodes}
-                edges={edges}
-                nodeTypes={nodeTypes}
-                edgeTypes={edgeTypes}
-                fitView
-                fitViewOptions={FIT_VIEW_OPTIONS}
-                minZoom={MIN_ZOOM}
-                maxZoom={MAX_ZOOM}
-                zoomOnDoubleClick={false}
-                nodesConnectable={!locked}
-                deleteKeyCode={['Backspace', 'Delete']}
-                proOptions={{hideAttribution: true}}
-                onNodesChange={gestures.trackChanges}
-                onNodeDragStart={gestures.lift}
-                onNodeDragStop={gestures.drop}
-                onNodeClick={selectNode}
-                onEdgeClick={selectEdge}
-                onEdgeMouseEnter={(_, edge) => hold(edge.id)}
-                onEdgeMouseLeave={release}
-                onPaneClick={clearSelection}
-                onConnectStart={startConnecting}
-                onConnectEnd={stopConnecting}
-                onConnect={connect}
-                isValidConnection={canConnect}
-                onEdgesDelete={disconnectAll}
-            >
-                <Background
-                    variant={BackgroundVariant.Dots}
-                    gap={16}
-                    size={1}
-                    color="var(--border)"
-                />
-                <ZoomCluster />
-            </ReactFlow>
+    const addAtCursor = (event: MouseEvent<HTMLDivElement>) => {
+        if (locked || (event.target as HTMLElement).closest(CANVAS_CHROME)) return
+        onNewNode(nodePositionAt(event))
+    }
 
-            {session.tasks.length === 0 && <EmptyCanvas locked={locked} onNewNode={addAtOrigin} />}
-        </div>
+    const arm = (target: CanvasTarget | null) => {
+        armedTarget.current = target
+    }
+
+    const openMenu = (event: MouseEvent<HTMLDivElement>) => {
+        const target = armedTarget.current
+        arm(null)
+
+        if (!target) return event.preventDefault()
+
+        setMenuTarget(target)
+    }
+
+    const fitToView = () => fitView({...FIT_VIEW_OPTIONS, duration: FIT_MS})
+
+    return (
+        <ContextMenu>
+            <ContextMenuTrigger asChild>
+                <div
+                    className="relative min-h-0 flex-1 bg-background"
+                    onDoubleClick={addAtCursor}
+                    onContextMenu={openMenu}
+                >
+                    <ReactFlow<TaskNodeType, GraphEdge>
+                        nodes={nodes}
+                        edges={edges}
+                        nodeTypes={nodeTypes}
+                        edgeTypes={edgeTypes}
+                        fitView
+                        fitViewOptions={FIT_VIEW_OPTIONS}
+                        minZoom={MIN_ZOOM}
+                        maxZoom={MAX_ZOOM}
+                        zoomOnDoubleClick={false}
+                        nodesConnectable={!locked}
+                        deleteKeyCode={['Backspace', 'Delete']}
+                        proOptions={{hideAttribution: true}}
+                        onNodesChange={gestures.trackChanges}
+                        onNodeDragStart={gestures.lift}
+                        onNodeDragStop={gestures.drop}
+                        onNodeClick={selectNode}
+                        onEdgeClick={selectEdge}
+                        onEdgeMouseEnter={(_, edge) => hold(edge.id)}
+                        onEdgeMouseLeave={release}
+                        onPaneClick={clearSelection}
+                        onNodeContextMenu={(_, node) => arm({kind: 'node', taskId: node.id})}
+                        onEdgeContextMenu={(_, edge) =>
+                            arm(
+                                locked
+                                    ? null
+                                    : {kind: 'edge', sourceId: edge.source, targetId: edge.target},
+                            )
+                        }
+                        onPaneContextMenu={(event: Cursor) =>
+                            arm({kind: 'pane', at: nodePositionAt(event)})
+                        }
+                        onConnectStart={startConnecting}
+                        onConnectEnd={stopConnecting}
+                        onConnect={connect}
+                        isValidConnection={canConnect}
+                        onEdgesDelete={disconnectAll}
+                    >
+                        <Background
+                            variant={BackgroundVariant.Dots}
+                            gap={16}
+                            size={1}
+                            color="var(--border)"
+                        />
+                        <ZoomCluster />
+                    </ReactFlow>
+
+                    {session.tasks.length === 0 && (
+                        <EmptyCanvas locked={locked} onNewNode={addAtOrigin} />
+                    )}
+                </div>
+            </ContextMenuTrigger>
+
+            {menuTarget && (
+                <CanvasMenu
+                    session={session}
+                    target={menuTarget}
+                    onOpenTask={onSelectTask}
+                    onDeleteTask={onDeleteTask}
+                    onUnlink={unlink}
+                    onNewNode={onNewNode}
+                    onFitView={fitToView}
+                />
+            )}
+        </ContextMenu>
     )
 }

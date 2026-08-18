@@ -129,9 +129,6 @@ export namespace output_itf {
 	    model: string;
 	    model_label: string;
 	    thinking_level: string;
-	    input_price: string;
-	    cached_input_price: string;
-	    output_price: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new AgentDefaultInfo(source);
@@ -143,9 +140,6 @@ export namespace output_itf {
 	        this.model = source["model"];
 	        this.model_label = source["model_label"];
 	        this.thinking_level = source["thinking_level"];
-	        this.input_price = source["input_price"];
-	        this.cached_input_price = source["cached_input_price"];
-	        this.output_price = source["output_price"];
 	    }
 	}
 	export class ModelOptionInfo {
@@ -353,6 +347,26 @@ export namespace output_itf {
 	    }
 	}
 	
+	export class ModelPriceInfo {
+	    model: string;
+	    model_label: string;
+	    input_price: string;
+	    cached_input_price: string;
+	    output_price: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ModelPriceInfo(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.model = source["model"];
+	        this.model_label = source["model_label"];
+	        this.input_price = source["input_price"];
+	        this.cached_input_price = source["cached_input_price"];
+	        this.output_price = source["output_price"];
+	    }
+	}
 	export class RunSessionResult {
 	    session_id: string;
 	    task_ids: Record<string, string>;

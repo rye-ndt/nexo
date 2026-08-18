@@ -5,8 +5,8 @@
  * acceptance halts the walk until `resolveAcceptance` answers it, and a node
  * whose title names one of the forks below halts partway through its own run,
  * blocked on the approval it raised, until the operator answers that. What a run
- * costs is priced off the agent defaults the settings panel edits, so blanking a
- * level's input or output price in Settings → Preferences is what puts a run back into
+ * costs is priced off the model prices the settings panel edits, so blanking a
+ * model's input or output price in Settings → Preferences is what puts a run back into
  * the unpriced state.
  */
 
@@ -14,7 +14,11 @@ import {ApprovalKind, TaskState, type TaskLevel} from '@/shared/lib/enums'
 import {mockOutcome} from '@/features/sessions/mock-sessions'
 import {hasRunningTask, isRunnable, label, withTaskPatch} from '@/features/sessions/graph'
 import {specOf} from '@/features/sessions/task-spec'
-import {cachedAgentDefaults, cachedAutopilot} from '@/features/settings/api/preferences'
+import {
+    cachedAgentDefaults,
+    cachedAutopilot,
+    cachedModelPrices,
+} from '@/features/settings/api/preferences'
 import {cachedTemplates} from '@/features/templates/api'
 import type {ApprovalOption} from '@/features/approvals/types'
 import {
@@ -221,7 +225,8 @@ function progress(task: Task, now: number, templates: Template[]): Task {
 type Rates = {input: number; cached: number; output: number}
 
 function ratesOf(taskLevel: TaskLevel): Rates | undefined {
-    const prices = cachedAgentDefaults().find((current) => current.taskLevel === taskLevel)?.prices
+    const model = cachedAgentDefaults().find((current) => current.taskLevel === taskLevel)?.model
+    const prices = cachedModelPrices().find((current) => current.model === model)?.prices
     if (!prices || prices.input === '' || prices.output === '') return undefined
 
     return {
@@ -255,9 +260,9 @@ function withCost(task: Task, templates: Template[]): Task {
 /**
  * There is no backend clock, counter or price table here, so every run readout comes
  * off the nodes. A node keeps the tokens all of its attempts have spent, which only
- * ever grow, and is priced at the agent default for its task level: that level counts
- * as priced only when it carries both an input and an output price, a blank cached
- * price falls back to the input one, and the cost is
+ * ever grow, and is priced at what the model behind its task level costs: that model
+ * counts as priced only when it carries both an input and an output price, a blank
+ * cached price falls back to the input one, and the cost is
  * (input * inputPrice + cached * cachedPrice + output * outputPrice) / 1_000_000.
  * The session sums what its nodes spent and what the priced ones cost, and goes
  * unpriced as soon as one node that spent something has no prices behind it.
@@ -318,7 +323,7 @@ function narrate(session: Session) {
 
 export function tick(sessionId: string) {
     const session = sessions.find((session) => session.id === sessionId)
-    if (!session?.started || session.cancelled) return
+    if (!session?.started || session.cancelled || session.paused) return
 
     const next = replaceSession(advance(session))
     narrate(next)

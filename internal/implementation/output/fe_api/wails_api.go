@@ -551,16 +551,30 @@ func (a *API) AgentDefaults() ([]*output_itf.AgentDefaultInfo, error) {
 			continue
 		}
 
-		prices := agentDefault.Prices
+		infos = append(infos, &output_itf.AgentDefaultInfo{
+			TaskLevel:     level.String(),
+			Model:         agentDefault.Model.String(),
+			ModelLabel:    agentDefault.Model.DisplayName(),
+			ThinkingLevel: agentDefault.ThinkingLevel.String(),
+		})
+	}
+
+	return infos, nil
+}
+
+func (a *API) ModelPrices() ([]*output_itf.ModelPriceInfo, error) {
+	models := enums.ModelNames()
+	infos := make([]*output_itf.ModelPriceInfo, 0, len(models))
+
+	for _, model := range models {
+		prices := a.userConfig.ModelPrice(model)
 		if prices == nil {
 			prices = &output_itf.TokenPrices{}
 		}
 
-		infos = append(infos, &output_itf.AgentDefaultInfo{
-			TaskLevel:        level.String(),
-			Model:            agentDefault.Model.String(),
-			ModelLabel:       agentDefault.Model.DisplayName(),
-			ThinkingLevel:    agentDefault.ThinkingLevel.String(),
+		infos = append(infos, &output_itf.ModelPriceInfo{
+			Model:            model.String(),
+			ModelLabel:       model.DisplayName(),
 			InputPrice:       priceText(prices.Input),
 			CachedInputPrice: priceText(prices.CachedInput),
 			OutputPrice:      priceText(prices.Output),
@@ -592,7 +606,7 @@ func parsePrice(raw string) (*float64, error) {
 	return &price, nil
 }
 
-func (a *API) SetAgentDefaultPrices(taskLevel string, input string, cachedInput string, output string) error {
+func (a *API) SetModelPrices(model string, input string, cachedInput string, output string) error {
 	inputPrice, err := parsePrice(input)
 	if err != nil {
 		return err
@@ -609,10 +623,10 @@ func (a *API) SetAgentDefaultPrices(taskLevel string, input string, cachedInput 
 	}
 
 	if inputPrice == nil && cachedPrice == nil && outputPrice == nil {
-		return a.userConfig.SetAgentDefaultPrices(enums.TaskLevel(taskLevel), nil)
+		return a.userConfig.SetModelPrices(enums.ModelName(model), nil)
 	}
 
-	return a.userConfig.SetAgentDefaultPrices(enums.TaskLevel(taskLevel), &output_itf.TokenPrices{
+	return a.userConfig.SetModelPrices(enums.ModelName(model), &output_itf.TokenPrices{
 		Input:       inputPrice,
 		CachedInput: cachedPrice,
 		Output:      outputPrice,
@@ -713,6 +727,10 @@ func (a *API) SessionStatus(sessionID string) (*output_itf.SessionStatusInfo, er
 
 func (a *API) ResumeSession(sessionID string) error {
 	return withID(idSession, sessionID, a.coordinator.Run)
+}
+
+func (a *API) PauseSession(sessionID string) error {
+	return withID(idSession, sessionID, a.coordinator.Pause)
 }
 
 func (a *API) CancelSession(sessionID string) error {
@@ -894,16 +912,21 @@ func spentAnything(spent *input_itf.ContextUsage) bool {
 }
 
 func (a *API) taskCost(level enums.TaskLevel, spent *input_itf.ContextUsage) (float64, bool) {
-	if spent == nil || !level.Valid() {
+	if spent == nil {
 		return 0, false
 	}
 
 	agentDefault, err := a.userConfig.AgentDefault(level)
-	if err != nil || agentDefault == nil || agentDefault.Prices == nil {
+	if err != nil {
 		return 0, false
 	}
 
-	rates, ok := pricing.NewRates(agentDefault.Prices.Input, agentDefault.Prices.CachedInput, agentDefault.Prices.Output)
+	prices := a.userConfig.ModelPrice(agentDefault.Model)
+	if prices == nil {
+		return 0, false
+	}
+
+	rates, ok := pricing.NewRates(prices.Input, prices.CachedInput, prices.Output)
 	if !ok {
 		return 0, false
 	}

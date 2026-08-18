@@ -2,6 +2,7 @@ import {useState} from 'react'
 
 import {AcceptGateDialog} from '@/features/sessions/components/accept-gate-dialog'
 import {ApprovalDialog} from '@/features/approvals/components/approval-dialog'
+import {ConfirmDialog} from '@/shared/components/confirm-dialog'
 import {EditLocationsDialog} from '@/features/sessions/components/edit-locations-dialog'
 import {GraphCanvas} from '@/features/sessions/components/canvas/graph-canvas'
 import {MissingInputsDialog} from '@/features/sessions/components/nodes/missing-inputs-dialog'
@@ -35,8 +36,10 @@ export function SessionWorkspace({
     const locations = useToggle()
     const blockedRun = useToggle()
     const [newNodeAt, setNewNodeAt] = useState<Point | null>(null)
+    const [deletingTaskId, setDeletingTaskId] = useState<string | null>(null)
 
     const selectedTask = session?.tasks.find((task) => task.id === store.selectedTaskId)
+    const deletingTask = session?.tasks.find((task) => task.id === deletingTaskId)
 
     const run = () => {
         if (missing.entries.length > 0) blockedRun.open()
@@ -62,6 +65,13 @@ export function SessionWorkspace({
 
     const closeTask = () => store.selectTask(null)
 
+    const stopDeleting = () => setDeletingTaskId(null)
+
+    const deleteTask = () => {
+        if (deletingTaskId) active.removeTask(deletingTaskId)
+        stopDeleting()
+    }
+
     const inspecting = selectedTask && selectedTask.id !== gate?.subject.id && !approval
 
     return (
@@ -70,10 +80,13 @@ export function SessionWorkspace({
                 <SessionHeader
                     session={session}
                     cancelling={store.cancelling}
+                    pausing={store.pausing}
                     onRename={active.rename}
                     onEditLocations={locations.open}
                     onFinalize={active.finalize}
                     onRun={run}
+                    onPause={active.pause}
+                    onResume={active.resume}
                     onCancel={active.cancel}
                     onClone={active.clone}
                     onNewNode={() => setNewNodeAt(ORIGIN)}
@@ -92,6 +105,7 @@ export function SessionWorkspace({
                         onConnect={active.connectTasks}
                         onDisconnect={active.disconnectTasks}
                         onNewNode={setNewNodeAt}
+                        onDeleteTask={setDeletingTaskId}
                     />
                 ) : (
                     <EmptyWorkspace />
@@ -149,6 +163,17 @@ export function SessionWorkspace({
                     context={draftContext(session)}
                     onCreate={createTask}
                     onClose={closeNewNode}
+                />
+            )}
+
+            {deletingTask && (
+                <ConfirmDialog
+                    title={`Delete “${deletingTask.title || 'this node'}”?`}
+                    description="Its prompt, inputs and any report it produced go with it. This cannot be undone."
+                    confirmLabel="Delete node"
+                    destructive
+                    onConfirm={deleteTask}
+                    onClose={stopDeleting}
                 />
             )}
 

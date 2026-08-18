@@ -5,12 +5,10 @@
  */
 
 import {bridge, hasWailsRuntime} from '@/shared/api/bridge'
-import {TaskState} from '@/shared/lib/enums'
+import {isPausable, pauseRun} from '@/features/sessions/graph'
 import {MOCK_SESSIONS} from '@/features/sessions/mock-sessions'
 import type {Session} from '@/features/sessions/types'
 import {SaveSessionDraft, SessionDrafts} from '@wailsjs/go/wails_api/API'
-
-const SETTLED_ON_DISK = new Set<TaskState>([TaskState.Done, TaskState.Failed, TaskState.Cancelled])
 
 export let sessions: Session[] = hasWailsRuntime() ? [] : structuredClone(MOCK_SESSIONS)
 
@@ -59,24 +57,15 @@ export async function hydrate() {
     hydrated = true
 }
 
-/** A cancelled session is terminal, so it comes back exactly as it was stored. */
+/**
+ * No agent survives the process, so a run that was still going comes back paused —
+ * the same nodes it would have lost to a pause. A cancelled session is terminal, so
+ * it comes back exactly as it was stored.
+ */
 function restore(stored: Session): Session {
-    const session = {...stored, cancelled: Boolean(stored.cancelled)}
-    return session.cancelled ? session : resetUnfinished(session)
-}
+    if (stored.cancelled) return {...stored, cancelled: true}
 
-function resetUnfinished(session: Session): Session {
-    return {
-        ...session,
-        tasks: session.tasks.map((task) =>
-            SETTLED_ON_DISK.has(task.state)
-                ? task
-                : {
-                      ...task,
-                      state: session.started ? TaskState.Failed : TaskState.Idle,
-                      run: undefined,
-                      report: undefined,
-                  },
-        ),
-    }
+    const halted = {...stored, cancelled: false, paused: false}
+
+    return {...pauseRun(halted), paused: isPausable(halted)}
 }

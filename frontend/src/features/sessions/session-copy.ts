@@ -8,6 +8,16 @@ export const FINALIZE_CONFIRM = {
     confirmLabel: 'Finalize session',
 }
 
+export const PAUSED_HINT = 'Paused — resume when you are ready.'
+
+export const PAUSE_CONFIRM = {
+    title: 'Pause the run?',
+    description:
+        'Nodes running right now lose their work and start over when you resume — there will be no report for this attempt. Finished nodes keep theirs, and you can close the app or shut the machine down; the run picks up where it stopped.',
+    confirmLabel: 'Pause run',
+    dismissLabel: 'Keep running',
+}
+
 export const CANCEL_CONFIRM = {
     title: 'Cancel the run?',
     description:

@@ -63,7 +63,7 @@ export type Run = {
     retryCount?: number
     context?: ContextUsage
     spent?: Spend
-    /** What `spent` comes to at the prices this node's task level carries. */
+    /** What `spent` comes to at the prices of the model this node ran on. */
     costUsd?: number
     priced?: boolean
 }
@@ -98,6 +98,11 @@ export type TaskDraft = {
     values: Record<string, ParamValue>
 }
 
+export type RemoteRunIds = {
+    sessionId: string
+    taskIds: Record<string, string>
+}
+
 export type Session = {
     id: string
     name: string
@@ -105,13 +110,15 @@ export type Session = {
     finalized: boolean
     started: boolean
     cancelled: boolean
+    paused: boolean
     workingDir: string
     contextDir: string
     tasks: Task[]
+    remote?: RemoteRunIds
     /** What every node has spent, summed — the nodes and the total always agree. */
     spent?: Spend
     costUsd?: number
-    /** False as soon as one node that spent something sits at a level with no prices. */
+    /** False as soon as one node that spent something ran on a model with no prices. */
     priced?: boolean
     /** When the first node was assigned, and when the last one settled. */
     startedAt?: string

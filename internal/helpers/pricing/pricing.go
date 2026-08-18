@@ -20,10 +20,10 @@ type Tokens struct {
 
 const perMillion = 1_000_000
 
-// NewRates reads the three optional prices a task level carries. A level is priced
-// only once it names both an input and an output rate — a run half-priced would
-// report a number lower than the truth, which is worse than reporting none. The
-// cached rate is allowed to be missing and falls back to the input rate.
+// NewRates reads the three optional prices a model carries. A model is priced only
+// once it names both an input and an output rate — a run half-priced would report a
+// number lower than the truth, which is worse than reporting none. The cached rate is
+// allowed to be missing and falls back to the input rate.
 func NewRates(input, cachedInput, output *float64) (Rates, bool) {
 	if input == nil || output == nil || *input < 0 || *output < 0 {
 		return Rates{}, false

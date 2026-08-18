@@ -1,7 +1,7 @@
-import {CircleStop, Copy, Lock, Play, Plus} from 'lucide-react'
+import {CirclePlay, CircleStop, Copy, Lock, Pause, Play, Plus} from 'lucide-react'
 import type {LucideIcon} from 'lucide-react'
 
-import {isCancellable} from '@/features/sessions/graph'
+import {isCancellable, isPausable, isResumable} from '@/features/sessions/graph'
 import type {Session} from '@/features/sessions/types'
 
 export const SessionActionId = {
@@ -9,6 +9,8 @@ export const SessionActionId = {
     Clone: 'clone',
     Finalize: 'finalize',
     Run: 'run',
+    Pause: 'pause',
+    Resume: 'resume',
     Cancel: 'cancel',
 } as const
 
@@ -36,6 +38,16 @@ const ACTIONS: Record<SessionActionId, Omit<SessionAction, 'id'>> = {
     [SessionActionId.Clone]: {label: 'Duplicate', icon: Copy, emphasis: ActionEmphasis.Ghost},
     [SessionActionId.Finalize]: {label: 'Finalize', icon: Lock, emphasis: ActionEmphasis.Outline},
     [SessionActionId.Run]: {label: 'Run', icon: Play, emphasis: ActionEmphasis.Primary},
+    [SessionActionId.Pause]: {
+        label: 'Pause run',
+        icon: Pause,
+        emphasis: ActionEmphasis.Outline,
+    },
+    [SessionActionId.Resume]: {
+        label: 'Resume run',
+        icon: CirclePlay,
+        emphasis: ActionEmphasis.Primary,
+    },
     [SessionActionId.Cancel]: {
         label: 'Cancel run',
         icon: CircleStop,
@@ -54,6 +66,8 @@ export function sessionActions(session: Session | null): SessionAction[] {
         SessionActionId.Clone,
         draft && SessionActionId.Finalize,
         session.finalized && !session.started && SessionActionId.Run,
+        isPausable(session) && SessionActionId.Pause,
+        isResumable(session) && SessionActionId.Resume,
         isCancellable(session) && SessionActionId.Cancel,
     ].filter((id): id is SessionActionId => Boolean(id))
 

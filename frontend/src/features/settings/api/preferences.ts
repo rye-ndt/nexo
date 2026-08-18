@@ -1,9 +1,9 @@
 /**
- * The only place the generated Wails bindings for agent defaults and the
- * autopilot switch are touched. Inside the webview the defaults and the models
- * they can pick from come from the Go user config. Under the plain vite dev
- * server there is no Go side, so both live in this module's memory on top of
- * src/lib/mock-preferences.ts.
+ * The only place the generated Wails bindings for agent defaults, model prices and
+ * the autopilot switch are touched. Inside the webview the defaults, the models they
+ * can pick from and what those models cost come from the Go user config. Under the
+ * plain vite dev server there is no Go side, so they live in this module's memory on
+ * top of src/features/settings/mock-preferences.ts.
  */
 
 import {bridge, hasWailsRuntime} from '@/shared/api/bridge'
@@ -12,20 +12,29 @@ import {
     MOCK_AGENT_DEFAULT_OPTIONS,
     MOCK_AGENT_DEFAULTS,
     MOCK_AUTOPILOT,
+    MOCK_MODEL_PRICES,
 } from '@/features/settings/mock-preferences'
-import type {AgentDefault, AgentDefaultOptions, TokenPrices} from '@/features/settings/types'
+import type {
+    AgentDefault,
+    AgentDefaultOptions,
+    ModelPrice,
+    TokenPrices,
+} from '@/features/settings/types'
 import {
     AgentDefaultOptions as FetchAgentDefaultOptions,
     AgentDefaults as FetchAgentDefaults,
     Autopilot as FetchAutopilot,
+    ModelPrices as FetchModelPrices,
     SetAgentDefault as SaveAgentDefault,
-    SetAgentDefaultPrices as SaveAgentDefaultPrices,
     SetAutopilot as SaveAutopilot,
+    SetModelPrices as SaveModelPrices,
 } from '@wailsjs/go/wails_api/API'
 
 const ROUNDTRIP_MS = 400
 
 let defaults: AgentDefault[] = structuredClone(MOCK_AGENT_DEFAULTS)
+
+let modelPrices: ModelPrice[] = structuredClone(MOCK_MODEL_PRICES)
 
 let autopilotOn = MOCK_AUTOPILOT
 
@@ -53,15 +62,26 @@ export async function listAgentDefaults(): Promise<AgentDefault[]> {
             model: info.model,
             modelLabel: info.model_label,
             thinkingLevel: info.thinking_level,
-            prices: {
-                input: info.input_price ?? '',
-                cachedInput: info.cached_input_price ?? '',
-                output: info.output_price ?? '',
-            },
         })
     }
 
     return stored
+}
+
+export async function listModelPrices(): Promise<ModelPrice[]> {
+    if (!hasWailsRuntime()) return structuredClone(modelPrices)
+
+    const infos = await bridge(FetchModelPrices)
+
+    return infos.map((info) => ({
+        model: info.model,
+        modelLabel: info.model_label,
+        prices: {
+            input: info.input_price ?? '',
+            cachedInput: info.cached_input_price ?? '',
+            output: info.output_price ?? '',
+        },
+    }))
 }
 
 export async function agentDefaultOptions(): Promise<AgentDefaultOptions> {
@@ -103,31 +123,16 @@ export async function setAgentDefault(
     )
 }
 
-export async function setAgentDefaultPrices(taskLevel: string, prices: TokenPrices): Promise<void> {
-    if (!isTaskLevel(taskLevel)) throw new Error(`${taskLevel} is not a task level.`)
-
-    const trimmed: TokenPrices = {
-        input: prices.input.trim(),
-        cachedInput: prices.cachedInput.trim(),
-        output: prices.output.trim(),
-    }
-
+export async function setModelPrices(model: string, prices: TokenPrices): Promise<void> {
     if (hasWailsRuntime()) {
-        await bridge(() =>
-            SaveAgentDefaultPrices(taskLevel, trimmed.input, trimmed.cachedInput, trimmed.output),
-        )
+        await bridge(() => SaveModelPrices(model, prices.input, prices.cachedInput, prices.output))
         return
-    }
-
-    for (const price of Object.values(trimmed)) {
-        if (price !== '' && !(Number(price) >= 0))
-            throw new Error(`${price} is not a price. Enter dollars per million tokens.`)
     }
 
     await roundtrip()
 
-    defaults = defaults.map((current) =>
-        current.taskLevel === taskLevel ? {...current, prices: trimmed} : current,
+    modelPrices = modelPrices.map((current) =>
+        current.model === model ? {...current, prices} : current,
     )
 }
 
@@ -154,6 +159,10 @@ export function cachedAutopilot(): boolean {
 /** What the vite mock has been told so far, for the simulated run's price lookup. */
 export function cachedAgentDefaults(): AgentDefault[] {
     return defaults
+}
+
+export function cachedModelPrices(): ModelPrice[] {
+    return modelPrices
 }
 
 function isTaskLevel(value: string): value is TaskLevel {

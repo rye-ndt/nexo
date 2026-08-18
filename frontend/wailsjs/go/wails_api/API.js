@@ -82,8 +82,16 @@ export function MCPServers() {
   return window['go']['wails_api']['API']['MCPServers']();
 }
 
+export function ModelPrices() {
+  return window['go']['wails_api']['API']['ModelPrices']();
+}
+
 export function Onboarded() {
   return window['go']['wails_api']['API']['Onboarded']();
+}
+
+export function PauseSession(arg1) {
+  return window['go']['wails_api']['API']['PauseSession'](arg1);
 }
 
 export function PendingApprovals() {
@@ -134,16 +142,16 @@ export function SetAgentDefault(arg1, arg2, arg3) {
   return window['go']['wails_api']['API']['SetAgentDefault'](arg1, arg2, arg3);
 }
 
-export function SetAgentDefaultPrices(arg1, arg2, arg3, arg4) {
-  return window['go']['wails_api']['API']['SetAgentDefaultPrices'](arg1, arg2, arg3, arg4);
-}
-
 export function SetAutopilot(arg1) {
   return window['go']['wails_api']['API']['SetAutopilot'](arg1);
 }
 
 export function SetMCPCredential(arg1, arg2) {
   return window['go']['wails_api']['API']['SetMCPCredential'](arg1, arg2);
+}
+
+export function SetModelPrices(arg1, arg2, arg3, arg4) {
+  return window['go']['wails_api']['API']['SetModelPrices'](arg1, arg2, arg3, arg4);
 }
 
 export function Shutdown(arg1) {

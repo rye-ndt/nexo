@@ -34,6 +34,7 @@ export const MOCK_SESSIONS: Session[] = [
         finalized: false,
         started: false,
         cancelled: false,
+        paused: false,
         workingDir: '/Users/rye/dev/agent-harness',
         contextDir: '/Users/rye/dev/agent-harness/.harness/context',
         tasks: [
@@ -110,6 +111,7 @@ export const MOCK_SESSIONS: Session[] = [
         finalized: true,
         started: false,
         cancelled: false,
+        paused: false,
         workingDir: '/Users/rye/dev/agent-harness',
         contextDir: '/Users/rye/dev/agent-harness/.harness/context',
         tasks: [
@@ -166,6 +168,7 @@ export const MOCK_SESSIONS: Session[] = [
         finalized: true,
         started: true,
         cancelled: false,
+        paused: false,
         workingDir: '/Users/rye/dev/agent-harness',
         contextDir: '/Users/rye/dev/agent-harness/.harness/context',
         tasks: [
@@ -245,6 +248,7 @@ export const MOCK_SESSIONS: Session[] = [
         finalized: true,
         started: true,
         cancelled: false,
+        paused: false,
         workingDir: '/Users/rye/dev/agent-harness',
         contextDir: '/Users/rye/dev/agent-harness/.harness/context',
         tasks: [
@@ -322,6 +326,7 @@ export const MOCK_SESSIONS: Session[] = [
         finalized: true,
         started: true,
         cancelled: false,
+        paused: false,
         workingDir: '/Users/rye/dev/agent-harness',
         contextDir: '/Users/rye/dev/agent-harness/.harness/context',
         tasks: [
@@ -462,6 +467,7 @@ export const MOCK_SESSIONS: Session[] = [
         finalized: true,
         started: true,
         cancelled: false,
+        paused: false,
         workingDir: '/Users/rye/dev/agent-harness',
         contextDir: '/Users/rye/dev/agent-harness/.harness/context',
         tasks: [
@@ -574,6 +580,7 @@ export const MOCK_SESSIONS: Session[] = [
         finalized: true,
         started: true,
         cancelled: true,
+        paused: false,
         workingDir: '/Users/rye/dev/agent-harness',
         contextDir: '/Users/rye/dev/agent-harness/.harness/context',
         tasks: [

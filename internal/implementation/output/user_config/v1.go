@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io/fs"
+	"maps"
 	"os"
 	"path/filepath"
 	"sync"
@@ -16,6 +17,7 @@ import (
 
 type file struct {
 	AgentDefaults map[enums.TaskLevel]*output_itf.AgentDefault `json:"agent_defaults"`
+	ModelPrices   map[enums.ModelName]*output_itf.TokenPrices  `json:"model_prices"`
 	Onboarded     bool                                         `json:"onboarded"`
 	Autopilot     bool                                         `json:"autopilot"`
 }
@@ -57,7 +59,10 @@ func InitV1(path string) (output_itf.UserConfig, error) {
 }
 
 func read(path string) (*file, error) {
-	cfg := &file{AgentDefaults: map[enums.TaskLevel]*output_itf.AgentDefault{}}
+	cfg := &file{
+		AgentDefaults: map[enums.TaskLevel]*output_itf.AgentDefault{},
+		ModelPrices:   map[enums.ModelName]*output_itf.TokenPrices{},
+	}
 
 	raw, err := os.ReadFile(path)
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
@@ -70,33 +75,33 @@ func read(path string) (*file, error) {
 		}
 	}
 
-	if cfg.AgentDefaults == nil {
-		cfg.AgentDefaults = map[enums.TaskLevel]*output_itf.AgentDefault{}
-	}
+	stored := cfg.AgentDefaults
+	cfg.AgentDefaults = make(map[enums.TaskLevel]*output_itf.AgentDefault, len(enums.TaskLevels()))
 
 	for _, level := range enums.TaskLevels() {
-		cfg.AgentDefaults[level] = repaired(level, cfg.AgentDefaults[level])
+		cfg.AgentDefaults[level] = repaired(level, stored[level])
 	}
 
-	for level := range cfg.AgentDefaults {
-		if !level.Valid() {
-			delete(cfg.AgentDefaults, level)
-		}
-	}
+	cfg.ModelPrices = usablePrices(cfg.ModelPrices)
 
 	return cfg, nil
 }
 
-func repaired(level enums.TaskLevel, stored *output_itf.AgentDefault) *output_itf.AgentDefault {
-	if stored != nil {
-		if helpers.ValidateStruct(stored) == nil {
-			return cloneAgentDefault(stored)
-		}
+func usablePrices(stored map[enums.ModelName]*output_itf.TokenPrices) map[enums.ModelName]*output_itf.TokenPrices {
+	prices := make(map[enums.ModelName]*output_itf.TokenPrices, len(stored))
 
-		withoutPrices := &output_itf.AgentDefault{Model: stored.Model, ThinkingLevel: stored.ThinkingLevel}
-		if helpers.ValidateStruct(withoutPrices) == nil {
-			return withoutPrices
+	for model, price := range stored {
+		if model.Valid() && price != nil && helpers.ValidateStruct(price) == nil {
+			prices[model] = price
 		}
+	}
+
+	return prices
+}
+
+func repaired(level enums.TaskLevel, stored *output_itf.AgentDefault) *output_itf.AgentDefault {
+	if stored != nil && helpers.ValidateStruct(stored) == nil {
+		return cloneAgentDefault(stored)
 	}
 
 	seed := seedAgentDefaults[level]
@@ -108,7 +113,6 @@ func cloneAgentDefault(stored *output_itf.AgentDefault) *output_itf.AgentDefault
 	return &output_itf.AgentDefault{
 		Model:         stored.Model,
 		ThinkingLevel: stored.ThinkingLevel,
-		Prices:        clonePrices(stored.Prices),
 	}
 }
 
@@ -185,10 +189,6 @@ func (c *v1) SetAgentDefault(level enums.TaskLevel, agentDefault *output_itf.Age
 	defer c.mu.Unlock()
 
 	previous := c.cfg.AgentDefaults[level]
-	if previous != nil {
-		next.Prices = clonePrices(previous.Prices)
-	}
-
 	c.cfg.AgentDefaults[level] = next
 
 	if err := c.write(); err != nil {
@@ -199,33 +199,36 @@ func (c *v1) SetAgentDefault(level enums.TaskLevel, agentDefault *output_itf.Age
 	return nil
 }
 
-func (c *v1) SetAgentDefaultPrices(level enums.TaskLevel, prices *output_itf.TokenPrices) error {
-	if !level.Valid() {
-		return custom_error.Critical("unknown task level %q", level.String())
+func (c *v1) ModelPrice(model enums.ModelName) *output_itf.TokenPrices {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	return clonePrices(c.cfg.ModelPrices[model])
+}
+
+func (c *v1) SetModelPrices(model enums.ModelName, prices *output_itf.TokenPrices) error {
+	if !model.Valid() {
+		return custom_error.Critical("unknown model %q", model.String())
 	}
 
 	if prices != nil {
 		if err := helpers.ValidateStruct(prices); err != nil {
-			return custom_error.Critical("invalid prices for %q: %v", level.String(), err)
+			return custom_error.Critical("invalid prices for %q: %v", model.String(), err)
 		}
 	}
 
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	previous := c.cfg.AgentDefaults[level]
-	if previous == nil {
-		return custom_error.Critical("task level %q has no agent default", level.String())
-	}
+	previous := maps.Clone(c.cfg.ModelPrices)
+	delete(c.cfg.ModelPrices, model)
 
-	c.cfg.AgentDefaults[level] = &output_itf.AgentDefault{
-		Model:         previous.Model,
-		ThinkingLevel: previous.ThinkingLevel,
-		Prices:        clonePrices(prices),
+	if prices != nil {
+		c.cfg.ModelPrices[model] = clonePrices(prices)
 	}
 
 	if err := c.write(); err != nil {
-		c.cfg.AgentDefaults[level] = previous
+		c.cfg.ModelPrices = previous
 		return err
 	}
 

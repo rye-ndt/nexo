@@ -3,12 +3,14 @@ import {
     EFFORT_COLUMN,
     MODEL_COLUMN,
 } from '@/features/settings/components/agent-default-row'
+import {ModelPriceRow, PRICE_BAND} from '@/features/settings/components/model-price-row'
 import {useAgentDefaults} from '@/features/settings/use-agent-defaults'
 import {useAutopilot} from '@/features/settings/use-autopilot'
+import {useModelPrices} from '@/features/settings/use-model-prices'
 import {Switch} from '@/shared/ui/switch'
 import type {ThinkingLevel} from '@/shared/lib/enums'
 import {cn} from '@/shared/lib/utils'
-import type {AgentDefault, TokenPrices} from '@/features/settings/types'
+import type {AgentDefault, ModelPrice, TokenPrices} from '@/features/settings/types'
 
 function AutopilotSection() {
     const {autopilot, loading, saving, setAutopilot} = useAutopilot()
@@ -38,9 +40,49 @@ function AutopilotSection() {
     )
 }
 
+function ModelPricingSection() {
+    const {modelPrices, loading, setModelPrices} = useModelPrices()
+
+    const changePrices = (modelPrice: ModelPrice) => (prices: TokenPrices) =>
+        setModelPrices({model: modelPrice.model, prices})
+
+    return (
+        <section className="flex flex-col border-t border-border">
+            <div className="flex flex-col gap-1 px-4 pt-4 pb-3">
+                <h3 className="text-lg font-medium">What each model costs</h3>
+                <p className="text-sm text-muted-foreground">
+                    Prices are optional and only used to show what a run cost. A model is priced
+                    once it carries both an input and an output price; leave a cached price blank to
+                    charge cache reads at the input price.
+                </p>
+            </div>
+
+            <div className="flex items-center gap-3 border-y border-border px-4 py-2">
+                <span className="micro-label min-w-0 flex-1">Model</span>
+                <span className={cn('micro-label shrink-0', PRICE_BAND)}>
+                    US$ per million tokens
+                </span>
+            </div>
+
+            {loading ? (
+                <p className="px-4 py-3 text-base text-muted-foreground">Loading prices…</p>
+            ) : (
+                <div className="divide-y divide-border">
+                    {modelPrices.map((modelPrice) => (
+                        <ModelPriceRow
+                            key={modelPrice.model}
+                            modelPrice={modelPrice}
+                            onChangePrices={changePrices(modelPrice)}
+                        />
+                    ))}
+                </div>
+            )}
+        </section>
+    )
+}
+
 export function PreferencesPanel() {
-    const {defaults, options, loading, pendingTaskLevel, setAgentDefault, setAgentDefaultPrices} =
-        useAgentDefaults()
+    const {defaults, options, loading, pendingTaskLevel, setAgentDefault} = useAgentDefaults()
 
     const changeModel = (agentDefault: AgentDefault) => (model: string) =>
         setAgentDefault({
@@ -56,9 +98,6 @@ export function PreferencesPanel() {
             thinkingLevel,
         })
 
-    const changePrices = (agentDefault: AgentDefault) => (prices: TokenPrices) =>
-        setAgentDefaultPrices({taskLevel: agentDefault.taskLevel, prices})
-
     return (
         <div className="flex flex-col">
             <AutopilotSection />
@@ -69,9 +108,7 @@ export function PreferencesPanel() {
                     <p className="text-sm text-muted-foreground">
                         Every node inherits its model and effort from its task level. Change a row
                         and every node at that level follows, including nodes you have already
-                        drawn. Prices are optional and in US dollars per million tokens; they are
-                        only used to show what a run cost. A blank cached price charges cache reads
-                        at the input price.
+                        drawn.
                     </p>
                 </div>
 
@@ -95,12 +132,13 @@ export function PreferencesPanel() {
                                 saving={pendingTaskLevel === agentDefault.taskLevel}
                                 onChangeModel={changeModel(agentDefault)}
                                 onChangeThinkingLevel={changeThinkingLevel(agentDefault)}
-                                onChangePrices={changePrices(agentDefault)}
                             />
                         ))}
                     </div>
                 )}
             </section>
+
+            <ModelPricingSection />
         </div>
     )
 }

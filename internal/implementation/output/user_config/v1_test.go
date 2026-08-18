@@ -35,98 +35,123 @@ func agentDefault(t *testing.T, cfg output_itf.UserConfig, level enums.TaskLevel
 	return stored
 }
 
-func TestPricesRoundTripThroughTheFile(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "config.json")
+func pricedModels(cfg output_itf.UserConfig) []enums.ModelName {
+	priced := []enums.ModelName{}
 
-	cfg := openConfig(t, path)
-
-	if err := cfg.SetAgentDefaultPrices(enums.HeavyTask, &output_itf.TokenPrices{
-		Input:       price(15),
-		CachedInput: price(1.5),
-		Output:      price(75),
-	}); err != nil {
-		t.Fatalf("set prices: %v", err)
+	for _, model := range enums.ModelNames() {
+		if cfg.ModelPrice(model) != nil {
+			priced = append(priced, model)
+		}
 	}
 
-	reopened := agentDefault(t, openConfig(t, path), enums.HeavyTask)
+	return priced
+}
 
-	if reopened.Prices == nil {
-		t.Fatal("prices are gone after reopening the config")
-	}
+func setPrices(t *testing.T, cfg output_itf.UserConfig, model enums.ModelName, prices *output_itf.TokenPrices) {
+	t.Helper()
 
-	if *reopened.Prices.Input != 15 || *reopened.Prices.CachedInput != 1.5 || *reopened.Prices.Output != 75 {
-		t.Fatalf("prices came back as %+v", reopened.Prices)
+	if err := cfg.SetModelPrices(model, prices); err != nil {
+		t.Fatalf("set prices for %s: %v", model, err)
 	}
 }
 
-func TestPricesAreReadBackByAgentDefaults(t *testing.T) {
+func TestPricesRoundTripThroughTheFile(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.json")
 
-	cfg := openConfig(t, path)
+	setPrices(t, openConfig(t, path), enums.Opus, &output_itf.TokenPrices{
+		Input:       price(15),
+		CachedInput: price(1.5),
+		Output:      price(75),
+	})
 
-	if err := cfg.SetAgentDefaultPrices(enums.DailyTask, &output_itf.TokenPrices{
+	reopened := openConfig(t, path).ModelPrice(enums.Opus)
+
+	if reopened == nil {
+		t.Fatal("prices are gone after reopening the config")
+	}
+
+	if *reopened.Input != 15 || *reopened.CachedInput != 1.5 || *reopened.Output != 75 {
+		t.Fatalf("prices came back as %+v", reopened)
+	}
+}
+
+func TestPricesAreReadBackByModelPrices(t *testing.T) {
+	cfg := openConfig(t, filepath.Join(t.TempDir(), "config.json"))
+
+	setPrices(t, cfg, enums.Sonnet, &output_itf.TokenPrices{
 		Input:  price(3),
 		Output: price(15),
-	}); err != nil {
-		t.Fatalf("set prices: %v", err)
+	})
+
+	stored := cfg.ModelPrice(enums.Sonnet)
+	if stored == nil {
+		t.Fatal("model prices dropped the prices")
 	}
 
-	stored := cfg.AgentDefaults()[enums.DailyTask]
-	if stored == nil || stored.Prices == nil {
-		t.Fatal("agent defaults dropped the prices")
+	if *stored.Input != 3 || *stored.Output != 15 {
+		t.Fatalf("prices came back as %+v", stored)
 	}
 
-	if *stored.Prices.Input != 3 || *stored.Prices.Output != 15 {
-		t.Fatalf("prices came back as %+v", stored.Prices)
-	}
-
-	if stored.Prices.CachedInput != nil {
-		t.Fatalf("blank cached price came back as %v", *stored.Prices.CachedInput)
+	if stored.CachedInput != nil {
+		t.Fatalf("blank cached price came back as %v", *stored.CachedInput)
 	}
 }
 
 func TestZeroPriceIsNotABlankPrice(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.json")
 
-	cfg := openConfig(t, path)
-
-	if err := cfg.SetAgentDefaultPrices(enums.LightweightTask, &output_itf.TokenPrices{
+	setPrices(t, openConfig(t, path), enums.Deepseek4Flash, &output_itf.TokenPrices{
 		Input:  price(0),
 		Output: price(0),
-	}); err != nil {
-		t.Fatalf("set prices: %v", err)
-	}
+	})
 
-	stored := agentDefault(t, openConfig(t, path), enums.LightweightTask)
+	stored := openConfig(t, path).ModelPrice(enums.Deepseek4Flash)
 
-	if stored.Prices == nil {
+	if stored == nil {
 		t.Fatal("a free model's prices were stored as blank")
 	}
 
-	if stored.Prices.Input == nil || *stored.Prices.Input != 0 {
-		t.Fatalf("input price came back as %v, want a set 0", stored.Prices.Input)
+	if stored.Input == nil || *stored.Input != 0 {
+		t.Fatalf("input price came back as %v, want a set 0", stored.Input)
 	}
 
-	if stored.Prices.Output == nil || *stored.Prices.Output != 0 {
-		t.Fatalf("output price came back as %v, want a set 0", stored.Prices.Output)
+	if stored.Output == nil || *stored.Output != 0 {
+		t.Fatalf("output price came back as %v, want a set 0", stored.Output)
 	}
 
-	if stored.Prices.CachedInput != nil {
-		t.Fatalf("cached price came back as %v, want blank", *stored.Prices.CachedInput)
+	if stored.CachedInput != nil {
+		t.Fatalf("cached price came back as %v, want blank", *stored.CachedInput)
 	}
 }
 
-func TestSetAgentDefaultKeepsStoredPrices(t *testing.T) {
+func TestOneModelIsPricedTheSameAtEveryTaskLevel(t *testing.T) {
+	cfg := openConfig(t, filepath.Join(t.TempDir(), "config.json"))
+
+	for _, level := range []enums.TaskLevel{enums.HeavyTask, enums.MaximumEffortTask} {
+		if err := cfg.SetAgentDefault(level, &output_itf.AgentDefault{
+			Model:         enums.Opus,
+			ThinkingLevel: enums.HighThinking,
+		}); err != nil {
+			t.Fatalf("set agent default for %s: %v", level, err)
+		}
+	}
+
+	setPrices(t, cfg, enums.Opus, &output_itf.TokenPrices{Input: price(15), Output: price(75)})
+
+	heavy := agentDefault(t, cfg, enums.HeavyTask)
+	maximum := agentDefault(t, cfg, enums.MaximumEffortTask)
+
+	if cfg.ModelPrice(heavy.Model) == nil || cfg.ModelPrice(maximum.Model) == nil {
+		t.Fatal("two levels on one model do not share its prices")
+	}
+}
+
+func TestSetAgentDefaultLeavesModelPricesAlone(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.json")
 
 	cfg := openConfig(t, path)
 
-	if err := cfg.SetAgentDefaultPrices(enums.DailyTask, &output_itf.TokenPrices{
-		Input:  price(3),
-		Output: price(15),
-	}); err != nil {
-		t.Fatalf("set prices: %v", err)
-	}
+	setPrices(t, cfg, enums.Sonnet, &output_itf.TokenPrices{Input: price(3), Output: price(15)})
 
 	if err := cfg.SetAgentDefault(enums.DailyTask, &output_itf.AgentDefault{
 		Model:         enums.Opus,
@@ -135,40 +160,15 @@ func TestSetAgentDefaultKeepsStoredPrices(t *testing.T) {
 		t.Fatalf("set agent default: %v", err)
 	}
 
-	stored := agentDefault(t, openConfig(t, path), enums.DailyTask)
+	reopened := openConfig(t, path)
 
-	if stored.Model != enums.Opus || stored.ThinkingLevel != enums.HighThinking {
+	if stored := agentDefault(t, reopened, enums.DailyTask); stored.Model != enums.Opus {
 		t.Fatalf("model change did not stick: %+v", stored)
 	}
 
-	if stored.Prices == nil || *stored.Prices.Input != 3 || *stored.Prices.Output != 15 {
-		t.Fatalf("changing the model wiped the prices: %+v", stored.Prices)
-	}
-}
-
-func TestSetAgentDefaultPricesKeepsStoredModel(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "config.json")
-
-	cfg := openConfig(t, path)
-
-	if err := cfg.SetAgentDefault(enums.HeavyTask, &output_itf.AgentDefault{
-		Model:         enums.Haiku,
-		ThinkingLevel: enums.LowThinking,
-	}); err != nil {
-		t.Fatalf("set agent default: %v", err)
-	}
-
-	if err := cfg.SetAgentDefaultPrices(enums.HeavyTask, &output_itf.TokenPrices{
-		Input:  price(1),
-		Output: price(5),
-	}); err != nil {
-		t.Fatalf("set prices: %v", err)
-	}
-
-	stored := agentDefault(t, openConfig(t, path), enums.HeavyTask)
-
-	if stored.Model != enums.Haiku || stored.ThinkingLevel != enums.LowThinking {
-		t.Fatalf("setting prices changed the model: %+v", stored)
+	stored := reopened.ModelPrice(enums.Sonnet)
+	if stored == nil || *stored.Input != 3 || *stored.Output != 15 {
+		t.Fatalf("changing a level's model wiped the model's prices: %+v", stored)
 	}
 }
 
@@ -177,23 +177,15 @@ func TestNilPricesClearStoredPrices(t *testing.T) {
 
 	cfg := openConfig(t, path)
 
-	if err := cfg.SetAgentDefaultPrices(enums.MaximumEffortTask, &output_itf.TokenPrices{
-		Input:  price(15),
-		Output: price(75),
-	}); err != nil {
-		t.Fatalf("set prices: %v", err)
+	setPrices(t, cfg, enums.Fable, &output_itf.TokenPrices{Input: price(15), Output: price(75)})
+	setPrices(t, cfg, enums.Fable, nil)
+
+	if stored := cfg.ModelPrice(enums.Fable); stored != nil {
+		t.Fatalf("prices are still %+v after clearing them", stored)
 	}
 
-	if err := cfg.SetAgentDefaultPrices(enums.MaximumEffortTask, nil); err != nil {
-		t.Fatalf("clear prices: %v", err)
-	}
-
-	if stored := agentDefault(t, cfg, enums.MaximumEffortTask); stored.Prices != nil {
-		t.Fatalf("prices are still %+v after clearing them", stored.Prices)
-	}
-
-	if stored := agentDefault(t, openConfig(t, path), enums.MaximumEffortTask); stored.Prices != nil {
-		t.Fatalf("cleared prices came back from the file as %+v", stored.Prices)
+	if stored := openConfig(t, path).ModelPrice(enums.Fable); stored != nil {
+		t.Fatalf("cleared prices came back from the file as %+v", stored)
 	}
 }
 
@@ -227,22 +219,17 @@ func TestConfigWrittenBeforePricesExistedStillLoads(t *testing.T) {
 		t.Fatalf("upgrade lost the stored model: %+v", daily)
 	}
 
-	if daily.Prices != nil {
-		t.Fatalf("a config with no prices key loaded prices %+v", daily.Prices)
+	if priced := pricedModels(cfg); len(priced) != 0 {
+		t.Fatalf("a config with no prices key loaded prices for %v", priced)
 	}
 
 	if !cfg.Onboarded() || !cfg.Autopilot() {
 		t.Fatal("upgrade lost the other stored settings")
 	}
 
-	if err := cfg.SetAgentDefaultPrices(enums.DailyTask, &output_itf.TokenPrices{
-		Input:  price(3),
-		Output: price(15),
-	}); err != nil {
-		t.Fatalf("set prices on the upgraded config: %v", err)
-	}
+	setPrices(t, cfg, enums.Opus, &output_itf.TokenPrices{Input: price(3), Output: price(15)})
 
-	if stored := agentDefault(t, openConfig(t, path), enums.DailyTask); stored.Prices == nil {
+	if stored := openConfig(t, path).ModelPrice(enums.Opus); stored == nil {
 		t.Fatal("prices set on an upgraded config did not persist")
 	}
 }
@@ -254,9 +241,12 @@ func TestUnreadablePricesKeepTheStoredModel(t *testing.T) {
   "agent_defaults": {
     "daily_task": {
       "model": "opus",
-      "thinking_level": "high",
-      "prices": {"input_per_mtok": -4}
+      "thinking_level": "high"
     }
+  },
+  "model_prices": {
+    "opus": {"input_per_mtok": -4},
+    "bogus": {"input_per_mtok": 1}
   }
 }`
 
@@ -264,83 +254,64 @@ func TestUnreadablePricesKeepTheStoredModel(t *testing.T) {
 		t.Fatalf("write broken config: %v", err)
 	}
 
-	stored := agentDefault(t, openConfig(t, path), enums.DailyTask)
+	cfg := openConfig(t, path)
 
-	if stored.Model != enums.Opus || stored.ThinkingLevel != enums.HighThinking {
-		t.Fatalf("an unusable price reset the whole default: %+v", stored)
+	if stored := agentDefault(t, cfg, enums.DailyTask); stored.Model != enums.Opus {
+		t.Fatalf("an unusable price reset the agent default: %+v", stored)
 	}
 
-	if stored.Prices != nil {
-		t.Fatalf("an unusable price was kept as %+v", stored.Prices)
+	if stored := cfg.ModelPrice(enums.Opus); stored != nil {
+		t.Fatalf("an unusable price was kept as %+v", stored)
+	}
+
+	if priced := pricedModels(cfg); len(priced) != 0 {
+		t.Fatalf("a price under an unknown model was kept for %v", priced)
 	}
 }
 
-func TestSeededDefaultsCarryNoPrices(t *testing.T) {
+func TestFreshInstallPricesNothing(t *testing.T) {
 	cfg := openConfig(t, filepath.Join(t.TempDir(), "config.json"))
 
-	for level, stored := range cfg.AgentDefaults() {
-		if stored.Prices != nil {
-			t.Fatalf("fresh install priced %s at %+v", level, stored.Prices)
-		}
+	if priced := pricedModels(cfg); len(priced) != 0 {
+		t.Fatalf("fresh install priced %v", priced)
 	}
 }
 
 func TestReturnedPricesCannotBeMutatedByTheCaller(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "config.json")
+	cfg := openConfig(t, filepath.Join(t.TempDir(), "config.json"))
 
-	cfg := openConfig(t, path)
+	setPrices(t, cfg, enums.Sonnet, &output_itf.TokenPrices{Input: price(3), Output: price(15)})
 
-	if err := cfg.SetAgentDefaultPrices(enums.DailyTask, &output_itf.TokenPrices{
-		Input:  price(3),
-		Output: price(15),
-	}); err != nil {
-		t.Fatalf("set prices: %v", err)
-	}
+	handed := cfg.ModelPrice(enums.Sonnet)
+	*handed.Input = 999
+	handed.Output = price(0)
 
-	handed := agentDefault(t, cfg, enums.DailyTask)
-	*handed.Prices.Input = 999
-	handed.Prices.Output = price(0)
-	handed.Model = enums.Haiku
+	stored := cfg.ModelPrice(enums.Sonnet)
 
-	stored := agentDefault(t, cfg, enums.DailyTask)
-
-	if *stored.Prices.Input != 3 || *stored.Prices.Output != 15 {
-		t.Fatalf("a caller mutated the stored prices: %+v", stored.Prices)
-	}
-
-	if stored.Model != enums.Sonnet {
-		t.Fatalf("a caller mutated the stored model: %s", stored.Model)
-	}
-
-	fromMap := cfg.AgentDefaults()[enums.DailyTask]
-	*fromMap.Prices.Input = 111
-
-	if *agentDefault(t, cfg, enums.DailyTask).Prices.Input != 3 {
-		t.Fatal("a caller mutated the stored prices through AgentDefaults")
+	if *stored.Input != 3 || *stored.Output != 15 {
+		t.Fatalf("a caller mutated the stored prices: %+v", stored)
 	}
 }
 
-func TestSetPricesOnUnknownTaskLevelFails(t *testing.T) {
+func TestSetPricesOnUnknownModelFails(t *testing.T) {
 	cfg := openConfig(t, filepath.Join(t.TempDir(), "config.json"))
 
-	if err := cfg.SetAgentDefaultPrices(enums.TaskLevel("bogus_task"), nil); err == nil {
-		t.Fatal("an unknown task level was accepted")
+	if err := cfg.SetModelPrices(enums.ModelName("bogus"), nil); err == nil {
+		t.Fatal("an unknown model was accepted")
 	}
 }
 
 func TestNegativePriceIsRejected(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "config.json")
+	cfg := openConfig(t, filepath.Join(t.TempDir(), "config.json"))
 
-	cfg := openConfig(t, path)
-
-	if err := cfg.SetAgentDefaultPrices(enums.DailyTask, &output_itf.TokenPrices{
+	if err := cfg.SetModelPrices(enums.Sonnet, &output_itf.TokenPrices{
 		Input:  price(-1),
 		Output: price(15),
 	}); err == nil {
 		t.Fatal("a negative price was accepted")
 	}
 
-	if stored := agentDefault(t, cfg, enums.DailyTask); stored.Prices != nil {
-		t.Fatalf("a rejected write left prices %+v behind", stored.Prices)
+	if stored := cfg.ModelPrice(enums.Sonnet); stored != nil {
+		t.Fatalf("a rejected write left prices %+v behind", stored)
 	}
 }

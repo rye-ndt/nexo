@@ -96,7 +96,7 @@ type TaskActivityInfo struct {
 }
 
 // Spent is every token this node has cost across all of its attempts; CostUSD is what
-// that comes to at the prices its task level carries, and is only meaningful when
+// that comes to at the prices of the model behind it, and is only meaningful when
 // Priced is true.
 type SessionTaskInfo struct {
 	TaskID       string                  `json:"task_id"`
@@ -111,8 +111,8 @@ type SessionTaskInfo struct {
 	Activity     []*TaskActivityInfo     `json:"activity"`
 }
 
-// Priced is false as soon as one node that spent something sits at a task level with
-// no prices filled in, because a total missing one node reads as the whole bill.
+// Priced is false as soon as one node that spent something ran on a model with no
+// prices filled in, because a total missing one node reads as the whole bill.
 type SessionStatusInfo struct {
 	SessionID    string             `json:"session_id"`
 	Status       string             `json:"status"`
@@ -126,14 +126,19 @@ type SessionStatusInfo struct {
 	CompletedAt  string             `json:"completed_at"`
 }
 
-// The prices are the text the user typed, empty when the field is blank, so a price
-// that never round-trips through a number keeps the difference between "zero" and
-// "not told".
 type AgentDefaultInfo struct {
-	TaskLevel        string `json:"task_level"`
+	TaskLevel     string `json:"task_level"`
+	Model         string `json:"model"`
+	ModelLabel    string `json:"model_label"`
+	ThinkingLevel string `json:"thinking_level"`
+}
+
+// One row per model this app can run, priced or not. The prices are the text the user
+// typed, empty when the field is blank, so a price that never round-trips through a
+// number keeps the difference between "zero" and "not told".
+type ModelPriceInfo struct {
 	Model            string `json:"model"`
 	ModelLabel       string `json:"model_label"`
-	ThinkingLevel    string `json:"thinking_level"`
 	InputPrice       string `json:"input_price"`
 	CachedInputPrice string `json:"cached_input_price"`
 	OutputPrice      string `json:"output_price"`

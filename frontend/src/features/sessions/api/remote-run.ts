@@ -4,9 +4,10 @@
  * that asks for manual acceptance halts in awaiting_accept until the answer
  * goes back over the same bindings.
  *
- * A session the Go side already knows is resumed rather than rebuilt: reverting
- * rewinds that session in place, so running it again re-executes the undone
- * steps instead of starting a second session over the same directory.
+ * A session the Go side already knows is resumed rather than rebuilt. The ids it
+ * handed out ride on the session itself, so they outlive the page: reverting
+ * rewinds that session in place, and a run halted by a pause or a restart
+ * reattaches instead of starting a second session over the same directory.
  */
 
 import {bridge, hasWailsRuntime} from '@/shared/api/bridge'
@@ -19,12 +20,13 @@ import type {
     ActivityLine,
     ContextUsage,
     HandoverDoc,
+    RemoteRunIds,
     Session,
     Spend,
     Task,
 } from '@/features/sessions/types'
 import {RemoteTaskStatus} from '@/features/sessions/api/remote-enums'
-import {replaceSession, sessions} from '@/features/sessions/api/store'
+import {findSession, replaceSession, sessions} from '@/features/sessions/api/store'
 import {mergeActivity} from '@/features/sessions/api/activity'
 import {TICK_MS, timers} from '@/features/sessions/api/timers'
 import {output_itf} from '@wailsjs/go/models'
@@ -32,6 +34,7 @@ import type {input_itf} from '@wailsjs/go/models'
 import {
     AnswerTaskAcceptance,
     CancelSession,
+    PauseSession,
     ResumeSession,
     RunSession,
     SessionStatus,
@@ -47,26 +50,14 @@ type RemoteRun = {
 
 export const runs = new Map<string, RemoteRun>()
 
-/**
- * The ids the Go side gave this run, kept after the run settles: a finished
- * session is still asked what a step changed, and still reverted to.
- */
-const remoteIds = new Map<string, {sessionId: string; taskIds: Map<string, string>}>()
-
 export function remoteRefs(sessionId: string, taskId: string) {
-    const ids = remoteIds.get(sessionId)
-    const remoteTaskId = ids?.taskIds.get(taskId)
+    const remote = findSession(sessionId).remote
+    const remoteTaskId = remote?.taskIds[taskId]
 
-    if (!ids || !remoteTaskId)
-        throw new Error(
-            'This run is no longer being tracked. Only a run started since the app opened can be inspected.',
-        )
+    if (!remote || !remoteTaskId)
+        throw new Error('This node has not run yet, so there is nothing to inspect.')
 
-    return {sessionId: ids.sessionId, taskId: remoteTaskId}
-}
-
-export function forgetRemoteIds(sessionId: string) {
-    remoteIds.delete(sessionId)
+    return {sessionId: remote.sessionId, taskId: remoteTaskId}
 }
 
 async function buildRunSpec(session: Session): Promise<output_itf.RunSessionSpec> {
@@ -92,15 +83,15 @@ async function buildRunSpec(session: Session): Promise<output_itf.RunSessionSpec
     })
 }
 
-function track(sessionId: string, remoteSessionId: string, taskIds: Map<string, string>) {
+function track(session: Session, remote: RemoteRunIds) {
     const clientTaskIds = new Map(
-        [...taskIds].map(([clientId, remoteId]) => [remoteId, clientId] as const),
+        Object.entries(remote.taskIds).map(([clientId, remoteId]) => [remoteId, clientId] as const),
     )
 
-    runs.set(sessionId, {remoteSessionId, clientTaskIds, failedPolls: 0})
-    remoteIds.set(sessionId, {sessionId: remoteSessionId, taskIds})
+    runs.set(session.id, {remoteSessionId: remote.sessionId, clientTaskIds, failedPolls: 0})
+    replaceSession({...session, remote})
 
-    pollRemoteRun(sessionId)
+    pollRemoteRun(session.id)
 }
 
 export async function startRemoteRun(session: Session): Promise<boolean> {
@@ -109,11 +100,11 @@ export async function startRemoteRun(session: Session): Promise<boolean> {
     if (!session.workingDir.trim())
         throw new Error('Set a working directory before running this session.')
 
-    const rewound = remoteIds.get(session.id)
+    const known = session.remote
 
-    if (rewound) {
-        await bridge(() => ResumeSession(rewound.sessionId))
-        track(session.id, rewound.sessionId, rewound.taskIds)
+    if (known) {
+        await bridge(() => ResumeSession(known.sessionId))
+        track(session, known)
         return true
     }
 
@@ -123,7 +114,7 @@ export async function startRemoteRun(session: Session): Promise<boolean> {
     if (!result.session_id)
         throw new Error('The run started without a session id. Check the app log and try again.')
 
-    track(session.id, result.session_id, new Map(Object.entries(result.task_ids ?? {})))
+    track(session, {sessionId: result.session_id, taskIds: result.task_ids ?? {}})
     return true
 }
 
@@ -132,23 +123,25 @@ export async function answerRemoteAcceptance(
     taskId: string,
     accepted: boolean,
 ): Promise<void> {
-    const run = runs.get(sessionId)
-    if (!run) throw new Error('This run is no longer being tracked. Reopen the session first.')
+    const refs = remoteRefs(sessionId, taskId)
 
-    const match = [...run.clientTaskIds].find(([, clientId]) => clientId === taskId)
-    if (!match) throw new Error('That node is not part of the running session.')
-
-    const [remoteTaskId] = match
-
-    await bridge(() => AnswerTaskAcceptance(remoteTaskId, accepted))
+    await bridge(() => AnswerTaskAcceptance(refs.taskId, accepted))
     pollRemoteRun(sessionId)
 }
 
+export async function pauseRemoteRun(sessionId: string): Promise<void> {
+    return haltRemoteRun(sessionId, PauseSession)
+}
+
 export async function cancelRemoteRun(sessionId: string): Promise<void> {
+    return haltRemoteRun(sessionId, CancelSession)
+}
+
+async function haltRemoteRun(sessionId: string, halt: (remoteSessionId: string) => Promise<void>) {
     const run = runs.get(sessionId)
     if (!run) return
 
-    await bridge(() => CancelSession(run.remoteSessionId))
+    await bridge(() => halt(run.remoteSessionId))
     runs.delete(sessionId)
 }
 

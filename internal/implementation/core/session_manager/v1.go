@@ -43,7 +43,7 @@ type sessionMetadata struct {
 	agentIDToHandle map[uuid.UUID]*AgentHandle
 	taskIDToReport  map[uuid.UUID]*core_itf.TaskReport
 	spentByTask     map[uuid.UUID]input_itf.ContextUsage
-	cancelled       bool
+	halt            enums.SessionHalt
 	run             chan struct{}
 }
 
@@ -339,8 +339,8 @@ func (s *v1) addTask(sessionID uuid.UUID, t *input_itf.TaskEntity, dependsOn []u
 func (s *v1) Assign(taskID, agentID uuid.UUID) error {
 	c, err := s.editTask(taskID, agentID, enums.SessionTaskStatusChanged,
 		func(session *sessionMetadata, task *input_itf.TaskEntity) (func(), error) {
-			if session.cancelled {
-				return nil, custom_error.Critical("session %v is cancelled", session.info.ID)
+			if session.halt != enums.HaltNone {
+				return nil, custom_error.Critical("session %v is %s", session.info.ID, session.halt)
 			}
 
 			if !task.Status.Takeable() {
@@ -593,26 +593,32 @@ func handoverDocEntities(docs []*core_itf.HandoverDoc) []*input_itf.HandoverDocE
 	entities := make([]*input_itf.HandoverDocEntity, 0, len(docs))
 
 	for _, doc := range docs {
-		entities = append(entities, &input_itf.HandoverDocEntity{
-			Task:              doc.Task,
-			TLDR:              doc.TLDR,
-			Outcome:           doc.Outcome,
-			Blockers:          doc.Blockers,
-			ApprovedDecisions: doc.ApprovedDecisions,
-			RejectedDecisions: doc.RejectedDecisions,
-			CurrentBehaviors:  doc.CurrentBehaviors,
-			ChangedBehaviors:  doc.ChangedBehaviors,
-			MustAvoid:         doc.MustAvoid,
-			Nuances:           doc.Nuances,
-			KnownGaps:         doc.KnownGaps,
-		})
+		entities = append(entities, (*input_itf.HandoverDocEntity)(doc))
 	}
 
 	return entities
 }
 
+func handoverDocs(entities []*input_itf.HandoverDocEntity) []*core_itf.HandoverDoc {
+	docs := make([]*core_itf.HandoverDoc, 0, len(entities))
+
+	for _, entity := range entities {
+		docs = append(docs, (*core_itf.HandoverDoc)(entity))
+	}
+
+	return docs
+}
+
 func (s *v1) Cancel(sessionID uuid.UUID) ([]uuid.UUID, error) {
-	changes, retired, err := s.cancelSession(sessionID)
+	return s.haltSession(sessionID, enums.HaltCancelled)
+}
+
+func (s *v1) Pause(sessionID uuid.UUID) ([]uuid.UUID, error) {
+	return s.haltSession(sessionID, enums.HaltPaused)
+}
+
+func (s *v1) haltSession(sessionID uuid.UUID, halt enums.SessionHalt) ([]uuid.UUID, error) {
+	changes, retired, err := s.stageHalt(sessionID, halt)
 	if err != nil {
 		return nil, err
 	}
@@ -629,7 +635,7 @@ func (s *v1) Cancel(sessionID uuid.UUID) ([]uuid.UUID, error) {
 		}
 		s.locker.Unlock()
 
-		return nil, custom_error.Critical("cannot save task cancel: %v", err)
+		return nil, custom_error.Critical("cannot save session %s: %v", halt, err)
 	}
 
 	session, found := s.session(sessionID)
@@ -650,9 +656,9 @@ func (s *v1) Cancel(sessionID uuid.UUID) ([]uuid.UUID, error) {
 	return agentIDs, firstErr(publishErrs...)
 }
 
-// A cancelled agent never reports, so what it already spent is read before the drop is
+// A halted agent never reports, so what it already spent is read before the drop is
 // published: the coordinator answers that event by killing the agent, and a killed
-// agent has no usage left to read. The handles come from cancelSession because the
+// agent has no usage left to read. The handles come from stageHalt because the
 // session no longer holds them by the time the tokens are credited.
 func (s *v1) retireTokens(session *sessionMetadata, retired []*AgentHandle) {
 	for _, handle := range retired {
@@ -670,20 +676,21 @@ func (s *v1) creditTokens(session *sessionMetadata, taskID uuid.UUID, usage *inp
 	s.locker.Unlock()
 }
 
-func (s *v1) cancelSession(sessionID uuid.UUID) ([]*change, []*AgentHandle, error) {
+func (s *v1) stageHalt(sessionID uuid.UUID, halt enums.SessionHalt) ([]*change, []*AgentHandle, error) {
 	s.locker.Lock()
 	defer s.locker.Unlock()
 
 	session, found := s.sessions[sessionID]
 	if !found {
-		return nil, nil, custom_error.Critical("session %v not found to cancel", sessionID)
+		return nil, nil, custom_error.Critical("session %v not found to mark as %s", sessionID, halt)
 	}
 
 	infoSnapshot := *session.info
 	changes := []*change{}
 
 	for taskID, task := range session.taskIDToTask {
-		if !task.Status.Cancellable() {
+		parked, parks := halt.Park(task.Status)
+		if !parks {
 			continue
 		}
 
@@ -697,7 +704,7 @@ func (s *v1) cancelSession(sessionID uuid.UUID) ([]*change, []*AgentHandle, erro
 		}
 
 		prevTask := *task
-		task.Status = enums.TaskCancelled
+		task.Status = parked
 		task.UpdatedAt = helpers.NewUTC()
 		taskSnapshot := *task
 
@@ -732,16 +739,69 @@ func (s *v1) cancelSession(sessionID uuid.UUID) ([]*change, []*AgentHandle, erro
 	})
 
 	session.agentIDToHandle = map[uuid.UUID]*AgentHandle{}
-	session.cancelled = true
+	session.halt = halt
 
 	return changes, retired, nil
+}
+
+func (s *v1) Restore() error {
+	snapshots, err := s.db.LoadTaskHistory()
+	if err != nil {
+		return custom_error.Critical("cannot load task history: %v", err)
+	}
+
+	interrupted := []uuid.UUID{}
+
+	s.locker.Lock()
+	for _, snapshot := range snapshots {
+		session := restored(snapshot)
+		s.sessions[session.info.ID] = session
+
+		if !session.info.StartedAt.IsZero() && session.info.CompletedAt.IsZero() {
+			interrupted = append(interrupted, session.info.ID)
+		}
+	}
+	s.locker.Unlock()
+
+	for _, sessionID := range interrupted {
+		if _, err := s.Pause(sessionID); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func restored(snapshot *input_itf.SessionSnapshot) *sessionMetadata {
+	session := &sessionMetadata{
+		info:            snapshot.Session,
+		taskIDToTask:    make(map[uuid.UUID]*input_itf.TaskEntity, len(snapshot.Tasks)),
+		agentIDToHandle: map[uuid.UUID]*AgentHandle{},
+		taskIDToReport:  map[uuid.UUID]*core_itf.TaskReport{},
+		spentByTask:     map[uuid.UUID]input_itf.ContextUsage{},
+	}
+
+	for _, task := range snapshot.Tasks {
+		session.taskIDToTask[task.ID] = task
+	}
+
+	for _, report := range snapshot.Reports {
+		session.keepReport(&core_itf.TaskReport{
+			TaskID:       report.TaskID,
+			Status:       report.AttemptStatus,
+			HandoverDocs: handoverDocs(report.HandoverDocs),
+			ContextUsage: report.ContextUsage,
+		})
+	}
+
+	return session
 }
 
 func (s *v1) resume(session *sessionMetadata) {
 	s.locker.Lock()
 	defer s.locker.Unlock()
 
-	session.cancelled = false
+	session.halt = enums.HaltNone
 }
 
 func (s *v1) drainIfDone(session *sessionMetadata) error {
@@ -795,7 +855,7 @@ func (s *v1) ReadyTasks(sessionID uuid.UUID) ([]*core_itf.TaskSpec, error) {
 
 	specs := []*core_itf.TaskSpec{}
 
-	if !session.cancelled {
+	if session.halt == enums.HaltNone {
 		for taskID, task := range session.taskIDToTask {
 			if _, taken := session.findHandle(taskID); taken {
 				continue
@@ -870,7 +930,7 @@ func (s *v1) Status(id uuid.UUID) (*core_itf.SessionStatus, error) {
 
 	status := &core_itf.SessionStatus{
 		ID:             id,
-		Status:         sessionStatus(session.info),
+		Status:         sessionStatus(session),
 		WorkingDirPath: session.info.WorkingDirPath,
 		ContextDirPath: session.info.ContextDirPath,
 		Tasks:          tasks,
@@ -1244,11 +1304,13 @@ func creditedWith(spent input_itf.ContextUsage, usage *input_itf.ContextUsage) i
 	return spent
 }
 
-func sessionStatus(info *input_itf.SessionEntity) enums.SessionStatus {
+func sessionStatus(session *sessionMetadata) enums.SessionStatus {
 	switch {
-	case !info.CompletedAt.IsZero():
+	case !session.info.CompletedAt.IsZero():
 		return enums.SessionCompleted
-	case !info.StartedAt.IsZero():
+	case session.halt == enums.HaltPaused:
+		return enums.SessionPaused
+	case !session.info.StartedAt.IsZero():
 		return enums.SessionProcessing
 	default:
 		return enums.SessionInit

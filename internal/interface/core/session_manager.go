@@ -109,6 +109,8 @@ type SessionManager interface {
 	RewindTo(taskID uuid.UUID) error
 	AnswerAcceptance(taskID uuid.UUID, accepted bool) error
 	Cancel(session uuid.UUID) ([]uuid.UUID, error)
+	Pause(session uuid.UUID) ([]uuid.UUID, error)
+	Restore() error
 	Status(id uuid.UUID) (*SessionStatus, error)
 	HeartBeat(agentID uuid.UUID) error
 	Stop()

@@ -35,12 +35,13 @@ func (w *wailsInstance) Run() error {
 	app := w.config.Read().App
 
 	return wails.Run(&options.App{
-		Title:             app.Name,
-		Width:             app.W,
-		Height:            app.H,
-		Assets:            w.assets,
-		BackgroundColour:  helpers.HexColour(app.Bg),
-		HideWindowOnClose: true,
+		Title:                    app.Name,
+		Width:                    app.W,
+		Height:                   app.H,
+		Assets:                   w.assets,
+		BackgroundColour:         helpers.HexColour(app.Bg),
+		HideWindowOnClose:        true,
+		EnableDefaultContextMenu: true,
 		Menu: menu.NewMenuFromItems(
 			menu.AppMenu(),
 			menu.EditMenu(),

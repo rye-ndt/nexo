@@ -15,7 +15,11 @@ import {
     cancelRun,
     createsCycle,
     duplicateSession,
+    isCancellable,
+    isPausable,
     label,
+    pauseRun,
+    resumeRun,
     withDependency,
     withTask,
     withTaskPatch,
@@ -41,7 +45,7 @@ import {resolveAcceptance, stopRun, tick} from '@/features/sessions/api/simulate
 import {
     answerRemoteAcceptance,
     cancelRemoteRun,
-    forgetRemoteIds,
+    pauseRemoteRun,
     runs,
     startRemoteRun,
 } from '@/features/sessions/api/remote-run'
@@ -163,6 +167,23 @@ export async function answerTaskAcceptance(
     return structuredClone(findSession(sessionId))
 }
 
+/** Pause is not terminal — the ids of the backend run are kept so resuming reattaches to it. */
+export async function pauseSession(sessionId: string): Promise<Session> {
+    return haltSession(sessionId, isPausable, pauseRemoteRun, pauseRun)
+}
+
+export async function resumeSession(sessionId: string): Promise<Session> {
+    await hydrate()
+
+    const session = findSession(sessionId)
+    if (!session.paused) throw new Error('This session is not paused.')
+
+    await listTemplates()
+    await startRun(resumeRun(session))
+
+    return structuredClone(findSession(sessionId))
+}
+
 /** A held node loses its question when its session goes away, or the queue outlives the run. */
 function forgetSessionApprovals(session: Session) {
     forgetMockApprovals(
@@ -172,18 +193,26 @@ function forgetSessionApprovals(session: Session) {
 
 /** Cancel is terminal — the node that was running loses its work and the session can only be duplicated. */
 export async function cancelSession(sessionId: string): Promise<Session> {
+    return haltSession(sessionId, isCancellable, cancelRemoteRun, cancelRun)
+}
+
+async function haltSession(
+    sessionId: string,
+    halts: (session: Session) => boolean,
+    stopRemoteRun: (sessionId: string) => Promise<void>,
+    halt: (session: Session) => Session,
+): Promise<Session> {
     await hydrate()
 
     const session = findSession(sessionId)
-    if (!session.started) throw new Error('This session is not running.')
-    if (session.cancelled) return structuredClone(session)
+    if (!halts(session)) return structuredClone(session)
 
     stopRun(sessionId)
-    await cancelRemoteRun(sessionId)
+    await stopRemoteRun(sessionId)
     forgetSessionActivity(session)
     forgetSessionApprovals(session)
 
-    return replaceSession(cancelRun(session))
+    return replaceSession(halt(session))
 }
 
 export async function deleteSession(sessionId: string): Promise<void> {
@@ -194,7 +223,6 @@ export async function deleteSession(sessionId: string): Promise<void> {
     stopRun(sessionId)
     await cancelRemoteRun(sessionId).catch(() => {})
     runs.delete(sessionId)
-    forgetRemoteIds(sessionId)
 
     if (doomed) {
         forgetSessionActivity(doomed)

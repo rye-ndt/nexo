@@ -128,6 +128,10 @@ func wire(assets fs.FS) (*App, error) {
 
 	sessionManager.TrackLiveAgents(agentManager)
 
+	if err := sessionManager.Restore(); err != nil {
+		return nil, err
+	}
+
 	sessionCoordinator, err := coordinator.InitV1(cfg.Read().Session, sessionManager, agentManager, history, appLogger)
 	if err != nil {
 		return nil, err

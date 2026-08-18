@@ -16,23 +16,94 @@ import (
 )
 
 type fakeStore struct {
-	mu      sync.Mutex
-	tasks   []*input_itf.TaskEntity
-	reports []*input_itf.TaskReportEntity
+	mu       sync.Mutex
+	sessions []*input_itf.SessionEntity
+	tasks    []*input_itf.TaskEntity
+	reports  []*input_itf.TaskReportEntity
 }
 
 func (s *fakeStore) SaveTaskHistory(
-	_ []*input_itf.SessionEntity,
+	sessions []*input_itf.SessionEntity,
 	tasks []*input_itf.TaskEntity,
 	reports []*input_itf.TaskReportEntity,
 ) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	s.tasks = append(s.tasks, tasks...)
-	s.reports = append(s.reports, reports...)
+	for _, session := range sessions {
+		clone := *session
+		s.sessions = append(s.sessions, &clone)
+	}
+
+	for _, task := range tasks {
+		clone := *task
+		s.tasks = append(s.tasks, &clone)
+	}
+
+	for _, report := range reports {
+		clone := *report
+		s.reports = append(s.reports, &clone)
+	}
 
 	return nil
+}
+
+func (s *fakeStore) LoadTaskHistory() ([]*input_itf.SessionSnapshot, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	order := []uuid.UUID{}
+	bySession := map[uuid.UUID]*input_itf.SessionSnapshot{}
+
+	for _, session := range s.sessions {
+		snapshot, seen := bySession[session.ID]
+		if !seen {
+			snapshot = &input_itf.SessionSnapshot{}
+			bySession[session.ID] = snapshot
+			order = append(order, session.ID)
+		}
+
+		clone := *session
+		snapshot.Session = &clone
+	}
+
+	kept := map[uuid.UUID]*input_itf.TaskEntity{}
+	ownerOfTask := map[uuid.UUID]uuid.UUID{}
+
+	for _, task := range s.tasks {
+		snapshot, found := bySession[task.SessionID]
+		if !found {
+			continue
+		}
+
+		clone := *task
+
+		if previous, seen := kept[task.ID]; seen {
+			*previous = clone
+			continue
+		}
+
+		kept[task.ID] = &clone
+		ownerOfTask[task.ID] = task.SessionID
+		snapshot.Tasks = append(snapshot.Tasks, &clone)
+	}
+
+	for _, report := range s.reports {
+		owner, found := ownerOfTask[report.TaskID]
+		if !found {
+			continue
+		}
+
+		clone := *report
+		bySession[owner].Reports = append(bySession[owner].Reports, &clone)
+	}
+
+	loaded := make([]*input_itf.SessionSnapshot, 0, len(order))
+	for _, id := range order {
+		loaded = append(loaded, bySession[id])
+	}
+
+	return loaded, nil
 }
 
 func (s *fakeStore) lastStatusFor(taskID uuid.UUID) enums.TaskStatus {
@@ -88,6 +159,12 @@ func newManagerWith(t *testing.T, mq output_itf.MessageQ) (core_itf.SessionManag
 
 	store := &fakeStore{}
 
+	return managerOver(t, store, mq), store
+}
+
+func managerOver(t *testing.T, store *fakeStore, mq output_itf.MessageQ) core_itf.SessionManager {
+	t.Helper()
+
 	manager, err := InitV1(&input_itf.SessionConfig{
 		HeartbeatTimeout:       30 * time.Minute,
 		HeartbeatScanInterval:  time.Minute,
@@ -99,7 +176,19 @@ func newManagerWith(t *testing.T, mq output_itf.MessageQ) (core_itf.SessionManag
 
 	t.Cleanup(manager.Stop)
 
-	return manager, store
+	return manager
+}
+
+func restoredManager(t *testing.T, store *fakeStore) core_itf.SessionManager {
+	t.Helper()
+
+	manager := managerOver(t, store, fakeMQ{})
+
+	if err := manager.Restore(); err != nil {
+		t.Fatalf("restore: %v", err)
+	}
+
+	return manager
 }
 
 func addTask(t *testing.T, manager core_itf.SessionManager, session uuid.UUID, name string, gated bool, deps ...uuid.UUID) uuid.UUID {
@@ -559,6 +648,273 @@ func TestCancelledSessionTakesWorkAgainOnTheNextRun(t *testing.T) {
 
 	if status.Status != enums.SessionProcessing {
 		t.Fatalf("session status while the resumed task runs = %s, want %s", status.Status, enums.SessionProcessing)
+	}
+}
+
+func TestPauseParksOnlyTheRunningTask(t *testing.T) {
+	manager, store := newManager(t)
+	session := newSession(t, manager)
+
+	done := addTask(t, manager, session, "done", false)
+	gate := addTask(t, manager, session, "plan", true)
+	running := addTask(t, manager, session, "implement", false)
+	idle := addTask(t, manager, session, "document", false)
+
+	reportDone(t, manager, done, uuid.New())
+	reportDone(t, manager, gate, uuid.New())
+
+	agentID := uuid.New()
+	if err := manager.Assign(running, agentID); err != nil {
+		t.Fatalf("assign: %v", err)
+	}
+
+	killed, err := manager.Pause(session)
+	if err != nil {
+		t.Fatalf("pause: %v", err)
+	}
+
+	if len(killed) != 1 || killed[0] != agentID {
+		t.Fatalf("pause returned %v, want only the agent holding the running task", killed)
+	}
+
+	if got := statusOf(t, manager, session, running); got != enums.TaskNotTaken {
+		t.Fatalf("the running task after pause = %s, want %s", got, enums.TaskNotTaken)
+	}
+
+	if got := store.lastStatusFor(running); got != enums.TaskNotTaken {
+		t.Fatalf("the stored running task after pause = %s, want %s", got, enums.TaskNotTaken)
+	}
+
+	if got := statusOf(t, manager, session, gate); got != enums.TaskAwaitingAccept {
+		t.Fatalf("the gated task after pause = %s, want %s", got, enums.TaskAwaitingAccept)
+	}
+
+	if got := statusOf(t, manager, session, done); got != enums.TaskCompleted {
+		t.Fatalf("the completed task after pause = %s, want %s", got, enums.TaskCompleted)
+	}
+
+	if got := statusOf(t, manager, session, idle); got != enums.TaskNotTaken {
+		t.Fatalf("the untouched task after pause = %s, want %s", got, enums.TaskNotTaken)
+	}
+
+	if ready := readyIDs(t, manager, session); len(ready) != 0 {
+		t.Fatalf("a paused session still offers %d tasks", len(ready))
+	}
+}
+
+func TestPausedSessionTakesTheParkedTaskAgainOnTheNextRun(t *testing.T) {
+	manager, _ := newManager(t)
+	session := newSession(t, manager)
+
+	running := addTask(t, manager, session, "implement", false)
+
+	if err := manager.Assign(running, uuid.New()); err != nil {
+		t.Fatalf("assign: %v", err)
+	}
+
+	if _, err := manager.Pause(session); err != nil {
+		t.Fatalf("pause: %v", err)
+	}
+
+	if status := sessionStatusOf(t, manager, session); status.Status != enums.SessionPaused {
+		t.Fatalf("session status while paused = %s, want %s", status.Status, enums.SessionPaused)
+	}
+
+	if _, err := manager.Execute(session); err != nil {
+		t.Fatalf("execute after pause: %v", err)
+	}
+
+	if ready := readyIDs(t, manager, session); !ready[running] {
+		t.Fatal("resuming the session did not offer the parked task again")
+	}
+
+	if status := sessionStatusOf(t, manager, session); status.Status != enums.SessionProcessing {
+		t.Fatalf("session status after resume = %s, want %s", status.Status, enums.SessionProcessing)
+	}
+
+	if err := manager.Assign(running, uuid.New()); err != nil {
+		t.Fatalf("assign after a pause and a new run: %v", err)
+	}
+}
+
+func TestPausedSessionRefusesAnAssignment(t *testing.T) {
+	manager, _ := newManager(t)
+	session := newSession(t, manager)
+
+	task := addTask(t, manager, session, "implement", false)
+
+	if err := manager.Assign(task, uuid.New()); err != nil {
+		t.Fatalf("assign: %v", err)
+	}
+
+	if _, err := manager.Pause(session); err != nil {
+		t.Fatalf("pause: %v", err)
+	}
+
+	if err := manager.Assign(task, uuid.New()); err == nil {
+		t.Fatal("a paused session accepted an assignment")
+	}
+}
+
+func TestPauseKeepsTheTokensTheKilledAgentSpent(t *testing.T) {
+	manager, live := trackedManager(t)
+	session := newSession(t, manager)
+	taskID := addTask(t, manager, session, "implement", false)
+
+	agentID := uuid.New()
+	live.spend(agentID, 850)
+
+	if err := manager.Assign(taskID, agentID); err != nil {
+		t.Fatalf("assign: %v", err)
+	}
+
+	if _, err := manager.Pause(session); err != nil {
+		t.Fatalf("pause: %v", err)
+	}
+
+	if got := tokensBilled(t, manager, session); got != 850 {
+		t.Fatalf("tokens billed after pause = %d, want the 850 the killed agent spent", got)
+	}
+}
+
+func TestRestoreBringsBackAnInterruptedSessionAsPaused(t *testing.T) {
+	manager, store := newManager(t)
+	live := &fakeLive{usage: map[uuid.UUID]input_itf.ContextUsage{}}
+	manager.TrackLiveAgents(live)
+
+	session := newSession(t, manager)
+	done := addTask(t, manager, session, "plan", false)
+	running := addTask(t, manager, session, "implement", false)
+
+	finished := uuid.New()
+	live.spend(finished, 900)
+	reportDone(t, manager, done, finished)
+
+	if err := manager.Assign(running, uuid.New()); err != nil {
+		t.Fatalf("assign: %v", err)
+	}
+
+	restored := restoredManager(t, store)
+	status := sessionStatusOf(t, restored, session)
+
+	if status.Status != enums.SessionPaused {
+		t.Fatalf("restored session status = %s, want %s", status.Status, enums.SessionPaused)
+	}
+
+	if len(status.Tasks) != 2 {
+		t.Fatalf("restored session has %d tasks, want 2", len(status.Tasks))
+	}
+
+	if got := status.Tasks[done].Status; got != enums.TaskCompleted {
+		t.Fatalf("restored completed task = %s, want %s", got, enums.TaskCompleted)
+	}
+
+	docs := status.Tasks[done].HandoverDocs
+	if len(docs) != 1 || docs[0].Outcome != "briefing" || docs[0].Task != "plan" {
+		t.Fatalf("restored handover docs = %+v, want the one the finished task wrote", docs)
+	}
+
+	if got := spentOn(t, status, done).Billed; got != 900 {
+		t.Fatalf("restored task spent %d, want the 900 its attempt cost", got)
+	}
+
+	if got := status.Tasks[running].Status; got != enums.TaskNotTaken {
+		t.Fatalf("restored running task = %s, want %s", got, enums.TaskNotTaken)
+	}
+
+	if got := store.lastStatusFor(running); got != enums.TaskNotTaken {
+		t.Fatalf("the stored running task after restore = %s, want %s", got, enums.TaskNotTaken)
+	}
+
+	if ready := readyIDs(t, restored, session); len(ready) != 0 {
+		t.Fatalf("a restored session offers %d tasks before it runs again", len(ready))
+	}
+
+	if _, err := restored.Execute(session); err != nil {
+		t.Fatalf("execute after restore: %v", err)
+	}
+
+	if ready := readyIDs(t, restored, session); !ready[running] {
+		t.Fatal("resuming a restored session did not offer the interrupted task again")
+	}
+}
+
+func TestRestoreKeepsASessionThatNeverRanRunnable(t *testing.T) {
+	manager, store := newManager(t)
+	session := newSession(t, manager)
+	task := addTask(t, manager, session, "implement", false)
+
+	restored := restoredManager(t, store)
+
+	if status := sessionStatusOf(t, restored, session); status.Status != enums.SessionInit {
+		t.Fatalf("restored session status = %s, want %s", status.Status, enums.SessionInit)
+	}
+
+	if ready := readyIDs(t, restored, session); !ready[task] {
+		t.Fatal("a restored session that never ran does not offer its work")
+	}
+}
+
+func TestRestoreTwiceChangesNothing(t *testing.T) {
+	manager, store := newManager(t)
+	session := newSession(t, manager)
+	done := addTask(t, manager, session, "plan", false)
+	running := addTask(t, manager, session, "implement", false)
+
+	reportDone(t, manager, done, uuid.New())
+
+	if err := manager.Assign(running, uuid.New()); err != nil {
+		t.Fatalf("assign: %v", err)
+	}
+
+	restored := restoredManager(t, store)
+
+	if err := restored.Restore(); err != nil {
+		t.Fatalf("second restore: %v", err)
+	}
+
+	status := sessionStatusOf(t, restored, session)
+
+	if status.Status != enums.SessionPaused {
+		t.Fatalf("twice restored session status = %s, want %s", status.Status, enums.SessionPaused)
+	}
+
+	if len(status.Tasks) != 2 {
+		t.Fatalf("twice restored session has %d tasks, want 2", len(status.Tasks))
+	}
+
+	if got := len(status.Tasks[done].HandoverDocs); got != 1 {
+		t.Fatalf("twice restored task kept %d handover docs, want 1", got)
+	}
+
+	if got := status.Tasks[running].Status; got != enums.TaskNotTaken {
+		t.Fatalf("twice restored running task = %s, want %s", got, enums.TaskNotTaken)
+	}
+}
+
+func TestRestoredSessionFeedsTheHandoverDocDownstream(t *testing.T) {
+	manager, store := newManager(t)
+	session := newSession(t, manager)
+
+	upstream := addTask(t, manager, session, "plan", false)
+	downstream := addTask(t, manager, session, "implement", false, upstream)
+
+	reportDone(t, manager, upstream, uuid.New())
+
+	restored := restoredManager(t, store)
+	status := sessionStatusOf(t, restored, session)
+
+	docs := status.Tasks[upstream].HandoverDocs
+	if len(docs) != 1 || docs[0].Outcome != "briefing" {
+		t.Fatalf("the completed dependency handed over %+v, want its briefing", docs)
+	}
+
+	if _, err := restored.Execute(session); err != nil {
+		t.Fatalf("execute after restore: %v", err)
+	}
+
+	if ready := readyIDs(t, restored, session); !ready[downstream] {
+		t.Fatal("the downstream task of a restored dependency never became ready")
 	}
 }
 

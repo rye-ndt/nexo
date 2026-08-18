@@ -65,10 +65,17 @@ type TaskEntity struct {
 	UpdatedAt            time.Time
 }
 
+type SessionSnapshot struct {
+	Session *SessionEntity
+	Tasks   []*TaskEntity
+	Reports []*TaskReportEntity
+}
+
 type TaskStorage interface {
 	SaveTaskHistory(
 		sessions []*SessionEntity,
 		tasks []*TaskEntity,
 		reports []*TaskReportEntity,
 	) error
+	LoadTaskHistory() ([]*SessionSnapshot, error)
 }

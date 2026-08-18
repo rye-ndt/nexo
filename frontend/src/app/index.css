@@ -132,6 +132,8 @@
     --state-failed-tint: #fff0ef;
 
     --sidebar: #ffffff;
+
+    --default-contextmenu: hide;
 }
 
 .dark {
@@ -172,6 +174,11 @@
     a[href],
     summary {
         cursor: pointer;
+    }
+    input,
+    textarea,
+    [contenteditable='true'] {
+        --default-contextmenu: show;
     }
 }
 

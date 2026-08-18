@@ -554,6 +554,162 @@ func (s *taskStore) SaveTaskHistory(
 	return tx.Commit()
 }
 
+func (s *taskStore) LoadTaskHistory() ([]*input_itf.SessionSnapshot, error) {
+	sessions, err := loadAll(s.db, `SELECT id, working_dir_path, context_dir_path, started_at,
+		completed_at, total_task, total_retry, created_at, updated_at
+		FROM sessions ORDER BY created_at, id`, scanSession)
+	if err != nil {
+		return nil, err
+	}
+
+	tasks, err := loadAll(s.db, `SELECT id, session_id, name, task_level, preferred_model,
+		thinking_level, system_prompts, auto_retry, manual_accept_required, extra_guidance,
+		retry_count, status, depends_on_task_ids, last_report_id, created_at, updated_at
+		FROM tasks ORDER BY created_at, id`, scanTask)
+	if err != nil {
+		return nil, err
+	}
+
+	reports, err := loadAll(s.db, `SELECT id, task_id, agent_id, attempt_status, handover_doc,
+		context_usage, started_at, completed_at, created_at, updated_at
+		FROM task_reports ORDER BY created_at, id`, scanReport)
+	if err != nil {
+		return nil, err
+	}
+
+	tasksOf := map[uuid.UUID][]*input_itf.TaskEntity{}
+	for _, t := range tasks {
+		tasksOf[t.SessionID] = append(tasksOf[t.SessionID], t)
+	}
+
+	reportsOf := map[uuid.UUID][]*input_itf.TaskReportEntity{}
+	for _, r := range reports {
+		reportsOf[r.TaskID] = append(reportsOf[r.TaskID], r)
+	}
+
+	snapshots := make([]*input_itf.SessionSnapshot, 0, len(sessions))
+
+	for _, sess := range sessions {
+		snapshot := &input_itf.SessionSnapshot{Session: sess, Tasks: tasksOf[sess.ID]}
+
+		for _, t := range snapshot.Tasks {
+			snapshot.Reports = append(snapshot.Reports, reportsOf[t.ID]...)
+		}
+
+		snapshots = append(snapshots, snapshot)
+	}
+
+	return snapshots, nil
+}
+
+func loadAll[T any](db *sql.DB, query string, scan func(*sql.Rows) (*T, error)) ([]*T, error) {
+	rows, err := db.Query(query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	list := []*T{}
+
+	for rows.Next() {
+		item, err := scan(rows)
+		if err != nil {
+			return nil, err
+		}
+
+		list = append(list, item)
+	}
+
+	return list, rows.Err()
+}
+
+func scanSession(rows *sql.Rows) (*input_itf.SessionEntity, error) {
+	sess := &input_itf.SessionEntity{}
+
+	var id, startedAt, completedAt, createdAt, updatedAt string
+
+	if err := rows.Scan(&id, &sess.WorkingDirPath, &sess.ContextDirPath, &startedAt, &completedAt,
+		&sess.TotalTask, &sess.TotalRetry, &createdAt, &updatedAt); err != nil {
+		return nil, err
+	}
+
+	sess.ID = parseUUID(id)
+	sess.StartedAt = parseTime(startedAt)
+	sess.CompletedAt = parseTime(completedAt)
+	sess.CreatedAt = parseTime(createdAt)
+	sess.UpdatedAt = parseTime(updatedAt)
+
+	return sess, nil
+}
+
+func scanTask(rows *sql.Rows) (*input_itf.TaskEntity, error) {
+	t := &input_itf.TaskEntity{}
+
+	var id, sessionID, taskLevel, preferredModel, thinkingLevel, systemPrompts string
+	var status, dependsOnTaskIDs, lastReportID, createdAt, updatedAt string
+
+	if err := rows.Scan(&id, &sessionID, &t.Name, &taskLevel, &preferredModel, &thinkingLevel,
+		&systemPrompts, &t.AutoRetry, &t.ManualAcceptRequired, &t.ExtraGuidance,
+		&t.RetryCount, &status, &dependsOnTaskIDs, &lastReportID,
+		&createdAt, &updatedAt); err != nil {
+		return nil, err
+	}
+
+	t.ID = parseUUID(id)
+	t.SessionID = parseUUID(sessionID)
+	t.TaskLevel = enums.TaskLevel(taskLevel)
+	t.PreferredModel = enums.ModelName(preferredModel)
+	t.ThinkingLevel = enums.ThinkingLevel(thinkingLevel)
+	t.Status = enums.TaskStatus(status)
+	t.LastReportID = parseUUID(lastReportID)
+	t.CreatedAt = parseTime(createdAt)
+	t.UpdatedAt = parseTime(updatedAt)
+
+	if err := json.Unmarshal([]byte(systemPrompts), &t.SystemPrompts); err != nil {
+		return nil, err
+	}
+
+	return t, json.Unmarshal([]byte(dependsOnTaskIDs), &t.DependsOnTaskIDs)
+}
+
+func scanReport(rows *sql.Rows) (*input_itf.TaskReportEntity, error) {
+	r := &input_itf.TaskReportEntity{}
+
+	var id, taskID, agentID, attemptStatus, handoverDoc, contextUsage string
+	var startedAt, completedAt, createdAt, updatedAt string
+
+	if err := rows.Scan(&id, &taskID, &agentID, &attemptStatus, &handoverDoc, &contextUsage,
+		&startedAt, &completedAt, &createdAt, &updatedAt); err != nil {
+		return nil, err
+	}
+
+	r.ID = parseUUID(id)
+	r.TaskID = parseUUID(taskID)
+	r.AgentID = parseUUID(agentID)
+	r.AttemptStatus = enums.TaskStatus(attemptStatus)
+	r.StartedAt = parseTime(startedAt)
+	r.CompletedAt = parseTime(completedAt)
+	r.CreatedAt = parseTime(createdAt)
+	r.UpdatedAt = parseTime(updatedAt)
+
+	if err := json.Unmarshal([]byte(handoverDoc), &r.HandoverDocs); err != nil {
+		return nil, err
+	}
+
+	if contextUsage == "" {
+		return r, nil
+	}
+
+	usage := &input_itf.ContextUsage{}
+	if err := json.Unmarshal([]byte(contextUsage), usage); err != nil {
+		return nil, err
+	}
+
+	r.ContextUsage = usage
+
+	return r, nil
+}
+
 func saveSession(e execer, sess *input_itf.SessionEntity) error {
 	_, err := e.Exec(`INSERT OR REPLACE INTO sessions
 		(id, working_dir_path, context_dir_path, started_at, completed_at,

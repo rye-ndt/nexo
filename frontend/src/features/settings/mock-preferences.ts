@@ -1,5 +1,10 @@
 import {TaskLevel, ThinkingLevel} from '@/shared/lib/enums'
-import type {AgentDefault, AgentDefaultOptions} from '@/features/settings/types'
+import type {
+    AgentDefault,
+    AgentDefaultOptions,
+    ModelPrice,
+    TokenPrices,
+} from '@/features/settings/types'
 
 export const MOCK_AUTOPILOT = false
 
@@ -27,38 +32,50 @@ export const MOCK_AGENT_DEFAULT_OPTIONS: AgentDefaultOptions = {
     ],
 }
 
-/**
- * The real app ships every price blank and waits to be told. The mock fills them in
- * so a run under the plain vite server shows what it cost; clearing a field is how
- * the unpriced state is reached from here.
- */
 export const MOCK_AGENT_DEFAULTS: AgentDefault[] = [
     {
         taskLevel: TaskLevel.Lightweight,
         model: 'haiku',
         modelLabel: 'Claude Haiku',
         thinkingLevel: ThinkingLevel.Low,
-        prices: {input: '1', cachedInput: '0.1', output: '5'},
     },
     {
         taskLevel: TaskLevel.Daily,
         model: 'sonnet',
         modelLabel: 'Claude Sonnet',
         thinkingLevel: ThinkingLevel.Medium,
-        prices: {input: '3', cachedInput: '0.3', output: '15'},
     },
     {
         taskLevel: TaskLevel.Heavy,
         model: 'opus',
         modelLabel: 'Claude Opus',
         thinkingLevel: ThinkingLevel.High,
-        prices: {input: '15', cachedInput: '1.5', output: '75'},
     },
     {
         taskLevel: TaskLevel.MaximumEffort,
         model: 'opus',
         modelLabel: 'Claude Opus',
         thinkingLevel: ThinkingLevel.Max,
-        prices: {input: '15', cachedInput: '1.5', output: '75'},
     },
 ]
+
+/**
+ * The real app ships every price blank and waits to be told. The mock fills them in
+ * so a run under the plain vite server shows what it cost; clearing a field is how
+ * the unpriced state is reached from here.
+ */
+export const MOCK_MODEL_PRICES: ModelPrice[] = [
+    {model: 'fable', modelLabel: 'Claude Fable', prices: price('25', '2.5', '125')},
+    {model: 'opus', modelLabel: 'Claude Opus', prices: price('15', '1.5', '75')},
+    {model: 'sonnet', modelLabel: 'Claude Sonnet', prices: price('3', '0.3', '15')},
+    {model: 'haiku', modelLabel: 'Claude Haiku', prices: price('1', '0.1', '5')},
+    {
+        model: 'opencode/deepseek-v4-flash-free',
+        modelLabel: 'Deepseek V4 Flash',
+        prices: price('0', '', '0'),
+    },
+]
+
+function price(input: string, cachedInput: string, output: string): TokenPrices {
+    return {input, cachedInput, output}
+}

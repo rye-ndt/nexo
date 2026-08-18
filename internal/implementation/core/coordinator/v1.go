@@ -79,9 +79,17 @@ func (c *v1) Run(session uuid.UUID) error {
 }
 
 func (c *v1) Cancel(session uuid.UUID) error {
+	return c.stopRun(session, c.sessions.Cancel)
+}
+
+func (c *v1) Pause(session uuid.UUID) error {
+	return c.stopRun(session, c.sessions.Pause)
+}
+
+func (c *v1) stopRun(session uuid.UUID, halt func(uuid.UUID) ([]uuid.UUID, error)) error {
 	c.halt(session)
 
-	agentIDs, err := c.sessions.Cancel(session)
+	agentIDs, err := halt(session)
 
 	for _, agentID := range agentIDs {
 		c.releaseAgent(agentID)

@@ -106,6 +106,10 @@ export function useSessionStore() {
         ),
         finalize: onActive((sessionId) => store.finalizeSession({sessionId})),
         start: onActive((sessionId) => store.startSession({sessionId})),
+        pause: onActive((sessionId, onSettled?: () => void) =>
+            store.pauseSession({sessionId}, {onSettled}),
+        ),
+        resume: onActive((sessionId) => store.resumeSession({sessionId})),
         cancel: onActive((sessionId, onSettled?: () => void) =>
             store.cancelSession({sessionId}, {onSettled}),
         ),
@@ -153,6 +157,8 @@ export function useSessionStore() {
         importSession,
         deleteSession,
 
+        pausing: store.pausingSession,
+        resuming: store.resumingSession,
         cancelling: store.cancellingSession,
         savingTaskInputs: store.savingTaskInputs,
         answeringTaskAcceptance: store.answeringTaskAcceptance,
