@@ -1,6 +1,8 @@
 import {Plus, Upload} from 'lucide-react'
 
 import {SessionRow} from '@/features/sessions/components/session-row'
+import {cn} from '@/shared/lib/utils'
+import {useRailReorder} from '@/features/sessions/use-rail-reorder'
 import {Button} from '@/shared/ui/button'
 import {ScrollArea} from '@/shared/ui/scroll-area'
 import {Tooltip, TooltipContent, TooltipTrigger} from '@/shared/ui/tooltip'
@@ -15,6 +17,7 @@ export function SessionsRail({
     onClone,
     onExport,
     onDelete,
+    onReorder,
 }: {
     sessions: Session[]
     activeSessionId: string | null
@@ -24,7 +27,10 @@ export function SessionsRail({
     onClone: (sessionId: string) => void
     onExport: (sessionId: string) => void
     onDelete: (sessionId: string) => void
+    onReorder: (sessionId: string, toIndex: number) => void
 }) {
+    const reorder = useRailReorder(sessions.length, onReorder)
+
     return (
         <aside className="surface-card flex h-full w-[280px] shrink-0 flex-col overflow-hidden ring-1 ring-border-strong">
             <div className="flex h-14 shrink-0 items-center justify-between border-b border-border pr-2 pl-4">
@@ -75,21 +81,48 @@ export function SessionsRail({
                 </div>
             ) : (
                 <ScrollArea className="min-h-0 flex-1">
-                    <div className="flex flex-col gap-1 p-2">
-                        {sessions.map((session) => (
-                            <SessionRow
+                    <div className="flex min-w-0 flex-col gap-1 p-2">
+                        {sessions.map((session, index) => (
+                            <div
                                 key={session.id}
-                                session={session}
-                                active={session.id === activeSessionId}
-                                onSelect={onSelect}
-                                onClone={onClone}
-                                onExport={onExport}
-                                onDelete={onDelete}
-                            />
+                                className={cn(
+                                    'relative min-w-0',
+                                    reorder.dragging(session.id) &&
+                                        'z-10 rounded-xl bg-card opacity-95 shadow-[0_8px_24px_rgba(27,28,30,0.16)] ring-1 ring-border-strong select-none [&_*]:cursor-grabbing',
+                                )}
+                                style={reorder.liftStyle(session.id)}
+                                {...reorder.rowProps(session.id, index)}
+                            >
+                                {reorder.dropSlot === index && <DropLine />}
+
+                                <SessionRow
+                                    session={session}
+                                    active={session.id === activeSessionId}
+                                    onSelect={onSelect}
+                                    onClone={onClone}
+                                    onExport={onExport}
+                                    onDelete={onDelete}
+                                />
+
+                                {reorder.dropSlot === sessions.length &&
+                                    index === sessions.length - 1 && <DropLine last />}
+                            </div>
                         ))}
                     </div>
                 </ScrollArea>
             )}
         </aside>
+    )
+}
+
+function DropLine({last}: {last?: boolean}) {
+    return (
+        <span
+            aria-hidden
+            className={cn(
+                'pointer-events-none absolute inset-x-1 h-0.5 rounded-full bg-live',
+                last ? '-bottom-[3px]' : '-top-[3px]',
+            )}
+        />
     )
 }

@@ -85,17 +85,17 @@ export function SessionRow({
     return (
         <ContextMenu>
             <ContextMenuTrigger asChild>
-                <div className="group relative">
+                <div className="group relative min-w-0">
                     <button
                         type="button"
                         onClick={select}
                         aria-current={active}
                         className={cn(
-                            'flex w-full flex-col gap-2 rounded-xl px-3 py-3 pr-8 text-left transition-colors duration-[120ms] outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/50',
+                            'flex w-full min-w-0 flex-col gap-2 rounded-xl px-3 py-3 pr-8 text-left transition-colors duration-[120ms] outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/50',
                             active && 'bg-live-tint hover:bg-live-tint',
                         )}
                     >
-                        <span className="flex min-w-0 items-center gap-2">
+                        <span className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
                             <span
                                 className={cn(
                                     'truncate text-base font-medium',
@@ -166,7 +166,11 @@ function LockMarker({marker}: {marker: Marker}) {
     return (
         <Tooltip>
             <TooltipTrigger asChild>
-                <span role="img" aria-label={label} className={cn('flex shrink-0', className)}>
+                <span
+                    role="img"
+                    aria-label={label}
+                    className={cn('flex shrink-0 justify-self-end', className)}
+                >
                     <Icon className="size-3" />
                 </span>
             </TooltipTrigger>

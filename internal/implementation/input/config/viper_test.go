@@ -50,6 +50,17 @@ func TestNewAcceptsShippedConfig(t *testing.T) {
 	if mcp.ChallengeMethod != constances.PKCESupportedChallengeMethod {
 		t.Fatalf("challenge_method %q, want %q", mcp.ChallengeMethod, constances.PKCESupportedChallengeMethod)
 	}
+
+	control := mcp.Control
+
+	if control.EndpointFile == "" {
+		t.Fatal("mcp_servers.control.endpoint_file is empty, so the shim has nothing to read")
+	}
+
+	if control.MaxTasksPerSession <= 0 || control.MaxSessionsListed <= 0 {
+		t.Fatalf("mcp_servers.control caps must be positive, got %d tasks and %d sessions",
+			control.MaxTasksPerSession, control.MaxSessionsListed)
+	}
 }
 
 func TestNewRejectsPKCEValuesBelowTheFloor(t *testing.T) {

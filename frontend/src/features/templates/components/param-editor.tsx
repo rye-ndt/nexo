@@ -19,7 +19,7 @@ export function ParamEditor({
     onChange: (index: number, fields: Partial<TemplateParam>) => void
     onRemove: (index: number) => void
 }) {
-    const isSelect = param.type === ParamType.Select
+    const hasOptions = param.type === ParamType.Select || param.type === ParamType.MultiSelect
     const isBoolean = param.type === ParamType.Boolean
 
     const change = (fields: Partial<TemplateParam>) => onChange(index, fields)
@@ -78,7 +78,7 @@ export function ParamEditor({
                 onChange={changeLabel}
             />
 
-            {isSelect && <OptionsInput options={param.options ?? []} onChange={changeOptions} />}
+            {hasOptions && <OptionsInput options={param.options ?? []} onChange={changeOptions} />}
 
             <div className="flex items-center gap-2">
                 {isBoolean ? (
@@ -97,7 +97,11 @@ export function ParamEditor({
                 ) : (
                     <Input
                         value={param.default ?? ''}
-                        placeholder="Default value"
+                        placeholder={
+                            param.type === ParamType.MultiSelect
+                                ? 'Default picks, separated by commas'
+                                : 'Default value'
+                        }
                         aria-label="Default value"
                         className="h-8 flex-1 bg-background font-mono"
                         onChange={changeDefault}

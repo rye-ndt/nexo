@@ -94,11 +94,22 @@ func (c *fakeHttpCli) Stream(req *input_itf.HttpRequest) (*input_itf.HttpRespons
 	}, nil
 }
 
+func testControlConfig() *input_itf.ControlConfig {
+	return &input_itf.ControlConfig{
+		Enabled:            true,
+		EndpointFile:       "control.json",
+		AllowAnyWorkspace:  true,
+		MaxTasksPerSession: 32,
+		MaxSessionsListed:  20,
+	}
+}
+
 func newTestProxy(t *testing.T, db input_itf.StorageMCP, httpCli input_itf.HttpCli) *v1 {
 	t.Helper()
 
 	cfg := &input_itf.MCPServersConfig{
 		EncodeKey: "sk-test",
+		Control:   testControlConfig(),
 		SupportedServers: map[string]*input_itf.MCPServerConfig{
 			"atlassian": {
 				Name:     "atlassian",

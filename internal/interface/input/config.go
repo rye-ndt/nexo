@@ -60,6 +60,7 @@ type MCPChromeConfig struct {
 type MCPServersConfig struct {
 	SupportedServers map[string]*MCPServerConfig `mapstructure:"supported_servers" validate:"dive,required"`
 	Chrome           *MCPChromeConfig            `mapstructure:"chrome" validate:"required"`
+	Control          *ControlConfig              `mapstructure:"control" validate:"required"`
 	EncodeKey        string                      `mapstructure:"encode_key" validate:"required"`
 	AuthTimeout      time.Duration               `mapstructure:"auth_timeout" validate:"gt=0"`
 	ClientName       string                      `mapstructure:"client_name" validate:"required"`
@@ -69,6 +70,16 @@ type MCPServersConfig struct {
 	StateBytes       int                         `mapstructure:"state_bytes"`
 	DefaultTokenTTL  time.Duration               `mapstructure:"default_token_ttl" validate:"gt=0"`
 	ChallengeMethod  string                      `mapstructure:"challenge_method"`
+}
+
+type ControlConfig struct {
+	Enabled            bool     `mapstructure:"enabled"`
+	EndpointFile       string   `mapstructure:"endpoint_file" validate:"required"`
+	AllowAnyWorkspace  bool     `mapstructure:"allow_any_workspace"`
+	AllowedRoots       []string `mapstructure:"allowed_roots"`
+	MaxTasksPerSession int      `mapstructure:"max_tasks_per_session" validate:"gt=0"`
+	MaxSessionsListed  int      `mapstructure:"max_sessions_listed" validate:"gt=0"`
+	AutostartDefault   bool     `mapstructure:"autostart_default"`
 }
 
 type ConfigStruct struct {

@@ -10,6 +10,7 @@ const (
 	NumberParam   ParamType = "number"
 	BooleanParam  ParamType = "boolean"
 	SelectParam   ParamType = "select"
+	MultiParam    ParamType = "multiselect"
 	FileParam     ParamType = "file"
 )
 
@@ -19,6 +20,7 @@ var paramTypes = []ParamType{
 	NumberParam,
 	BooleanParam,
 	SelectParam,
+	MultiParam,
 	FileParam,
 }
 

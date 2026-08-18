@@ -39,6 +39,7 @@ type API struct {
 	approvals      core_itf.ApprovalBroker
 	templates      core_itf.AgentTemplateManager
 	sessions       core_itf.SessionManager
+	control        core_itf.SessionControl
 	coordinator    core_itf.Coordinator
 	history        input_itf.WorkspaceHistory
 	userConfig     output_itf.UserConfig
@@ -55,6 +56,7 @@ type Deps struct {
 	Approvals      core_itf.ApprovalBroker
 	Templates      core_itf.AgentTemplateManager
 	Sessions       core_itf.SessionManager
+	Control        core_itf.SessionControl
 	Coordinator    core_itf.Coordinator
 	History        input_itf.WorkspaceHistory
 	UserConfig     output_itf.UserConfig
@@ -70,6 +72,7 @@ func New(deps *Deps) *API {
 		approvals:      deps.Approvals,
 		templates:      deps.Templates,
 		sessions:       deps.Sessions,
+		control:        deps.Control,
 		coordinator:    deps.Coordinator,
 		history:        deps.History,
 		userConfig:     deps.UserConfig,
@@ -436,55 +439,44 @@ func (a *API) RunSession(spec *output_itf.RunSessionSpec) (*output_itf.RunSessio
 		return nil, custom_error.Critical("run session spec has no tasks")
 	}
 
-	sessionID, err := a.sessions.NewSession(&core_itf.InitSession{
+	autostart := true
+	plan := &core_itf.ControlSessionSpec{
 		WorkingDirPath: spec.WorkingDirPath,
 		ContextDirPath: spec.ContextDirPath,
-	})
+		Autostart:      &autostart,
+		Tasks:          make([]*core_itf.ControlTaskSpec, 0, len(spec.Tasks)),
+	}
+
+	for _, task := range spec.Tasks {
+		if task == nil {
+			return nil, custom_error.Critical("run session spec has an empty task")
+		}
+
+		plan.Tasks = append(plan.Tasks, &core_itf.ControlTaskSpec{
+			ClientID:             task.ClientID,
+			Name:                 task.Name,
+			Prompt:               task.Prompt,
+			TaskLevel:            task.TaskLevel,
+			SystemPrompts:        task.SystemPrompts,
+			OutputStructure:      task.OutputStructure,
+			DependsOn:            task.DependsOn,
+			AutoRetry:            task.AutoRetry,
+			ManualAcceptRequired: task.ManualAcceptRequired,
+		})
+	}
+
+	created, err := a.control.CreateSession(plan)
 	if err != nil {
 		return nil, err
 	}
 
-	autopilot := a.userConfig.Autopilot()
-
-	clientToTask := map[string]uuid.UUID{}
-	remaining := append([]*output_itf.RunTaskSpec{}, spec.Tasks...)
-
-	for len(remaining) > 0 {
-		next := make([]*output_itf.RunTaskSpec, 0, len(remaining))
-
-		for _, task := range remaining {
-			deps, resolved := resolveDeps(task.DependsOn, clientToTask)
-			if !resolved {
-				next = append(next, task)
-				continue
-			}
-
-			taskID, err := a.addSessionTask(sessionID, task, deps, autopilot)
-			if err != nil {
-				return nil, err
-			}
-
-			clientToTask[task.ClientID] = taskID
-		}
-
-		if len(next) == len(remaining) {
-			return nil, custom_error.Critical("task dependencies are unresolvable or cyclic")
-		}
-
-		remaining = next
-	}
-
-	if err := a.coordinator.Run(sessionID); err != nil {
-		return nil, err
-	}
-
-	taskIDs := make(map[string]string, len(clientToTask))
-	for clientID, taskID := range clientToTask {
+	taskIDs := make(map[string]string, len(created.TaskIDs))
+	for clientID, taskID := range created.TaskIDs {
 		taskIDs[clientID] = taskID.String()
 	}
 
 	return &output_itf.RunSessionResult{
-		SessionID: sessionID.String(),
+		SessionID: created.SessionID.String(),
 		TaskIDs:   taskIDs,
 	}, nil
 }
@@ -673,45 +665,6 @@ func (a *API) AgentDefaultOptions() (*output_itf.AgentDefaultOptionsInfo, error)
 		Models:         models,
 		ThinkingLevels: helpers.Labels(enums.ThinkingLevels()),
 	}, nil
-}
-
-func (a *API) addSessionTask(sessionID uuid.UUID, task *output_itf.RunTaskSpec, deps []uuid.UUID, autopilot bool) (uuid.UUID, error) {
-	level := enums.TaskLevel(task.TaskLevel)
-
-	agentDefault, err := a.userConfig.AgentDefault(level)
-	if err != nil {
-		return uuid.Nil, err
-	}
-
-	return a.sessions.AddTask(sessionID, &core_itf.AddTask{
-		Name:                 task.Name,
-		TaskLevel:            level,
-		AutoRetry:            task.AutoRetry,
-		ManualAcceptRequired: task.ManualAcceptRequired && !autopilot,
-		ExtraGuidance:        task.Prompt,
-		OutputStructure:      task.OutputStructure,
-		DependsOn:            deps,
-		AgentSpecs: &core_itf.AgentRequest{
-			Name:          agentDefault.Model,
-			ThinkingLevel: agentDefault.ThinkingLevel,
-			SystemPrompts: task.SystemPrompts,
-		},
-	})
-}
-
-func resolveDeps(dependsOn []string, clientToTask map[string]uuid.UUID) ([]uuid.UUID, bool) {
-	deps := make([]uuid.UUID, 0, len(dependsOn))
-
-	for _, clientID := range dependsOn {
-		taskID, found := clientToTask[clientID]
-		if !found {
-			return nil, false
-		}
-
-		deps = append(deps, taskID)
-	}
-
-	return deps, true
 }
 
 func (a *API) SessionStatus(sessionID string) (*output_itf.SessionStatusInfo, error) {

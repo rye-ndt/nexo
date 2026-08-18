@@ -102,3 +102,33 @@ Claude helped with the frontend.
 - BTC `bc1q5kaek7dnkfah0h958ys4lzn574yu6lpu2tzwsr`
 - EVM `0xeb8d8C405C4d377fcFB61FFF3b0Bb730B103A51f`
 - SVM `rypBpVeH5HmMXKkMRHy3W4fWRhCUSPHsxD3hDy46QPG`
+
+## Driving Nexo from Claude Code
+
+Nexo serves an MCP endpoint on a random port behind a token that changes every
+launch, so a static HTTP registration would go stale daily. `cmd/nexo-mcp` is a
+tiny stdio server that fixes that: it reads the current port and token from the
+file the app writes and forwards each call there. Register it once and it keeps
+working across app restarts.
+
+```sh
+make mcp-shim
+claude mcp add nexo -- /full/path/to/nexo/build/bin/nexo-mcp
+```
+
+Use the absolute path — Claude Code does not resolve it against your project.
+
+Eight tools come across: list the templates you have, create a session from one,
+start it, pause it, cancel it, read its status, list your sessions, and answer an
+acceptance gate a node is waiting on. So Claude Code can hand a whole graph of
+work to Nexo and check back on it, while Nexo remains the thing that runs the
+agents.
+
+Which is also the catch: **none of it works while the Nexo app is closed.** The
+shim only forwards; the app is what spawns agents, holds the graph and writes to
+the database. Add `-launch` to have the shim open Nexo for you and wait for it to
+come up, rather than failing the call:
+
+```sh
+claude mcp add nexo -- /full/path/to/nexo/build/bin/nexo-mcp -launch
+```

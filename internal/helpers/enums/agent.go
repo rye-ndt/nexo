@@ -10,6 +10,9 @@ const (
 	Sonnet         ModelName = "sonnet"
 	Haiku          ModelName = "haiku"
 	Deepseek4Flash ModelName = "opencode/deepseek-v4-flash-free"
+	GPT56Sol       ModelName = "gpt-5.6-sol"
+	GPT56Terra     ModelName = "gpt-5.6-terra"
+	GPT56Luna      ModelName = "gpt-5.6-luna"
 	ModelUnknown   ModelName = "unknown"
 )
 
@@ -19,6 +22,9 @@ var modelNames = []ModelName{
 	Sonnet,
 	Haiku,
 	Deepseek4Flash,
+	GPT56Sol,
+	GPT56Terra,
+	GPT56Luna,
 }
 
 func ModelNames() []ModelName {
@@ -45,6 +51,12 @@ func (m ModelName) DisplayName() string {
 		return "Claude Haiku"
 	case Deepseek4Flash:
 		return "Deepseek V4 Flash"
+	case GPT56Sol:
+		return "GPT-5.6 Sol"
+	case GPT56Terra:
+		return "GPT-5.6 Terra"
+	case GPT56Luna:
+		return "GPT-5.6 Luna"
 	default:
 		return "Unknown Model"
 	}
@@ -54,6 +66,8 @@ func (m ModelName) HarnessTool() AgentHarness {
 	switch m {
 	case Deepseek4Flash:
 		return OpenCode
+	case GPT56Sol, GPT56Terra, GPT56Luna:
+		return Codex
 	default:
 		return ClaudeCode
 	}
@@ -64,6 +78,7 @@ type AgentHarness string
 const (
 	ClaudeCode AgentHarness = "claude_code"
 	OpenCode   AgentHarness = "open_code"
+	Codex      AgentHarness = "codex"
 )
 
 type ThinkingLevel string
@@ -106,6 +121,8 @@ func (a AgentHarness) DisplayName() string {
 		return "Claude Code"
 	case OpenCode:
 		return "OpenCode"
+	case Codex:
+		return "Codex"
 	default:
 		return string(a)
 	}

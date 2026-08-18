@@ -33,12 +33,15 @@ type v1 struct {
 	locker            sync.RWMutex
 	aead              cipher.AEAD
 	cfg               input_itf.MCPServersConfig
+	dataDir           string
 	serverToCred      map[string]*cred
 	httpCli           input_itf.HttpCli
 	db                input_itf.StorageMCP
 	approvalBroker    core_itf.ApprovalBroker
 	reporter          core_itf.TaskReporter
 	templateHelper    core_itf.TemplateHelper
+	sessionControl    core_itf.SessionControl
+	controlToken      string
 	gateway           *core_itf.MCPGateway
 	gatewayHttpServer *http.Server
 	chrome            *mcp_helpers.ChromeLauncher
@@ -67,6 +70,7 @@ func InitV1(
 		locker:         sync.RWMutex{},
 		aead:           aead,
 		cfg:            *cfg,
+		dataDir:        dataDir,
 		serverToCred:   map[string]*cred{},
 		httpCli:        httpCli,
 		db:             db,

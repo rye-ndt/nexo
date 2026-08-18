@@ -39,6 +39,14 @@ mcp_servers:
     launch_timeout: 30s
     call_timeout: 30s
     max_page_chars: 40000
+  control:
+    enabled: true
+    endpoint_file: control.json
+    allow_any_workspace: true
+    allowed_roots: []
+    max_tasks_per_session: 32
+    max_sessions_listed: 20
+    autostart_default: false
   supported_servers:
     atlassian:
       name: atlassian
@@ -105,3 +113,14 @@ agent_harness:
     max_instance: 3
     enabled_models:
       - opencode/deepseek-v4-flash-free
+
+  codex:
+    name: Codex
+    bin_name: codex
+    release_base: https://api.github.com/repos/openai/codex
+    login_timeout: 5m
+    max_instance: 3
+    enabled_models:
+      - gpt-5.6-sol
+      - gpt-5.6-terra
+      - gpt-5.6-luna

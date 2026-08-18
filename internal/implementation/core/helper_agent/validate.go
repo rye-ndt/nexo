@@ -110,19 +110,38 @@ func validateParamType(key string, param *core_itf.TemplateParams) error {
 		)
 	}
 
-	if kind != enums.SelectParam {
+	if kind != enums.SelectParam && kind != enums.MultiParam {
 		return nil
 	}
 
 	if len(param.Options) == 0 {
-		return custom_error.Critical("the param `%s` is a select but lists no `options`.", key)
+		return custom_error.Critical("the param `%s` is a %s but lists no `options`.", key, kind)
 	}
 
-	if param.Default != "" && !slices.Contains(param.Options, param.Default) {
-		return custom_error.Critical(
-			"the param `%s` defaults to %q, which is not one of its options.", key, param.Default,
-		)
+	for _, choice := range defaultChoices(kind, param.Default) {
+		if !slices.Contains(param.Options, choice) {
+			return custom_error.Critical(
+				"the param `%s` defaults to %q, which is not one of its options.", key, choice,
+			)
+		}
 	}
 
 	return nil
+}
+
+func defaultChoices(kind enums.ParamType, value string) []string {
+	if strings.TrimSpace(value) == "" {
+		return nil
+	}
+
+	if kind != enums.MultiParam {
+		return []string{value}
+	}
+
+	choices := strings.Split(value, ",")
+	for i, choice := range choices {
+		choices[i] = strings.TrimSpace(choice)
+	}
+
+	return choices
 }

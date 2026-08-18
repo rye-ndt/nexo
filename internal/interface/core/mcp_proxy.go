@@ -32,6 +32,7 @@ type MCPProxyServer interface {
 	// set after construction because the helper is built on top of the agent manager,
 	// which is itself built on top of the gateway this proxy serves.
 	TrackTemplateHelper(helper TemplateHelper)
+	TrackSessionControl(control SessionControl)
 	List() ([]*MCPAuthInfo, error)
 	Authorize(server string) error // rfc 8252
 	Revoke(server string) error

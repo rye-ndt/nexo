@@ -107,6 +107,7 @@ export type Session = {
     id: string
     name: string
     createdAt: string
+    railRank?: number
     finalized: boolean
     started: boolean
     cancelled: boolean

@@ -173,6 +173,24 @@ export function findSession(sessions: Session[], sessionId: string | null) {
     return sessions.find((session) => session.id === sessionId)
 }
 
+export function moveSession(sessions: Session[], sessionId: string, toIndex: number): Session[] {
+    const from = sessions.findIndex((session) => session.id === sessionId)
+    const to = Math.min(Math.max(toIndex, 0), sessions.length - 1)
+    if (from < 0 || from === to) return sessions
+
+    const next = [...sessions]
+    const [moved] = next.splice(from, 1)
+    next.splice(to, 0, moved)
+
+    return next.map((session, railRank) =>
+        session.railRank === railRank ? session : {...session, railRank},
+    )
+}
+
+export function byRailRank(a: Session, b: Session) {
+    return (a.railRank ?? 0) - (b.railRank ?? 0)
+}
+
 export function findTask(session: Session, taskId: string | null) {
     if (!taskId) return undefined
     return session.tasks.find((task) => task.id === taskId)

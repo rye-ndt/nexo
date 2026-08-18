@@ -15,6 +15,7 @@ import {
     cancelRun,
     createsCycle,
     duplicateSession,
+    moveSession,
     isCancellable,
     isPausable,
     label,
@@ -34,6 +35,7 @@ import {
     findSession,
     findTask,
     hydrate,
+    prependSession,
     replaceSession,
     saveDraft,
     sessions,
@@ -60,14 +62,28 @@ export async function listSessions(): Promise<Session[]> {
     return structuredClone(sessions)
 }
 
+export async function reorderSession(sessionId: string, toIndex: number): Promise<Session[]> {
+    await hydrate()
+
+    const previous = sessions
+    const next = moveSession(previous, sessionId, toIndex)
+    const ranks = new Map(previous.map((session) => [session.id, session.railRank]))
+
+    setSessions(next)
+
+    for (const session of next.filter((session) => ranks.get(session.id) !== session.railRank))
+        await saveDraft(session)
+
+    return structuredClone(next)
+}
+
 export async function createSession(sessionId: string, draft: SessionDraft): Promise<Session> {
     if (!draft.workingDir.trim()) throw new Error('A session needs a working directory.')
     if (!draft.contextDir.trim()) throw new Error('A session needs a context directory.')
 
     await hydrate()
 
-    const session = {...buildSession(draft), id: sessionId}
-    setSessions([session, ...sessions])
+    const session = prependSession({...buildSession(draft), id: sessionId})
     await saveDraft(session)
 
     return structuredClone(session)
@@ -76,8 +92,7 @@ export async function createSession(sessionId: string, draft: SessionDraft): Pro
 export async function cloneSession(sourceId: string, sessionId: string): Promise<Session> {
     await hydrate()
 
-    const copy = {...duplicateSession(findSession(sourceId)), id: sessionId}
-    setSessions([copy, ...sessions])
+    const copy = prependSession({...duplicateSession(findSession(sourceId)), id: sessionId})
     await saveDraft(copy)
 
     return structuredClone(copy)

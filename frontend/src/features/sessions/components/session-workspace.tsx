@@ -191,7 +191,14 @@ export function SessionWorkspace({
 
 function EmptyWorkspace() {
     return (
-        <div className="flex flex-1 items-center justify-center bg-background">
+        <div className="flex flex-1 flex-col items-center justify-center gap-3 bg-background">
+            <img
+                src="/empty_bg.png"
+                alt=""
+                aria-hidden
+                draggable={false}
+                className="mb-4 w-[min(60%,34rem)] max-w-none opacity-35 select-none dark:opacity-45 [mask-image:radial-gradient(ellipse_at_center,black_45%,transparent_85%)]"
+            />
             <p className="text-base text-muted-foreground">
                 No session open. Create one to start a chain of tasks.
             </p>

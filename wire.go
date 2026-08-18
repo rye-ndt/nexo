@@ -14,10 +14,12 @@ import (
 	"hexago/internal/implementation/core/helper_agent"
 	"hexago/internal/implementation/core/manual_approval_broker"
 	"hexago/internal/implementation/core/mcp_proxy"
+	"hexago/internal/implementation/core/session_control"
 	"hexago/internal/implementation/core/session_manager"
 	"hexago/internal/implementation/core/template_manager"
 	"hexago/internal/implementation/input/config"
 	"hexago/internal/implementation/input/harness/claude_code"
+	"hexago/internal/implementation/input/harness/codex"
 	"hexago/internal/implementation/input/harness/open_code"
 	"hexago/internal/implementation/input/http_cli"
 	"hexago/internal/implementation/input/session_archive"
@@ -55,6 +57,7 @@ type harnessBuilder func(
 
 var harnessBuilders = map[enums.AgentHarness]harnessBuilder{
 	enums.ClaudeCode: claude_code.New,
+	enums.Codex:      codex.New,
 	enums.OpenCode:   open_code.New,
 }
 
@@ -98,7 +101,14 @@ func wire(assets fs.FS) (*App, error) {
 		return nil, err
 	}
 
-	mcpProxy, err := mcp_proxy.InitV1(cfg.Read().MCPServers, dataDir, store.MCPStore(), httpCli, approvalBroker, sessionManager)
+	mcpProxy, err := mcp_proxy.InitV1(
+		cfg.Read().MCPServers,
+		dataDir,
+		store.MCPStore(),
+		httpCli,
+		approvalBroker,
+		sessionManager,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -149,12 +159,27 @@ func wire(assets fs.FS) (*App, error) {
 
 	mcpProxy.TrackTemplateHelper(templateHelper)
 
+	sessionControl, err := session_control.InitV1(
+		cfg.Read().MCPServers.Control,
+		sessionManager,
+		sessionCoordinator,
+		templateManager,
+		userCfg,
+		store.TaskStore(),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	mcpProxy.TrackSessionControl(sessionControl)
+
 	feAPI := wails_api.New(&wails_api.Deps{
 		AgentManager:   agentManager,
 		MCPProxy:       mcpProxy,
 		Approvals:      approvalBroker,
 		Templates:      templateManager,
 		Sessions:       sessionManager,
+		Control:        sessionControl,
 		Coordinator:    sessionCoordinator,
 		History:        history,
 		UserConfig:     userCfg,

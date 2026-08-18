@@ -914,6 +914,7 @@ func (s *v1) Status(id uuid.UUID) (*core_itf.SessionStatus, error) {
 
 		report := &core_itf.TaskReport{
 			TaskID:       taskID,
+			Name:         task.Name,
 			TaskLevel:    task.TaskLevel,
 			Status:       task.Status,
 			HandoverDocs: []*core_itf.HandoverDoc{},

@@ -48,6 +48,7 @@ type HandoverDoc struct {
 // which is what it is billed for — the two differ as soon as a node is retried.
 type TaskReport struct {
 	TaskID       uuid.UUID
+	Name         string
 	AgentID      uuid.UUID
 	TaskLevel    enums.TaskLevel
 	Status       enums.TaskStatus

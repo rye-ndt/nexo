@@ -27,9 +27,24 @@ export function emptyTemplate(): TemplateDraft {
     }
 }
 
+export function chosenOptions(value: FieldValue | undefined): string[] {
+    return String(value ?? '')
+        .split(',')
+        .map((option) => option.trim())
+        .filter(Boolean)
+}
+
+export function joinOptions(options: string[]): string {
+    return options.join(', ')
+}
+
 function defaultOf(param: TemplateParam): FieldValue {
     if (param.type === ParamType.Boolean) return param.default === 'true'
     if (param.type === ParamType.Select && !param.options?.includes(param.default ?? '')) return ''
+    if (param.type === ParamType.MultiSelect)
+        return joinOptions(
+            chosenOptions(param.default).filter((option) => param.options?.includes(option)),
+        )
     return param.default ?? ''
 }
 
@@ -82,7 +97,13 @@ export function templateIssues(draft: TemplateDraft) {
     if (draft.params.some((param) => !param.key.trim()))
         issues.push('Every input needs a key the agent can read.')
     if (new Set(keys).size !== keys.length) issues.push('Two inputs share the same key.')
-    if (draft.params.some((param) => param.type === ParamType.Select && !param.options?.length))
+    if (
+        draft.params.some(
+            (param) =>
+                (param.type === ParamType.Select || param.type === ParamType.MultiSelect) &&
+                !param.options?.length,
+        )
+    )
         issues.push('A choice input needs at least one option.')
     if (draft.systemPrompts.length === 0) issues.push(NO_PROMPTS_ISSUE)
     if (draft.systemPrompts.some((prompt) => !prompt.key.trim()))

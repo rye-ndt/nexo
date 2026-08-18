@@ -9,6 +9,8 @@ const (
 	FigmaLocalServer        = "figma"
 	ChromeLocalServer       = "chrome-devtools"
 	GatewayMCPPath          = "/mcp/"
+	ControlLocalServer      = "control"
+	ControlTokenHeader      = "X-Nexo-Control-Token"
 )
 
 const (

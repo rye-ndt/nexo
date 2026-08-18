@@ -145,6 +145,13 @@ export function useSessions() {
         (sessions, {sessionId}) => editSession(sessions, sessionId, graph.cancelRun),
     )
 
+    const reorder = useSessionMutation(
+        'Could not reorder the sessions',
+        (args: {sessionId: string; toIndex: number}) =>
+            api.reorderSession(args.sessionId, args.toIndex),
+        (sessions, {sessionId, toIndex}) => graph.moveSession(sessions, sessionId, toIndex),
+    )
+
     const remove = useSessionMutation(
         'Could not delete the session',
         (args: {sessionId: string}) => api.deleteSession(args.sessionId),
@@ -258,6 +265,7 @@ export function useSessions() {
         resumingSession: resume.isPending,
         cancelSession: cancel.mutate,
         cancellingSession: cancel.isPending,
+        reorderSession: reorder.mutate,
         deleteSession: remove.mutate,
         createTask: createTask.mutate,
         updateTask: updateTask.mutate,

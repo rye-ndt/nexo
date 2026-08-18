@@ -5,7 +5,7 @@
  */
 
 import {bridge, hasWailsRuntime} from '@/shared/api/bridge'
-import {isPausable, pauseRun} from '@/features/sessions/graph'
+import {byRailRank, isPausable, pauseRun} from '@/features/sessions/graph'
 import {MOCK_SESSIONS} from '@/features/sessions/mock-sessions'
 import type {Session} from '@/features/sessions/types'
 import {SaveSessionDraft, SessionDrafts} from '@wailsjs/go/wails_api/API'
@@ -16,6 +16,15 @@ let hydrated = false
 
 export function setSessions(next: Session[]) {
     sessions = next
+}
+
+export function prependSession(session: Session): Session {
+    const top = Math.min(0, ...sessions.map((existing) => existing.railRank ?? 0))
+    const ranked = {...session, railRank: top - 1}
+
+    setSessions([ranked, ...sessions])
+
+    return ranked
 }
 
 export function findSession(sessionId: string) {
@@ -53,7 +62,7 @@ export async function hydrate() {
     if (hydrated || !hasWailsRuntime()) return
 
     const drafts = await bridge(SessionDrafts)
-    sessions = drafts.map((draft) => restore(JSON.parse(draft.doc) as Session))
+    sessions = drafts.map((draft) => restore(JSON.parse(draft.doc) as Session)).sort(byRailRank)
     hydrated = true
 }
 

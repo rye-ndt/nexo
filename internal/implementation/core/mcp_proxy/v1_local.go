@@ -208,11 +208,11 @@ var draftToolSchema = objectSchema(map[string]any{
 				"enum": helpers.Labels(enums.ParamTypes()),
 			},
 			"required": map[string]any{"type": "boolean"},
-			"default":  stringProp("Optional starting value. Leave empty when there is no sane default."),
+			"default":  stringProp("Optional starting value, a comma-separated list when type is multiselect. Leave empty when there is no sane default."),
 			"options": map[string]any{
 				"type":        "array",
 				"items":       map[string]any{"type": "string"},
-				"description": "The choices, required when type is select and empty otherwise.",
+				"description": "The choices, required when type is select or multiselect and empty otherwise.",
 			},
 		}, "key", "description", "type"),
 	},

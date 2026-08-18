@@ -66,6 +66,10 @@ export function useSessionStore() {
         selectSession(session.id)
     }
 
+    const reorderSession = (sessionId: string, toIndex: number) => {
+        store.reorderSession({sessionId, toIndex})
+    }
+
     const deleteSession = (sessionId: string) => {
         store.deleteSession({sessionId})
         if (selectedSessionId === sessionId) selectSession(null)
@@ -155,6 +159,7 @@ export function useSessionStore() {
         addSession,
         cloneSession,
         importSession,
+        reorderSession,
         deleteSession,
 
         pausing: store.pausingSession,

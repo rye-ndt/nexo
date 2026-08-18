@@ -177,6 +177,7 @@ export const ParamType = {
     Number: 'number',
     Boolean: 'boolean',
     Select: 'select',
+    MultiSelect: 'multiselect',
     File: 'file',
 } as const
 
@@ -188,6 +189,7 @@ export const PARAM_TYPES: ParamType[] = [
     ParamType.Number,
     ParamType.Boolean,
     ParamType.Select,
+    ParamType.MultiSelect,
     ParamType.File,
 ]
 
@@ -197,5 +199,6 @@ export const PARAM_TYPE_LABELS: Record<ParamType, string> = {
     [ParamType.Number]: 'Number',
     [ParamType.Boolean]: 'Boolean',
     [ParamType.Select]: 'Choice',
+    [ParamType.MultiSelect]: 'Multiple choices',
     [ParamType.File]: 'File',
 }

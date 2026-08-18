@@ -3,9 +3,12 @@ package mcp_proxy
 import (
 	"context"
 	"crypto/subtle"
+	"encoding/json"
 	"io"
 	"net"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"hexago/internal/helpers/constances"
@@ -20,6 +23,15 @@ const gatewayTokenHeader = "X-Harness-Gateway-Token"
 
 const gatewayPath = constances.GatewayMCPPath
 
+const controlPath = gatewayPath + constances.ControlLocalServer
+
+type controlEndpoint struct {
+	URL         string `json:"url"`
+	Token       string `json:"token"`
+	TokenHeader string `json:"token_header"`
+	PID         int    `json:"pid"`
+}
+
 func (s *v1) Serve() (*core_itf.MCPGateway, error) {
 	s.locker.Lock()
 	defer s.locker.Unlock()
@@ -29,6 +41,11 @@ func (s *v1) Serve() (*core_itf.MCPGateway, error) {
 	}
 
 	uid, err := uuid.NewV7()
+	if err != nil {
+		return nil, err
+	}
+
+	controlUID, err := uuid.NewV7()
 	if err != nil {
 		return nil, err
 	}
@@ -53,11 +70,25 @@ func (s *v1) Serve() (*core_itf.MCPGateway, error) {
 	mux.HandleFunc(gatewayPath+constances.FigmaLocalServer, s.serveFigma)
 	mux.HandleFunc(gatewayPath+constances.ChromeLocalServer, s.serveChrome)
 
+	if s.cfg.Control.Enabled {
+		mux.HandleFunc(controlPath, s.serveControl)
+	}
+
 	s.gateway = &core_itf.MCPGateway{
 		BaseURL:     "http://" + ln.Addr().String(),
 		Token:       uid.String(),
 		TokenHeader: gatewayTokenHeader,
 		Servers:     servers,
+	}
+
+	s.controlToken = controlUID.String()
+
+	if err := s.publishControlEndpoint(); err != nil {
+		s.gateway = nil
+		s.controlToken = ""
+		ln.Close()
+
+		return nil, err
 	}
 
 	s.gatewayHttpServer = &http.Server{Handler: s.authenticated(mux)}
@@ -67,15 +98,52 @@ func (s *v1) Serve() (*core_itf.MCPGateway, error) {
 	return s.gateway, nil
 }
 
+func (s *v1) controlEndpointPath() string {
+	return filepath.Join(s.dataDir, s.cfg.Control.EndpointFile)
+}
+
+func (s *v1) publishControlEndpoint() error {
+	if !s.cfg.Control.Enabled {
+		return nil
+	}
+
+	raw, err := json.Marshal(&controlEndpoint{
+		URL:         s.gateway.BaseURL + controlPath,
+		Token:       s.controlToken,
+		TokenHeader: constances.ControlTokenHeader,
+		PID:         os.Getpid(),
+	})
+	if err != nil {
+		return custom_error.Critical("cannot encode the control endpoint: %v", err)
+	}
+
+	if err := os.MkdirAll(s.dataDir, 0o700); err != nil {
+		return custom_error.Critical("cannot create the control endpoint dir: %v", err)
+	}
+
+	if err := os.WriteFile(s.controlEndpointPath(), raw, 0o600); err != nil {
+		return custom_error.Critical("cannot write the control endpoint: %v", err)
+	}
+
+	return nil
+}
+
 func (s *v1) Close() error {
 	s.locker.Lock()
 	srv := s.gatewayHttpServer
+	endpoint := s.controlEndpointPath()
+	enabled := s.cfg.Control.Enabled
 	s.gatewayHttpServer = nil
 	s.gateway = nil
+	s.controlToken = ""
 	s.locker.Unlock()
 
 	if srv == nil {
 		return nil
+	}
+
+	if enabled {
+		os.Remove(endpoint)
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), s.cfg.ShutdownGrace)
@@ -92,6 +160,7 @@ func (s *v1) authenticated(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		s.locker.RLock()
 		gateway := s.gateway
+		controlToken := s.controlToken
 		s.locker.RUnlock()
 
 		if gateway == nil {
@@ -99,13 +168,18 @@ func (s *v1) authenticated(next http.Handler) http.Handler {
 			return
 		}
 
-		presented := r.Header.Get(gatewayTokenHeader)
-		if subtle.ConstantTimeCompare([]byte(presented), []byte(gateway.Token)) != 1 {
+		header, expected := gatewayTokenHeader, gateway.Token
+		if s.cfg.Control.Enabled && r.URL.Path == controlPath {
+			header, expected = constances.ControlTokenHeader, controlToken
+		}
+
+		if expected == "" || subtle.ConstantTimeCompare([]byte(r.Header.Get(header)), []byte(expected)) != 1 {
 			http.Error(w, "forbidden", http.StatusForbidden)
 			return
 		}
 
 		r.Header.Del(gatewayTokenHeader)
+		r.Header.Del(constances.ControlTokenHeader)
 
 		next.ServeHTTP(w, r)
 	})

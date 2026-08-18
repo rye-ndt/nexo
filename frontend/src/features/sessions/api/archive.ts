@@ -13,7 +13,7 @@ import {listTemplates} from '@/features/templates/api'
 import {mockSessionArchive, mockSessionBody} from '@/features/sessions/mock-sessions'
 import {mockReadFile, mockWriteFile} from '@/shared/api/mock-fs'
 import type {Session, SessionLocations} from '@/features/sessions/types'
-import {findSession, hydrate, saveDraft, sessions, setSessions} from '@/features/sessions/api/store'
+import {findSession, hydrate, prependSession, saveDraft} from '@/features/sessions/api/store'
 import {ExportSession, ImportSession} from '@wailsjs/go/wails_api/API'
 
 export async function exportSession(sessionId: string, path: string): Promise<string> {
@@ -51,8 +51,8 @@ export async function importSession(
         contextDir: locations.contextDir.trim(),
     }
 
-    setSessions([next, ...sessions])
-    await saveDraft(next)
+    const ranked = prependSession(next)
+    await saveDraft(ranked)
 
-    return structuredClone(next)
+    return structuredClone(ranked)
 }

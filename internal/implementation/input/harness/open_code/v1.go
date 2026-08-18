@@ -408,7 +408,11 @@ func (o *openCode) Spawn(
 		return uuid.Nil, custom_error.Critical("write opencode config: %v", err)
 	}
 
-	if err := os.WriteFile(filepath.Join(workspace, "AGENTS.md"), agentsFile(o.systemPrompt, systemPrompts), 0o644); err != nil {
+	if err := os.WriteFile(
+		filepath.Join(workspace, "AGENTS.md"),
+		[]byte(harness_helper.PromptText(o.systemPrompt, systemPrompts)),
+		0o644,
+	); err != nil {
 		return uuid.Nil, custom_error.Critical("write agent prompt file: %v", err)
 	}
 
@@ -661,18 +665,6 @@ func (o *openCode) Kill(id string) error {
 	close(a.done)
 
 	return nil
-}
-
-func agentsFile(base []byte, extra []string) []byte {
-	parts := []string{strings.TrimSpace(string(base))}
-
-	for _, prompt := range extra {
-		if trimmed := strings.TrimSpace(prompt); trimmed != "" {
-			parts = append(parts, trimmed)
-		}
-	}
-
-	return []byte(strings.Join(slices.DeleteFunc(parts, func(s string) bool { return s == "" }), "\n\n"))
 }
 
 func freePort(host string) (int, error) {

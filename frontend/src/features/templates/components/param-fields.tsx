@@ -1,13 +1,20 @@
 import type {ChangeEvent} from 'react'
-import {File} from 'lucide-react'
+import {Check, ChevronDown, File} from 'lucide-react'
 
 import {Button} from '@/shared/ui/button'
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from '@/shared/ui/dropdown-menu'
 import {Input} from '@/shared/ui/input'
 import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from '@/shared/ui/select'
 import {Textarea} from '@/shared/ui/textarea'
 import {chooseFile} from '@/shared/api/dialogs'
 import {reportError} from '@/shared/lib/error-bus'
 import {ParamType} from '@/shared/lib/enums'
+import {chosenOptions, joinOptions} from '@/features/templates/template'
 import type {FieldValue, TemplateParam} from '@/features/templates/types'
 
 export function ParamFields({
@@ -108,6 +115,16 @@ function ParamField({
                 </Select>
             )}
 
+            {param.type === ParamType.MultiSelect && (
+                <MultiChoiceField
+                    id={id}
+                    options={param.options ?? []}
+                    value={text}
+                    disabled={disabled}
+                    onChange={change}
+                />
+            )}
+
             {param.type === ParamType.File && (
                 <FileField
                     id={id}
@@ -129,6 +146,62 @@ function ParamField({
                 />
             )}
         </div>
+    )
+}
+
+function MultiChoiceField({
+    id,
+    options,
+    value,
+    disabled,
+    onChange,
+}: {
+    id: string
+    options: string[]
+    value: string
+    disabled: boolean
+    onChange: (value: string) => void
+}) {
+    const picked = chosenOptions(value)
+
+    const toggle = (option: string) =>
+        onChange(
+            joinOptions(
+                picked.includes(option)
+                    ? picked.filter((other) => other !== option)
+                    : options.filter((other) => other === option || picked.includes(other)),
+            ),
+        )
+
+    return (
+        <DropdownMenu>
+            <DropdownMenuTrigger
+                id={id}
+                disabled={disabled}
+                className="flex h-9 w-full items-center justify-between gap-2 rounded-lg border border-input bg-card px-3 py-1 text-base transition-colors outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-input/30"
+            >
+                <span className={picked.length ? 'truncate' : 'truncate text-muted-foreground'}>
+                    {picked.length ? joinOptions(picked) : 'Pick any'}
+                </span>
+                <ChevronDown className="size-3.5 shrink-0 text-muted-foreground" />
+            </DropdownMenuTrigger>
+
+            <DropdownMenuContent className="p-1">
+                {options.map((option) => (
+                    <DropdownMenuItem
+                        key={option}
+                        className="justify-between py-2 pr-2 pl-2"
+                        onSelect={(event) => {
+                            event.preventDefault()
+                            toggle(option)
+                        }}
+                    >
+                        {option}
+                        {picked.includes(option) && <Check className="size-3.5" />}
+                    </DropdownMenuItem>
+                ))}
+            </DropdownMenuContent>
+        </DropdownMenu>
     )
 }
 

@@ -52,6 +52,7 @@ function App() {
                     onClone={store.cloneSession}
                     onExport={transfer.exportSession}
                     onDelete={setPendingDeleteId}
+                    onReorder={store.reorderSession}
                 />
             )}
 
