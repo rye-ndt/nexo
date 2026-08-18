@@ -225,23 +225,10 @@ func TestImportSavesEveryRecordInOneBatch(t *testing.T) {
 	if saved.CreatedAt.IsZero() || saved.UpdatedAt.IsZero() {
 		t.Fatalf("imported template is not stamped: %+v", saved)
 	}
-}
 
-func TestImportKeepsTheIdItWasExportedWith(t *testing.T) {
-	id := uuid.New()
-	store := &fakeStore{}
-	archive := &fakeArchive{doc: &input_itf.TemplateExport{
-		Version:    input_itf.ArchiveVersion,
-		ExportedAt: helpers.NewUTC(),
-		Templates:  []*input_itf.TemplateRecord{importedRecord(id, "Code reviewer")},
-	}}
-
-	if _, err := manager(t, store, archive).Import("/tmp/templates.json"); err != nil {
-		t.Fatalf("import: %v", err)
-	}
-
-	if store.templates[0].ID != id {
-		t.Fatalf("expected the record id %v, got %v", id, store.templates[0].ID)
+	if saved.ID != archive.doc.Templates[1].ID {
+		t.Fatalf("imported template id = %v, want the id it was exported with %v",
+			saved.ID, archive.doc.Templates[1].ID)
 	}
 }
 

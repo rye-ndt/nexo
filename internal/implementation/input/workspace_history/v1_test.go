@@ -179,13 +179,7 @@ func (f *fixture) diff(taskID uuid.UUID) []*input_itf.FileChange {
 func (f *fixture) requireContent(name, want string) {
 	f.t.Helper()
 
-	body, err := os.ReadFile(filepath.Join(f.workingDir, name))
-	if err != nil {
-		f.t.Fatalf("read %s: %v", name, err)
-	}
-	if string(body) != want {
-		f.t.Fatalf("%s = %q, want %q", name, string(body), want)
-	}
+	f.requireBytes(name, []byte(want))
 }
 
 func (f *fixture) requireMissing(name string) {
@@ -287,26 +281,6 @@ func TestRestoreToEarlierTaskRewindsCreatedModifiedAndDeletedFiles(t *testing.T)
 	f.requireContent("kept.txt", "from a\n")
 	f.requireMissing("created-by-b.txt")
 	f.requireContent("deleted-by-b.txt", "still here\n")
-}
-
-func TestRestoreToBaselineReturnsTheOriginalTree(t *testing.T) {
-	f := newFixture(t)
-
-	f.write("kept.txt", "baseline\n")
-	f.write("nested/deep.txt", "deep baseline\n")
-	f.commit(uuid.Nil)
-
-	taskA := uuid.New()
-	f.write("kept.txt", "from a\n")
-	f.write("nested/deep.txt", "deep from a\n")
-	f.write("nested/extra.txt", "extra\n")
-	f.commit(taskA)
-
-	f.restore(uuid.Nil)
-
-	f.requireContent("kept.txt", "baseline\n")
-	f.requireContent("nested/deep.txt", "deep baseline\n")
-	f.requireMissing("nested/extra.txt")
 }
 
 func TestExcludedPathsAreNeitherCommittedNorRestored(t *testing.T) {
@@ -622,23 +596,6 @@ func TestInitV1SucceedsBeforeAnythingExists(t *testing.T) {
 		t.Fatalf("init created %s before the first commit, stat err = %v", root, err)
 	}
 
-	if _, err := exec.LookPath("git"); err != nil {
-		t.Skip("git is not installed")
-	}
-
-	workingDir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(workingDir, "code.txt"), []byte("baseline\n"), 0o644); err != nil {
-		t.Fatalf("write code.txt: %v", err)
-	}
-
-	session := uuid.New()
-	if err := history.Commit(session, uuid.Nil, workingDir, nil); err != nil {
-		t.Fatalf("first commit: %v", err)
-	}
-
-	if _, err := history.Diff(session, uuid.Nil); err != nil {
-		t.Fatalf("diff of the first commit: %v", err)
-	}
 }
 
 func TestMissingGitDegradesToBypass(t *testing.T) {

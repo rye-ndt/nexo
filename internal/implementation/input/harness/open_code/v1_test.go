@@ -19,29 +19,81 @@ func messageUpdated(sessionID string, output int) string {
 	return usageLine(sessionID, "", 0, output, 0, 0, 0)
 }
 
-func TestUsageSumsEveryTokenBucket(t *testing.T) {
+func turnTokens(id string, in, out, cacheRead, cacheWrite int) string {
+	return usageLine("ses_main", id, in, out, 0, cacheRead, cacheWrite)
+}
+
+func childTurnTokens(id string, in, out, cacheRead, cacheWrite int) string {
+	return usageLine("ses_child", id, in, out, 0, cacheRead, cacheWrite)
+}
+
+// Every counter is read off the same event: Used is the whole window, Billed is what
+// the agent wrote and thought, and a cache write is billed near the full input rate
+// while a cache read is a tenth of it, so the two must land in different counters.
+func TestOneTurnFillsEveryCounter(t *testing.T) {
 	proc := &openCodeProc{session: "ses_main", ctxWindow: ctxWindow}
 
-	proc.trackUsage([]byte(`{"properties":{"info":{"sessionID":"ses_main","tokens":` +
-		`{"input":10,"output":20,"reasoning":300,"cache":{"read":4000,"write":50000}}}}}`))
+	proc.trackUsage([]byte(usageLine("ses_main", "msg_01", 10, 20, 300, 4000, 50_000)))
 
 	usage := proc.snapshotUsage()
 	if usage.Used != 54330 {
-		t.Fatalf("used = %d, want 54330", usage.Used)
+		t.Fatalf("used = %d, want every bucket (54330)", usage.Used)
 	}
 	if usage.Total != ctxWindow {
 		t.Fatalf("total = %d, want %d", usage.Total, ctxWindow)
 	}
+	if usage.Billed != 320 {
+		t.Fatalf("billed = %d, want the output and reasoning tokens (320)", usage.Billed)
+	}
+	if usage.Input != 50_010 {
+		t.Fatalf("input = %d, want the fresh input plus the cache write (50010)", usage.Input)
+	}
+	if usage.Cached != 4000 {
+		t.Fatalf("cached = %d, want the cache read (4000)", usage.Cached)
+	}
 }
 
-func TestChildSessionUsageLeavesTheNodeReadingAlone(t *testing.T) {
+func TestEveryCounterAddsUpAcrossTurns(t *testing.T) {
 	proc := &openCodeProc{session: "ses_main", ctxWindow: ctxWindow}
 
-	proc.trackUsage([]byte(messageUpdated("ses_main", 120_000)))
-	proc.trackUsage([]byte(messageUpdated("ses_child", 3_000)))
+	proc.trackUsage([]byte(turnTokens("msg_01", 10, 100, 100, 1000)))
+	proc.trackUsage([]byte(turnTokens("msg_02", 20, 150, 200, 2000)))
 
-	if used := proc.snapshotUsage().Used; used != 120_000 {
-		t.Fatalf("used = %d, want this session's 120000", used)
+	usage := proc.snapshotUsage()
+	if usage.Billed != 250 {
+		t.Fatalf("billed = %d, want 250", usage.Billed)
+	}
+	if usage.Input != 3030 {
+		t.Fatalf("input = %d, want 3030", usage.Input)
+	}
+	if usage.Cached != 300 {
+		t.Fatalf("cached = %d, want 300", usage.Cached)
+	}
+	if usage.Used != 2370 {
+		t.Fatalf("used = %d, want the latest turn's window (2370)", usage.Used)
+	}
+}
+
+// A child session runs on a context of its own, so its turns belong to neither the
+// node's reading nor its bill.
+func TestChildSessionTurnsAreLeftOutOfEveryCounter(t *testing.T) {
+	proc := &openCodeProc{session: "ses_main", ctxWindow: ctxWindow}
+
+	proc.trackUsage([]byte(turnTokens("msg_01", 10, 100, 100, 1000)))
+	proc.trackUsage([]byte(childTurnTokens("msg_child", 900, 900, 900, 900)))
+
+	usage := proc.snapshotUsage()
+	if usage.Billed != 100 {
+		t.Fatalf("billed = %d, want this session's 100", usage.Billed)
+	}
+	if usage.Input != 1010 {
+		t.Fatalf("input = %d, want this session's 1010", usage.Input)
+	}
+	if usage.Cached != 100 {
+		t.Fatalf("cached = %d, want this session's 100", usage.Cached)
+	}
+	if usage.Used != 1210 {
+		t.Fatalf("used = %d, want this session's window (1210)", usage.Used)
 	}
 }
 
@@ -54,135 +106,6 @@ func TestUsageFollowsTheLatestOwnSessionTurn(t *testing.T) {
 
 	if used := proc.snapshotUsage().Used; used != 140_000 {
 		t.Fatalf("used = %d, want 140000", used)
-	}
-}
-
-func turn(id string, output int) string {
-	return usageLine("ses_main", id, 0, output, 0, 0, 0)
-}
-
-func turnTokens(id string, in, out, cacheRead, cacheWrite int) string {
-	return usageLine("ses_main", id, in, out, 0, cacheRead, cacheWrite)
-}
-
-func childTurnTokens(id string, in, out, cacheRead, cacheWrite int) string {
-	return usageLine("ses_child", id, in, out, 0, cacheRead, cacheWrite)
-}
-
-// The prompt is re-read whole on every turn, so a billed total that counted the input
-// side would grow with the conversation rather than with what the agent wrote.
-func TestBilledCountsOutputAndReasoningOnly(t *testing.T) {
-	proc := &openCodeProc{session: "ses_main", ctxWindow: ctxWindow}
-
-	proc.trackUsage([]byte(`{"properties":{"info":{"id":"msg_01","sessionID":"ses_main","tokens":` +
-		`{"input":10,"output":20,"reasoning":300,"cache":{"read":4000,"write":50000}}}}}`))
-
-	usage := proc.snapshotUsage()
-	if usage.Billed != 320 {
-		t.Fatalf("billed = %d, want the output and reasoning tokens (320)", usage.Billed)
-	}
-	if usage.Used != 54330 {
-		t.Fatalf("used = %d, want every bucket (54330)", usage.Used)
-	}
-}
-
-func TestBilledAddsUpEveryTurn(t *testing.T) {
-	proc := &openCodeProc{session: "ses_main", ctxWindow: ctxWindow}
-
-	proc.trackUsage([]byte(turn("msg_01", 100)))
-	proc.trackUsage([]byte(turn("msg_02", 150)))
-
-	usage := proc.snapshotUsage()
-	if usage.Billed != 250 {
-		t.Fatalf("billed = %d, want 250", usage.Billed)
-	}
-	if usage.Used != 150 {
-		t.Fatalf("used = %d, want the latest turn's 150", usage.Used)
-	}
-}
-
-// The stream re-reports a message as it grows, so counting each event would bill
-// the whole turn once per update.
-func TestBilledCountsARestreamedTurnOnce(t *testing.T) {
-	proc := &openCodeProc{session: "ses_main", ctxWindow: ctxWindow}
-
-	proc.trackUsage([]byte(turn("msg_01", 100)))
-	proc.trackUsage([]byte(turn("msg_01", 180)))
-
-	if billed := proc.snapshotUsage().Billed; billed != 180 {
-		t.Fatalf("billed = %d, want 180", billed)
-	}
-}
-
-func TestBilledCountsARestreamedTurnOnceAcrossAnUnnamedEvent(t *testing.T) {
-	proc := &openCodeProc{session: "ses_main", ctxWindow: ctxWindow}
-
-	proc.trackUsage([]byte(turn("msg_01", 100)))
-	proc.trackUsage([]byte(turn("", 50)))
-	proc.trackUsage([]byte(turn("msg_01", 180)))
-
-	if billed := proc.snapshotUsage().Billed; billed != 230 {
-		t.Fatalf("billed = %d, want the named turn billed once plus the unnamed 50 (230)", billed)
-	}
-}
-
-func TestBilledLeavesChildSessionsOut(t *testing.T) {
-	proc := &openCodeProc{session: "ses_main", ctxWindow: ctxWindow}
-
-	proc.trackUsage([]byte(turn("msg_01", 100)))
-	proc.trackUsage([]byte(messageUpdated("ses_child", 3_000)))
-
-	if billed := proc.snapshotUsage().Billed; billed != 100 {
-		t.Fatalf("billed = %d, want this session's 100", billed)
-	}
-}
-
-// A cache write is billed near the full input rate and a cache read at a tenth of
-// it, so the two have to land in different counters to price a run at all.
-func TestInputTakesCacheWritesAndCachedTakesCacheReads(t *testing.T) {
-	proc := &openCodeProc{session: "ses_main", ctxWindow: ctxWindow}
-
-	proc.trackUsage([]byte(turnTokens("msg_01", 10, 20, 300, 4000)))
-
-	usage := proc.snapshotUsage()
-	if usage.Input != 4010 {
-		t.Fatalf("input = %d, want the fresh input plus the cache write (4010)", usage.Input)
-	}
-	if usage.Cached != 300 {
-		t.Fatalf("cached = %d, want the cache read (300)", usage.Cached)
-	}
-	if usage.Used != 4330 {
-		t.Fatalf("used = %d, want every bucket (4330)", usage.Used)
-	}
-}
-
-func TestInputAndCachedAddUpEveryTurn(t *testing.T) {
-	proc := &openCodeProc{session: "ses_main", ctxWindow: ctxWindow}
-
-	proc.trackUsage([]byte(turnTokens("msg_01", 10, 5, 100, 1000)))
-	proc.trackUsage([]byte(turnTokens("msg_02", 20, 5, 200, 2000)))
-
-	usage := proc.snapshotUsage()
-	if usage.Input != 3030 {
-		t.Fatalf("input = %d, want 3030", usage.Input)
-	}
-	if usage.Cached != 300 {
-		t.Fatalf("cached = %d, want 300", usage.Cached)
-	}
-}
-
-func TestInputAndCachedCountARestreamedTurnOnce(t *testing.T) {
-	proc := &openCodeProc{session: "ses_main", ctxWindow: ctxWindow}
-
-	proc.trackUsage([]byte(turnTokens("msg_01", 10, 5, 100, 1000)))
-	proc.trackUsage([]byte(turnTokens("msg_01", 10, 9, 100, 1200)))
-
-	usage := proc.snapshotUsage()
-	if usage.Input != 1210 {
-		t.Fatalf("input = %d, want 1210", usage.Input)
-	}
-	if usage.Cached != 100 {
-		t.Fatalf("cached = %d, want 100", usage.Cached)
 	}
 }
 
@@ -202,21 +125,6 @@ func TestEveryCounterRollsOverOnTheSameEvent(t *testing.T) {
 	}
 	if usage.Cached != 150 {
 		t.Fatalf("cached = %d, want the unnamed 50 plus the named turn's 100 (150)", usage.Cached)
-	}
-}
-
-func TestInputAndCachedLeaveChildSessionsOut(t *testing.T) {
-	proc := &openCodeProc{session: "ses_main", ctxWindow: ctxWindow}
-
-	proc.trackUsage([]byte(turnTokens("msg_01", 10, 5, 100, 1000)))
-	proc.trackUsage([]byte(childTurnTokens("msg_child", 900, 900, 900, 900)))
-
-	usage := proc.snapshotUsage()
-	if usage.Input != 1010 {
-		t.Fatalf("input = %d, want this session's 1010", usage.Input)
-	}
-	if usage.Cached != 100 {
-		t.Fatalf("cached = %d, want this session's 100", usage.Cached)
 	}
 }
 

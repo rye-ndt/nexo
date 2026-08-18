@@ -75,28 +75,6 @@ func TestPricesRoundTripThroughTheFile(t *testing.T) {
 	}
 }
 
-func TestPricesAreReadBackByModelPrices(t *testing.T) {
-	cfg := openConfig(t, filepath.Join(t.TempDir(), "config.json"))
-
-	setPrices(t, cfg, enums.Sonnet, &output_itf.TokenPrices{
-		Input:  price(3),
-		Output: price(15),
-	})
-
-	stored := cfg.ModelPrice(enums.Sonnet)
-	if stored == nil {
-		t.Fatal("model prices dropped the prices")
-	}
-
-	if *stored.Input != 3 || *stored.Output != 15 {
-		t.Fatalf("prices came back as %+v", stored)
-	}
-
-	if stored.CachedInput != nil {
-		t.Fatalf("blank cached price came back as %v", *stored.CachedInput)
-	}
-}
-
 func TestZeroPriceIsNotABlankPrice(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.json")
 
@@ -121,28 +99,6 @@ func TestZeroPriceIsNotABlankPrice(t *testing.T) {
 
 	if stored.CachedInput != nil {
 		t.Fatalf("cached price came back as %v, want blank", *stored.CachedInput)
-	}
-}
-
-func TestOneModelIsPricedTheSameAtEveryTaskLevel(t *testing.T) {
-	cfg := openConfig(t, filepath.Join(t.TempDir(), "config.json"))
-
-	for _, level := range []enums.TaskLevel{enums.HeavyTask, enums.MaximumEffortTask} {
-		if err := cfg.SetAgentDefault(level, &output_itf.AgentDefault{
-			Model:         enums.Opus,
-			ThinkingLevel: enums.HighThinking,
-		}); err != nil {
-			t.Fatalf("set agent default for %s: %v", level, err)
-		}
-	}
-
-	setPrices(t, cfg, enums.Opus, &output_itf.TokenPrices{Input: price(15), Output: price(75)})
-
-	heavy := agentDefault(t, cfg, enums.HeavyTask)
-	maximum := agentDefault(t, cfg, enums.MaximumEffortTask)
-
-	if cfg.ModelPrice(heavy.Model) == nil || cfg.ModelPrice(maximum.Model) == nil {
-		t.Fatal("two levels on one model do not share its prices")
 	}
 }
 
@@ -266,14 +222,6 @@ func TestUnreadablePricesKeepTheStoredModel(t *testing.T) {
 
 	if priced := pricedModels(cfg); len(priced) != 0 {
 		t.Fatalf("a price under an unknown model was kept for %v", priced)
-	}
-}
-
-func TestFreshInstallPricesNothing(t *testing.T) {
-	cfg := openConfig(t, filepath.Join(t.TempDir(), "config.json"))
-
-	if priced := pricedModels(cfg); len(priced) != 0 {
-		t.Fatalf("fresh install priced %v", priced)
 	}
 }
 

@@ -160,34 +160,31 @@ func TestRejectWithNoOptionReleasesTheCaller(t *testing.T) {
 	}
 }
 
-func TestRejectionCarryingAnOptionIsRefused(t *testing.T) {
-	broker := newBroker(t)
-	done := request(t, broker, newRequest(uuid.New(), "where do we store it?", false))
+// Every refusal leaves the agent blocked on its question rather than releasing it with
+// an answer the user did not give.
+func TestAnAnswerTheRequestCannotTakeIsRefused(t *testing.T) {
+	cases := map[string]struct {
+		answer core_itf.ApprovalAnswer
+	}{
+		"a rejection carrying an option":     {answer: core_itf.ApprovalAnswer{Approved: false, OptionIDs: []string{"sqlite"}}},
+		"several options on a single select": {answer: core_itf.ApprovalAnswer{Approved: true, OptionIDs: []string{"sqlite", "files"}}},
+		"an option nobody offered":           {answer: core_itf.ApprovalAnswer{Approved: true, OptionIDs: []string{"redis"}}},
+		"an approval picking nothing":        {answer: core_itf.ApprovalAnswer{Approved: true}},
+	}
 
-	pending := waitPending(t, broker, 1)
+	for name, testCase := range cases {
+		t.Run(name, func(t *testing.T) {
+			broker := newBroker(t)
+			done := request(t, broker, newRequest(uuid.New(), "where do we store it?", false))
 
-	err := broker.Answer(&core_itf.ApprovalAnswer{
-		RequestID: pending[0].ID,
-		Approved:  false,
-		OptionIDs: []string{"sqlite"},
-	})
+			pending := waitPending(t, broker, 1)
 
-	expectStillBlocked(t, broker, done, err)
-}
+			answer := testCase.answer
+			answer.RequestID = pending[0].ID
 
-func TestSeveralOptionsOnASingleSelectAreRefused(t *testing.T) {
-	broker := newBroker(t)
-	done := request(t, broker, newRequest(uuid.New(), "where do we store it?", false))
-
-	pending := waitPending(t, broker, 1)
-
-	err := broker.Answer(&core_itf.ApprovalAnswer{
-		RequestID: pending[0].ID,
-		Approved:  true,
-		OptionIDs: []string{"sqlite", "files"},
-	})
-
-	expectStillBlocked(t, broker, done, err)
+			expectStillBlocked(t, broker, done, broker.Answer(&answer))
+		})
+	}
 }
 
 func TestSeveralOptionsOnAMultiSelectAreAccepted(t *testing.T) {
@@ -207,35 +204,6 @@ func TestSeveralOptionsOnAMultiSelectAreAccepted(t *testing.T) {
 	if got := waitRaised(t, done); got.err != nil {
 		t.Fatalf("request: %v", got.err)
 	}
-}
-
-func TestUnknownOptionIsRefused(t *testing.T) {
-	broker := newBroker(t)
-	done := request(t, broker, newRequest(uuid.New(), "where do we store it?", false))
-
-	pending := waitPending(t, broker, 1)
-
-	err := broker.Answer(&core_itf.ApprovalAnswer{
-		RequestID: pending[0].ID,
-		Approved:  true,
-		OptionIDs: []string{"redis"},
-	})
-
-	expectStillBlocked(t, broker, done, err)
-}
-
-func TestApprovalWithNoOptionIsRefused(t *testing.T) {
-	broker := newBroker(t)
-	done := request(t, broker, newRequest(uuid.New(), "where do we store it?", false))
-
-	pending := waitPending(t, broker, 1)
-
-	err := broker.Answer(&core_itf.ApprovalAnswer{
-		RequestID: pending[0].ID,
-		Approved:  true,
-	})
-
-	expectStillBlocked(t, broker, done, err)
 }
 
 func TestAnswerToAnUnknownRequestIsRefused(t *testing.T) {

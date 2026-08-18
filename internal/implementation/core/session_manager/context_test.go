@@ -48,17 +48,6 @@ func promptsFor(t *testing.T, manager core_itf.SessionManager, session, taskID u
 	return ""
 }
 
-func TestTemplatePromptsReachTheAgent(t *testing.T) {
-	manager, _ := newManager(t)
-	session := newSession(t, manager)
-
-	taskID := addTaskWithOutput(t, manager, session, "", "you review code")
-
-	if !strings.Contains(promptsFor(t, manager, session, taskID), "you review code") {
-		t.Fatal("the template prompt was dropped on the way to the agent")
-	}
-}
-
 func TestStructuredOutputReachesTheAgent(t *testing.T) {
 	manager, _ := newManager(t)
 	session := newSession(t, manager)
@@ -66,6 +55,10 @@ func TestStructuredOutputReachesTheAgent(t *testing.T) {
 	taskID := addTaskWithOutput(t, manager, session, testStructure, "you review code")
 
 	prompt := promptsFor(t, manager, session, taskID)
+
+	if !strings.Contains(prompt, "you review code") {
+		t.Fatal("the template prompt was dropped on the way to the agent")
+	}
 
 	if !strings.Contains(prompt, structureGate) {
 		t.Fatal("the structured output protocol is missing")

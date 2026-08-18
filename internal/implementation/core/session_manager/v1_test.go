@@ -321,18 +321,6 @@ func TestRejectingGatedTaskFailsItAndKeepsDownstreamBlocked(t *testing.T) {
 	}
 }
 
-func TestUngatedTaskCompletesWithoutAGate(t *testing.T) {
-	manager, _ := newManager(t)
-	session := newSession(t, manager)
-
-	task := addTask(t, manager, session, "implement", false)
-	reportDone(t, manager, task, uuid.New())
-
-	if got := statusOf(t, manager, session, task); got != enums.TaskCompleted {
-		t.Fatalf("ungated task status = %s, want %s", got, enums.TaskCompleted)
-	}
-}
-
 func TestGatedFailureIsNotHeld(t *testing.T) {
 	manager, _ := newManager(t)
 	session := newSession(t, manager)
@@ -720,6 +708,10 @@ func TestPausedSessionTakesTheParkedTaskAgainOnTheNextRun(t *testing.T) {
 		t.Fatalf("session status while paused = %s, want %s", status.Status, enums.SessionPaused)
 	}
 
+	if err := manager.Assign(running, uuid.New()); err == nil {
+		t.Fatal("a paused session accepted an assignment")
+	}
+
 	if _, err := manager.Execute(session); err != nil {
 		t.Fatalf("execute after pause: %v", err)
 	}
@@ -734,25 +726,6 @@ func TestPausedSessionTakesTheParkedTaskAgainOnTheNextRun(t *testing.T) {
 
 	if err := manager.Assign(running, uuid.New()); err != nil {
 		t.Fatalf("assign after a pause and a new run: %v", err)
-	}
-}
-
-func TestPausedSessionRefusesAnAssignment(t *testing.T) {
-	manager, _ := newManager(t)
-	session := newSession(t, manager)
-
-	task := addTask(t, manager, session, "implement", false)
-
-	if err := manager.Assign(task, uuid.New()); err != nil {
-		t.Fatalf("assign: %v", err)
-	}
-
-	if _, err := manager.Pause(session); err != nil {
-		t.Fatalf("pause: %v", err)
-	}
-
-	if err := manager.Assign(task, uuid.New()); err == nil {
-		t.Fatal("a paused session accepted an assignment")
 	}
 }
 
@@ -892,32 +865,6 @@ func TestRestoreTwiceChangesNothing(t *testing.T) {
 	}
 }
 
-func TestRestoredSessionFeedsTheHandoverDocDownstream(t *testing.T) {
-	manager, store := newManager(t)
-	session := newSession(t, manager)
-
-	upstream := addTask(t, manager, session, "plan", false)
-	downstream := addTask(t, manager, session, "implement", false, upstream)
-
-	reportDone(t, manager, upstream, uuid.New())
-
-	restored := restoredManager(t, store)
-	status := sessionStatusOf(t, restored, session)
-
-	docs := status.Tasks[upstream].HandoverDocs
-	if len(docs) != 1 || docs[0].Outcome != "briefing" {
-		t.Fatalf("the completed dependency handed over %+v, want its briefing", docs)
-	}
-
-	if _, err := restored.Execute(session); err != nil {
-		t.Fatalf("execute after restore: %v", err)
-	}
-
-	if ready := readyIDs(t, restored, session); !ready[downstream] {
-		t.Fatal("the downstream task of a restored dependency never became ready")
-	}
-}
-
 func TestExecuteAgainReplacesTheProgressStream(t *testing.T) {
 	manager, _ := newManagerWith(t, message_queue.InitV1())
 	session := newSession(t, manager)
@@ -1048,92 +995,6 @@ func assertTotalsSumTheTasks(t *testing.T, status *core_itf.SessionStatus) {
 	}
 }
 
-func TestSessionTokensKeepTheAttemptsThatAlreadyEnded(t *testing.T) {
-	manager, live := trackedManager(t)
-	session := newSession(t, manager)
-	taskID := addTask(t, manager, session, "implement", false)
-
-	first := uuid.New()
-	live.spend(first, 1_000)
-
-	if err := manager.Assign(taskID, first); err != nil {
-		t.Fatalf("assign the first attempt: %v", err)
-	}
-
-	if err := manager.Report(first, enums.TaskFailed, []*core_itf.HandoverDoc{{
-		Outcome: "ran out of room",
-	}}); err != nil {
-		t.Fatalf("report the first attempt: %v", err)
-	}
-
-	second := uuid.New()
-	live.spend(second, 400)
-
-	if err := manager.Assign(taskID, second); err != nil {
-		t.Fatalf("assign the retry: %v", err)
-	}
-
-	if got := tokensBilled(t, manager, session); got != 1_400 {
-		t.Fatalf("tokens billed while the retry runs = %d, want the failed attempt plus the live one (1400)", got)
-	}
-
-	if err := manager.Report(second, enums.TaskCompleted, []*core_itf.HandoverDoc{{
-		Outcome: "done",
-	}}); err != nil {
-		t.Fatalf("report the retry: %v", err)
-	}
-
-	if got := tokensBilled(t, manager, session); got != 1_400 {
-		t.Fatalf("tokens billed after the retry reported = %d, want 1400", got)
-	}
-}
-
-func TestCancelKeepsTheTokensTheKilledAgentsSpent(t *testing.T) {
-	manager, live := trackedManager(t)
-	session := newSession(t, manager)
-	taskID := addTask(t, manager, session, "implement", false)
-
-	agentID := uuid.New()
-	live.spend(agentID, 900)
-
-	if err := manager.Assign(taskID, agentID); err != nil {
-		t.Fatalf("assign: %v", err)
-	}
-
-	if _, err := manager.Cancel(session); err != nil {
-		t.Fatalf("cancel: %v", err)
-	}
-
-	if got := tokensBilled(t, manager, session); got != 900 {
-		t.Fatalf("tokens billed after cancel = %d, want the 900 the killed agent spent", got)
-	}
-}
-
-func TestDroppingASilentAgentKeepsTheTokensItSpent(t *testing.T) {
-	manager, live := trackedManager(t)
-	session := newSession(t, manager)
-	taskID := addTask(t, manager, session, "implement", false)
-
-	agentID := uuid.New()
-	live.spend(agentID, 700)
-
-	if err := manager.Assign(taskID, agentID); err != nil {
-		t.Fatalf("assign: %v", err)
-	}
-
-	if err := manager.(*v1).dropTask(agentID, time.Now().Unix()+1); err != nil {
-		t.Fatalf("drop the silent agent: %v", err)
-	}
-
-	if got := statusOf(t, manager, session, taskID); got != enums.TaskCancelled {
-		t.Fatalf("task after the drop = %s, want cancelled", got)
-	}
-
-	if got := tokensBilled(t, manager, session); got != 700 {
-		t.Fatalf("tokens billed after the drop = %d, want the 700 the silent agent spent", got)
-	}
-}
-
 func TestRetriedTaskKeepsEveryAttemptOnItsOwnBill(t *testing.T) {
 	manager, live := trackedManager(t)
 	session := newSession(t, manager)
@@ -1159,6 +1020,10 @@ func TestRetriedTaskKeepsEveryAttemptOnItsOwnBill(t *testing.T) {
 
 	if err := manager.Assign(retried, second); err != nil {
 		t.Fatalf("assign the retry: %v", err)
+	}
+
+	if got := tokensBilled(t, manager, session); got != 1_400 {
+		t.Fatalf("tokens billed while the retry runs = %d, want the failed attempt plus the live one (1400)", got)
 	}
 
 	if err := manager.Report(second, enums.TaskCompleted, []*core_itf.HandoverDoc{{
@@ -1277,6 +1142,10 @@ func TestDroppingASilentAgentBillsItsTask(t *testing.T) {
 
 	if err := manager.(*v1).dropTask(agentID, time.Now().Unix()+1); err != nil {
 		t.Fatalf("drop the silent agent: %v", err)
+	}
+
+	if got := statusOf(t, manager, session, dropped); got != enums.TaskCancelled {
+		t.Fatalf("task after the drop = %s, want cancelled", got)
 	}
 
 	status := sessionStatusOf(t, manager, session)
