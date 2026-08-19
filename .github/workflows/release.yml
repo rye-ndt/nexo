@@ -3,13 +3,18 @@ name: Release
 on:
   push:
     branches: [main]
+  release:
+    types: [published]
 
 permissions:
   contents: write
 
-# One nightly at a time. Never cancel: publish replaces the rolling release in
-# place, and a run killed halfway through leaves no release at all.
-concurrency: nightly
+# One run per target at a time. Never cancel: the nightly publish replaces the
+# rolling release in place, and a run killed halfway through leaves no release
+# at all.
+concurrency:
+  group: ${{ github.event_name == 'release' && github.ref || 'nightly' }}
+  cancel-in-progress: false
 
 env:
   WAILS: go run github.com/wailsapp/wails/v2/cmd/wails@v2.13.0
@@ -23,6 +28,17 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+
+      # wails stamps info.productVersion into the .app, the .exe and the
+      # installer names, so a tagged build has to overwrite it or every
+      # artefact claims whatever main happened to say.
+      - name: Stamp the release version into wails.json
+        if: github.event_name == 'release'
+        shell: bash
+        run: |
+          jq --arg v "${GITHUB_REF_NAME#v}" '.info.productVersion = $v' \
+            wails.json > wails.tmp && mv wails.tmp wails.json
+
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
@@ -69,7 +85,11 @@ jobs:
           mkdir -p dist
           # nfpm expands this into nfpm.yaml. Read it from wails.json so the deb
           # carries the same version wails stamps into the .app and the .exe.
-          export NEXO_VERSION="$(jq -r .info.productVersion wails.json)~nightly${{ github.run_number }}"
+          if [ "${{ github.event_name }}" = release ]; then
+            export NEXO_VERSION="$(jq -r .info.productVersion wails.json)"
+          else
+            export NEXO_VERSION="$(jq -r .info.productVersion wails.json)~nightly${{ github.run_number }}"
+          fi
           "$(go env GOPATH)/bin/nfpm" pkg -f build/linux/nfpm.yaml -p deb \
             -t dist/nexo-linux-amd64.deb
 
@@ -92,10 +112,17 @@ jobs:
           pattern: installer-*
           merge-multiple: true
 
+      # The release already exists and carries whatever notes were written in
+      # the UI, so only the assets go up. --clobber makes a re-run idempotent.
+      - name: Attach the installers to the release
+        if: github.event_name == 'release'
+        run: gh release upload "$GITHUB_REF_NAME" dist/* --clobber
+
       # Replace the release outright rather than reconciling one that may or
       # may not exist: --cleanup-tag drops the old tag, --target recreates it
       # here. No checkout needed, gh works off GH_REPO.
       - name: Publish the rolling nightly release
+        if: github.event_name == 'push'
         run: |
           cat > notes.md <<'EOF'
           Built from the latest commit on `main`. Unsigned — every OS will say so.
