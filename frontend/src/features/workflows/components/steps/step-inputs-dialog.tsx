@@ -10,6 +10,7 @@ import {toFieldValues, toInputValues} from '@/features/roles/role'
 import {inputRefs} from '@/features/roles/input-refs'
 import {pendingInputs} from '@/features/workflows/step-inputs'
 import type {Step} from '@/features/workflows/types'
+import {t} from '@/shared/lib/i18n'
 import type {FieldValue, InputValue} from '@/features/roles/types'
 
 export function StepInputsDialog({
@@ -49,17 +50,17 @@ export function StepInputsDialog({
     return (
         <DialogShell
             onClose={onClose}
-            title={step.title || 'Untitled step'}
-            description="The graph is locked. Inputs stay open until the run starts."
+            title={step.title || t('step.untitled')}
+            description={t('step.locked.description')}
             footer={
                 <>
                     <span className="flex-1" />
                     <MissingInputs count={pending.length} />
                     <Button variant="outline" size="sm" onClick={onClose}>
-                        Cancel
+                        {t('step.locked.cancel')}
                     </Button>
                     <Button size="sm" disabled={busy} onClick={save}>
-                        {busy ? 'Saving…' : 'Save inputs'}
+                        {busy ? t('step.locked.saving') : t('step.locked.save')}
                     </Button>
                 </>
             }
@@ -68,15 +69,12 @@ export function StepInputsDialog({
                 {role ? (
                     <InputFields inputs={role.inputs} values={values} onChange={editValue} />
                 ) : (
-                    <p className="text-base text-muted-foreground">
-                        This step's role is gone, so its inputs cannot be read. Duplicate the
-                        workflow and rebuild the step.
-                    </p>
+                    <p className="text-base text-muted-foreground">{t('step.locked.roleGone')}</p>
                 )}
 
                 {embedded && (
                     <section className="flex flex-col gap-3">
-                        <span className="micro-label">Prompt the agent receives</span>
+                        <span className="micro-label">{t('step.locked.promptPreview')}</span>
                         <PromptPreview prompt={step.prompt} values={values} />
                     </section>
                 )}

@@ -8,6 +8,7 @@
  */
 
 import {bridge, hasWailsRuntime} from '@/shared/api/bridge'
+import {t} from '@/shared/lib/i18n'
 import {fromExportedWorkflow, toExportedWorkflow} from '@/features/workflows/workflow-file'
 import {listRoles} from '@/features/roles/api'
 import {mockWorkflowArchive, mockWorkflowBody} from '@/features/workflows/mock-workflows'
@@ -40,7 +41,7 @@ export async function importWorkflow(
     workflow: Workflow,
     locations: WorkflowLocations,
 ): Promise<Workflow> {
-    if (!locations.projectDir.trim()) throw new Error('A workflow needs a project folder.')
+    if (!locations.projectDir.trim()) throw new Error(t('workflow.api.needsProjectDir'))
 
     await hydrate()
 

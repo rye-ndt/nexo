@@ -1,26 +1,37 @@
-export const LOCKED_HINT = 'Locked — duplicate to make changes.'
+import {t} from '@/shared/lib/i18n'
 
-export const CANCELLED_HINT = 'Run cancelled — duplicate to start over.'
-
-export const LOCK_CONFIRM = {
-    description:
-        'The graph and its project folder lock for good. To change anything after this you have to duplicate the workflow. Nothing runs until you press Run.',
-    confirmLabel: 'Lock workflow',
+export function lockedHint() {
+    return t('workflow.hint.locked')
 }
 
-export const PAUSED_HINT = 'Paused — resume when you are ready.'
-
-export const PAUSE_CONFIRM = {
-    title: 'Pause the run?',
-    description:
-        'Steps running right now lose their work and start over when you resume — there will be no result for this attempt. Finished steps keep theirs, and you can close the app or shut the machine down; the run picks up where it stopped.',
-    confirmLabel: 'Pause run',
-    dismissLabel: 'Keep running',
+export function cancelledHint() {
+    return t('workflow.hint.cancelled')
 }
 
-export const CANCEL_CONFIRM = {
-    title: 'Cancel the run?',
-    description:
-        'The step running right now loses its work — there will be no result for it. Finished steps keep theirs, and the workflow stays on the rail. You cannot resume a cancelled run; duplicate it to start over.',
-    dismissLabel: 'Keep running',
+export function pausedHint() {
+    return t('workflow.hint.paused')
+}
+
+export function lockConfirm() {
+    return {
+        description: t('workflow.lock.description'),
+        confirmLabel: t('workflow.lock.confirm'),
+    }
+}
+
+export function pauseConfirm() {
+    return {
+        title: t('workflow.pause.title'),
+        description: t('workflow.pause.description'),
+        confirmLabel: t('workflow.pause.confirm'),
+        dismissLabel: t('workflow.pause.dismiss'),
+    }
+}
+
+export function cancelConfirm() {
+    return {
+        title: t('workflow.cancel.title'),
+        description: t('workflow.cancel.description'),
+        dismissLabel: t('workflow.cancel.dismiss'),
+    }
 }

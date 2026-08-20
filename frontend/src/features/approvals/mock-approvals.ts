@@ -11,6 +11,7 @@ import type {
     ApprovalKind,
     ApprovalOption,
 } from '@/features/approvals/types'
+import {t} from '@/shared/lib/i18n'
 
 let pending: Approval[] = []
 
@@ -48,8 +49,7 @@ export function listMockApprovals(): Approval[] {
 }
 
 export function answerMockApproval(id: string, answer: ApprovalAnswer): void {
-    if (!pending.some((approval) => approval.id === id))
-        throw new Error('That request is no longer waiting for an answer.')
+    if (!pending.some((approval) => approval.id === id)) throw new Error(t('approval.error.gone'))
 
     pending = pending.filter((approval) => approval.id !== id)
     answers.set(id, structuredClone(answer))

@@ -17,6 +17,7 @@ import {
     mockCreateDirectory,
     MOCK_HOME,
 } from '@/shared/api/mock-fs'
+import {t} from '@/shared/lib/i18n'
 import {ChooseDirectory, ChooseFile, ChooseSaveFile} from '@wailsjs/go/wails_api/API'
 
 export type PathKind = 'directory' | 'file' | 'save'
@@ -50,7 +51,7 @@ async function choosePath(request: PathRequest): Promise<string> {
         return ChooseSaveFile(request.title, request.defaultName, request.pattern)
     }
 
-    if (!standIn) throw new Error('No path picker is available right now.')
+    if (!standIn) throw new Error(t('shared.pathPicker.unavailable'))
 
     return standIn(request)
 }

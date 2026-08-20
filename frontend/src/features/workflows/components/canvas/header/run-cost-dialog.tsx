@@ -11,6 +11,7 @@ import {
     DialogHeader,
     DialogTitle,
 } from '@/shared/ui/dialog'
+import {t} from '@/shared/lib/i18n'
 import type {Workflow, Spend, Step} from '@/features/workflows/types'
 
 const NOTHING_SPENT: Spend = {input: 0, cached: 0, output: 0}
@@ -23,7 +24,11 @@ type StepSpend = {
 }
 
 function ledger(spent: Spend) {
-    return `${formatTokens(spent.input)} in · ${formatTokens(spent.cached)} cached · ${formatTokens(spent.output)} out`
+    return t('canvas.cost.ledger', {
+        input: formatTokens(spent.input),
+        cached: formatTokens(spent.cached),
+        output: formatTokens(spent.output),
+    })
 }
 
 function stepSpends(steps: Step[], priced: boolean): StepSpend[] {
@@ -62,42 +67,44 @@ export function RunCostDialog({workflow, onClose}: {workflow: Workflow; onClose:
         <Dialog open onOpenChange={change}>
             <DialogContent className="p-5">
                 <DialogHeader className="pr-8">
-                    <DialogTitle>Run cost</DialogTitle>
+                    <DialogTitle>{t('canvas.cost.title')}</DialogTitle>
                     <DialogDescription className="truncate">{workflow.name}</DialogDescription>
                 </DialogHeader>
 
                 <div className="mt-4 grid grid-cols-2 gap-3">
                     <Readout
-                        label="Cost"
+                        label={t('canvas.cost.cost')}
                         value={priced ? formatUSD(workflow.costUsd ?? 0) : '—'}
                         detail={
                             priced ? (
                                 <span className="font-mono tabular-nums">{ledger(spent)}</span>
                             ) : (
-                                'Add prices in Settings → Preferences to see this run in dollars.'
+                                t('canvas.cost.unpriced')
                             )
                         }
                     />
                     <Readout
-                        label="Elapsed"
+                        label={t('canvas.cost.elapsed')}
                         value={elapsed ?? '—'}
                         detail={
                             finishedAt
-                                ? `Finished ${formatMoment(finishedAt)}`
-                                : `Started ${formatMoment(startedAt)}`
+                                ? t('canvas.cost.finishedAt', {moment: formatMoment(finishedAt)})
+                                : t('canvas.cost.startedAt', {moment: formatMoment(startedAt)})
                         }
                     />
                 </div>
 
                 <div className="mt-6">
                     <div className="flex items-baseline justify-between gap-3">
-                        <span className="micro-label">By step</span>
-                        <span className="text-sm text-muted-foreground">Every attempt</span>
+                        <span className="micro-label">{t('canvas.cost.byStep')}</span>
+                        <span className="text-sm text-muted-foreground">
+                            {t('canvas.cost.everyAttempt')}
+                        </span>
                     </div>
 
                     {steps.length === 0 && (
                         <p className="mt-3 text-sm text-muted-foreground">
-                            No step has spent anything yet.
+                            {t('canvas.cost.nothingSpent')}
                         </p>
                     )}
 

@@ -9,6 +9,7 @@
 
 import {bridge, hasWailsRuntime} from '@/shared/api/bridge'
 import {StepState} from '@/shared/lib/enums'
+import {t} from '@/shared/lib/i18n'
 import {
     createWorkflow as buildWorkflow,
     createStep as buildStep,
@@ -79,7 +80,7 @@ export async function reorderWorkflow(workflowId: string, toIndex: number): Prom
 }
 
 export async function createWorkflow(workflowId: string, draft: WorkflowDraft): Promise<Workflow> {
-    if (!draft.projectDir.trim()) throw new Error('A workflow needs a project folder.')
+    if (!draft.projectDir.trim()) throw new Error(t('workflow.api.needsProjectDir'))
 
     await hydrate()
 
@@ -102,11 +103,10 @@ export async function updateWorkflow(
     workflowId: string,
     patch: Partial<Pick<Workflow, 'name' | 'locked' | 'started' | 'projectDir'>>,
 ): Promise<Workflow> {
-    if (patch.locked === false)
-        throw new Error('A locked workflow cannot go back to a draft. Duplicate it instead.')
+    if (patch.locked === false) throw new Error(t('workflow.api.noUnlock'))
 
     if (patch.projectDir !== undefined && !patch.projectDir.trim())
-        throw new Error('A workflow needs a project folder.')
+        throw new Error(t('workflow.api.needsProjectDir'))
 
     await hydrate()
 
@@ -114,12 +114,11 @@ export async function updateWorkflow(
     const workflow = locking ? findWorkflow(workflowId) : findOpenWorkflow(workflowId)
 
     if (patch.locked && !workflow.projectDir.trim())
-        throw new Error('Choose a project folder before locking this workflow.')
+        throw new Error(t('workflow.api.folderBeforeLock'))
 
-    if (patch.started && !workflow.locked) throw new Error('Lock the workflow before running it.')
+    if (patch.started && !workflow.locked) throw new Error(t('workflow.api.lockBeforeRun'))
 
-    if (patch.started && workflow.cancelled)
-        throw new Error('This run was cancelled. Duplicate the workflow to run it again.')
+    if (patch.started && workflow.cancelled) throw new Error(t('workflow.api.cancelled'))
 
     if (!patch.started) {
         replaceWorkflow({...workflow, ...patch})
@@ -151,7 +150,7 @@ export async function setStepInputs(
     await hydrate()
 
     const workflow = findWorkflow(workflowId)
-    if (workflow.started) throw new Error('This workflow is running. Its inputs are locked.')
+    if (workflow.started) throw new Error(t('workflow.api.inputsLocked'))
 
     const step = findStep(workflow, stepId)
     replaceWorkflow(withStepPatch(workflow, stepId, {values: {...step.values, ...values}}))
@@ -171,9 +170,7 @@ export async function answerStepAcceptance(
     const step = findStep(workflow, stepId)
 
     if (step.state !== StepState.AwaitingReview)
-        throw new Error(
-            'This step is not waiting to be accepted. It may already have been answered.',
-        )
+        throw new Error(t('workflow.api.notAwaitingReview'))
 
     if (hasWailsRuntime()) await answerRemoteAcceptance(workflowId, stepId, accepted)
     else resolveAcceptance(workflowId, stepId, accepted)
@@ -190,7 +187,7 @@ export async function resumeWorkflow(workflowId: string): Promise<Workflow> {
     await hydrate()
 
     const workflow = findWorkflow(workflowId)
-    if (!workflow.paused) throw new Error('This workflow is not paused.')
+    if (!workflow.paused) throw new Error(t('workflow.api.notPaused'))
 
     await listRoles()
     await startRun(resumeRun(workflow))
@@ -316,8 +313,7 @@ export async function addDependency(
     await hydrate()
 
     const workflow = findOpenWorkflow(workflowId)
-    if (createsCycle(workflow.steps, sourceId, targetId))
-        throw new Error('That link would loop back on itself. Point it at another step.')
+    if (createsCycle(workflow.steps, sourceId, targetId)) throw new Error(t('workflow.api.cycle'))
 
     replaceWorkflow(withDependency(workflow, sourceId, targetId))
 }

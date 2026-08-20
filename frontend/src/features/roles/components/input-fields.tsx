@@ -1,3 +1,4 @@
+import {useId} from 'react'
 import type {ChangeEvent} from 'react'
 import {Check, ChevronDown, File} from 'lucide-react'
 
@@ -14,6 +15,7 @@ import {Textarea} from '@/shared/ui/textarea'
 import {chooseFile} from '@/shared/api/dialogs'
 import {reportError} from '@/shared/lib/error-bus'
 import {InputType} from '@/shared/lib/enums'
+import {t} from '@/shared/lib/i18n'
 import {chosenOptions, joinOptions} from '@/features/roles/role'
 import type {FieldValue, RoleInput} from '@/features/roles/types'
 
@@ -54,7 +56,7 @@ function InputField({
     disabled: boolean
     onChange: (key: string, value: FieldValue) => void
 }) {
-    const id = `input-${input.key}`
+    const id = useId()
     const label = input.label.trim() || input.key
     const text = String(value ?? '')
 
@@ -67,10 +69,10 @@ function InputField({
             <div className="flex items-baseline justify-between gap-3">
                 <label htmlFor={id} className="text-base font-medium">
                     {label}
+                    {input.required && <span className="text-destructive"> *</span>}
                 </label>
                 <span className="shrink-0 font-mono text-sm text-muted-foreground">
                     {input.key}
-                    {input.required && <span className="text-live">*</span>}
                 </span>
             </div>
 
@@ -103,7 +105,7 @@ function InputField({
             {input.type === InputType.Select && (
                 <Select value={text} disabled={disabled} onValueChange={change}>
                     <SelectTrigger id={id}>
-                        <SelectValue placeholder="Pick one" />
+                        <SelectValue placeholder={t('role.field.pickOne')} />
                     </SelectTrigger>
                     <SelectContent>
                         {(input.options ?? []).map((option) => (
@@ -181,7 +183,7 @@ function MultiChoiceField({
                 className="flex h-9 w-full items-center justify-between gap-2 rounded-lg border border-input bg-card px-3 py-1 text-base transition-colors outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-input/30"
             >
                 <span className={picked.length ? 'truncate' : 'truncate text-muted-foreground'}>
-                    {picked.length ? joinOptions(picked) : 'Pick any'}
+                    {picked.length ? joinOptions(picked) : t('role.field.pickAny')}
                 </span>
                 <ChevronDown className="size-3.5 shrink-0 text-muted-foreground" />
             </DropdownMenuTrigger>
@@ -220,10 +222,10 @@ function FileField({
 }) {
     const choose = async () => {
         try {
-            const path = await chooseFile(`Choose a file for ${label}`)
+            const path = await chooseFile(t('role.field.filePicker', {label}))
             if (path) onChange(path)
         } catch (cause) {
-            reportError(cause, 'Could not open the file picker')
+            reportError(cause, t('role.error.filePicker'))
         }
     }
 
@@ -236,7 +238,7 @@ function FileField({
                         : 'min-w-0 flex-1 truncate rounded-lg border border-dashed border-input px-3 py-2 text-base text-muted-foreground'
                 }
             >
-                {value || 'No file chosen'}
+                {value || t('role.field.noFile')}
             </span>
 
             <Button
@@ -248,7 +250,7 @@ function FileField({
                 onClick={choose}
             >
                 <File />
-                {value ? 'Change' : 'Choose'}
+                {value ? t('role.field.changeFile') : t('role.field.chooseFile')}
             </Button>
         </div>
     )

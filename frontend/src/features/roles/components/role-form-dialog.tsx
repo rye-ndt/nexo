@@ -4,9 +4,13 @@ import {ConfirmDialog} from '@/shared/components/confirm-dialog'
 import {DialogShell} from '@/shared/components/dialog-shell'
 import {RefineButton} from '@/features/roles/components/refine-button'
 import {RoleForm} from '@/features/roles/components/role-form'
+import {TourBanner} from '@/features/onboarding/components/tour-banner'
+import {TourStopId} from '@/features/onboarding/tour'
 import {Button} from '@/shared/ui/button'
+import {t} from '@/shared/lib/i18n'
 import {useRoleHelper} from '@/features/roles/use-role-helper'
 import {useRoles} from '@/features/roles/use-roles'
+import {useTourStop} from '@/features/onboarding/tour-context'
 import {emptyRole, roleIssues} from '@/features/roles/role'
 import type {DraftContext, Role, RoleDraft} from '@/features/roles/types'
 
@@ -20,6 +24,7 @@ export function RoleFormDialog({
     onClose: () => void
 }) {
     const {saveRole, saving} = useRoles()
+    const guided = useTourStop(TourStopId.Role)
     const [draft, setDraft] = useState<RoleDraft>(() =>
         role ? structuredClone(role) : emptyRole(),
     )
@@ -54,11 +59,12 @@ export function RoleFormDialog({
     }
 
     const requestClose = () => {
+        if (guided) return
         if (JSON.stringify(draft) !== opened) setAsking('discard')
         else onClose()
     }
 
-    const saveLabel = role ? 'Save changes' : 'Create role'
+    const saveLabel = role ? t('role.form.save') : t('role.form.create')
 
     /** There is a name and a role, so the agent has something to work from. */
     const fillable = Boolean(draft.name.trim() && draft.description.trim())
@@ -66,14 +72,15 @@ export function RoleFormDialog({
     // A blocked helper takes the hint only once the user could plausibly reach for
     // it, since that is the moment they find the button dead and want to know why.
     const hint = helper.filling
-        ? 'An agent is reading the project and writing this. It can take a few minutes.'
+        ? t('role.form.filling')
         : (fillable ? helper.blocked : '') || (issues[0] ?? '')
 
     return (
         <DialogShell
             onClose={requestClose}
             size="wide"
-            title={role ? 'Edit role' : 'New role'}
+            title={role ? t('role.form.titleEdit') : t('role.form.titleNew')}
+            banner={guided ? <TourBanner stop={TourStopId.Role} /> : undefined}
             footer={
                 <>
                     <p className="min-w-0 flex-1 truncate text-sm text-muted-foreground">{hint}</p>
@@ -85,18 +92,18 @@ export function RoleFormDialog({
                     />
                     {beforeFill && !helper.filling && (
                         <Button variant="ghost" size="sm" onClick={undoFill}>
-                            Undo
+                            {t('role.form.undo')}
                         </Button>
                     )}
                     <Button variant="ghost" size="sm" onClick={requestClose}>
-                        Cancel
+                        {t('role.form.cancel')}
                     </Button>
                     <Button
                         size="sm"
                         disabled={saving || helper.filling || issues.length > 0}
                         onClick={save}
                     >
-                        {saving ? 'Saving' : saveLabel}
+                        {saving ? t('role.form.saving') : saveLabel}
                     </Button>
                 </>
             }
@@ -105,9 +112,9 @@ export function RoleFormDialog({
 
             {asking === 'save' && role && (
                 <ConfirmDialog
-                    title={`Save changes to “${role.name}”?`}
-                    description="The role is overwritten. Steps already built from it keep their prompt."
-                    confirmLabel="Save changes"
+                    title={t('role.form.saveTitle', {name: role.name})}
+                    description={t('role.form.saveBody')}
+                    confirmLabel={t('role.form.save')}
                     busy={saving}
                     onConfirm={commit}
                     onClose={dismiss}
@@ -117,14 +124,16 @@ export function RoleFormDialog({
             {asking === 'discard' && (
                 <ConfirmDialog
                     destructive
-                    title={role ? `Discard changes to “${role.name}”?` : 'Discard this role?'}
-                    description={
+                    title={
                         role
-                            ? 'The edits made here are lost and the saved role stays as it was.'
-                            : 'Nothing is saved, and everything filled in here is lost.'
+                            ? t('role.form.discardEditTitle', {name: role.name})
+                            : t('role.form.discardNewTitle')
                     }
-                    confirmLabel="Discard"
-                    dismissLabel="Keep editing"
+                    description={
+                        role ? t('role.form.discardEditBody') : t('role.form.discardNewBody')
+                    }
+                    confirmLabel={t('role.form.discard')}
+                    dismissLabel={t('role.form.keepEditing')}
                     onConfirm={onClose}
                     onClose={dismiss}
                 />

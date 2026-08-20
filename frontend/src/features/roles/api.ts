@@ -17,6 +17,7 @@ import {
     MOCK_ROLES,
 } from '@/features/roles/mock-roles'
 import {mockReadFile, mockWriteFile} from '@/shared/api/mock-fs'
+import {t} from '@/shared/lib/i18n'
 import type {DraftContext, Role, RoleDraft} from '@/features/roles/types'
 import {core_itf, output_itf} from '@wailsjs/go/models'
 import {
@@ -35,7 +36,10 @@ const ROUNDTRIP_MS = 400
 /** The real call spawns an agent and waits for it, so the mock has to feel like it. */
 const REFINE_MS = 2600
 
-let roles: Role[] = structuredClone(MOCK_ROLES)
+/** ?noRoles=1 empties the seeded roster, so the tour's empty-list path is reachable. */
+const seeded = new URLSearchParams(window.location.search).get('noRoles') !== '1'
+
+let roles: Role[] = seeded ? structuredClone(MOCK_ROLES) : []
 
 async function roundtrip() {
     await new Promise((resolve) => setTimeout(resolve, ROUNDTRIP_MS))
@@ -112,7 +116,7 @@ export function cachedRoles(): Role[] {
 }
 
 export async function upsertRole(draft: RoleDraft): Promise<Role> {
-    if (!draft.name.trim()) throw new Error('A role needs a name before it can be saved.')
+    if (!draft.name.trim()) throw new Error(t('role.error.nameRequired'))
 
     if (hasWailsRuntime()) {
         const id = await bridge(() => UpsertRole(toInfo(draft)))
@@ -130,14 +134,14 @@ export async function upsertRole(draft: RoleDraft): Promise<Role> {
 }
 
 export async function exportRoles(roleIds: string[], path: string): Promise<number> {
-    if (roleIds.length === 0) throw new Error('Pick at least one role to export.')
+    if (roleIds.length === 0) throw new Error(t('role.error.pickToExport'))
 
     if (hasWailsRuntime()) return bridge(() => ExportRoles(roleIds, path))
 
     await roundtrip()
 
     const picked = roles.filter((role) => roleIds.includes(role.id))
-    if (picked.length !== roleIds.length) throw new Error('One of those roles is no longer here.')
+    if (picked.length !== roleIds.length) throw new Error(t('role.error.roleGone'))
 
     mockWriteFile(path, mockArchive(picked))
 

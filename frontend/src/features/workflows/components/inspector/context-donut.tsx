@@ -1,6 +1,7 @@
 import {contextLeft, contextRingClass} from '@/features/workflows/context-ring'
 import {formatPercent, formatTokens} from '@/shared/lib/format'
 import {cn} from '@/shared/lib/utils'
+import {t} from '@/shared/lib/i18n'
 
 const RADIUS = 32
 
@@ -46,7 +47,7 @@ export function ContextDonut({used, total}: {used: number; total: number}) {
             </span>
 
             <span className="sr-only">
-                {formatPercent(used, total)}% of the context window used
+                {t('inspector.context.share', {percent: formatPercent(used, total)})}
             </span>
         </div>
     )

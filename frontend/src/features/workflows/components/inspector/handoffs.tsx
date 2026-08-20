@@ -1,28 +1,32 @@
 import {ReportSection} from '@/features/workflows/components/inspector/report-section'
+import {t, type MessageKey} from '@/shared/lib/i18n'
 import type {Handoff} from '@/features/workflows/types'
 
 type MapField = Exclude<keyof Handoff, 'step' | 'tldr' | 'outcome'>
 
-const MAP_FIELDS: [MapField, string][] = [
-    ['blockers', 'Blockers'],
-    ['approvedDecisions', 'Approved decisions'],
-    ['rejectedDecisions', 'Rejected decisions'],
-    ['currentBehaviors', 'Current behaviors'],
-    ['changedBehaviors', 'Changed behaviors'],
-    ['mustAvoid', 'Must avoid'],
-    ['nuances', 'Nuances'],
-    ['knownGaps', 'Known gaps'],
+const MAP_FIELDS: [MapField, MessageKey][] = [
+    ['blockers', 'inspector.handoff.blockers'],
+    ['approvedDecisions', 'inspector.handoff.approvedDecisions'],
+    ['rejectedDecisions', 'inspector.handoff.rejectedDecisions'],
+    ['currentBehaviors', 'inspector.handoff.currentBehaviors'],
+    ['changedBehaviors', 'inspector.handoff.changedBehaviors'],
+    ['mustAvoid', 'inspector.handoff.mustAvoid'],
+    ['nuances', 'inspector.handoff.nuances'],
+    ['knownGaps', 'inspector.handoff.knownGaps'],
 ]
 
 function docText(doc: Handoff) {
-    const blocks = [`STEP\n${doc.step}`, `OUTCOME\n${doc.outcome}`]
+    const blocks = [
+        `${t('inspector.handoff.step').toUpperCase()}\n${doc.step}`,
+        `${t('inspector.handoff.outcome').toUpperCase()}\n${doc.outcome}`,
+    ]
 
     for (const [field, label] of MAP_FIELDS) {
         const entries = Object.entries(doc[field])
         if (entries.length === 0) continue
 
         const lines = entries.map(([key, value]) => `${key}: ${value}`).join('\n')
-        blocks.push(`${label.toUpperCase()}\n${lines}`)
+        blocks.push(`${t(label).toUpperCase()}\n${lines}`)
     }
 
     return blocks.join('\n\n')
@@ -40,12 +44,14 @@ export function Handoffs({docs}: {docs: Handoff[]}) {
             ))}
 
             <ReportSection
-                label="Handoff"
+                label={t('inspector.handoff.label')}
                 term="handoff"
                 count={docs.length}
-                empty="None. Nothing was carried forward."
+                empty={t('inspector.handoff.empty')}
                 trailing={
-                    <span className="text-sm text-muted-foreground">Goes to the next step</span>
+                    <span className="text-sm text-muted-foreground">
+                        {t('inspector.handoff.goesNext')}
+                    </span>
                 }
             >
                 {docs.map((doc, index) => (

@@ -6,8 +6,8 @@ import {
     ContextMenuLabel,
     ContextMenuSeparator,
 } from '@/shared/ui/context-menu'
-import {UNTITLED} from '@/features/workflows/components/canvas/step-card'
 import {findStep} from '@/features/workflows/graph'
+import {t} from '@/shared/lib/i18n'
 import type {Point, Workflow} from '@/features/workflows/types'
 
 export type CanvasTarget =
@@ -38,16 +38,16 @@ export function CanvasMenu({
 
     if (target.kind === 'pane')
         return (
-            <Menu subject="Canvas">
+            <Menu subject={t('canvas.menu.pane')}>
                 {!locked && (
                     <>
                         <ContextMenuItem onSelect={() => onNewStep(target.at)}>
-                            New step here
+                            {t('canvas.menu.newStepHere')}
                         </ContextMenuItem>
                         <ContextMenuSeparator />
                     </>
                 )}
-                <ContextMenuItem onSelect={onFitView}>Fit view</ContextMenuItem>
+                <ContextMenuItem onSelect={onFitView}>{t('canvas.menu.fitView')}</ContextMenuItem>
             </Menu>
         )
 
@@ -56,19 +56,21 @@ export function CanvasMenu({
         if (!step) return null
 
         return (
-            <Menu subject={step.title || UNTITLED}>
-                <ContextMenuItem onSelect={() => onOpenStep(step.id)}>Open step</ContextMenuItem>
+            <Menu subject={step.title || t('step.untitled')}>
+                <ContextMenuItem onSelect={() => onOpenStep(step.id)}>
+                    {t('canvas.menu.openStep')}
+                </ContextMenuItem>
                 {!locked && (
                     <>
                         <ContextMenuSeparator />
                         <ContextMenuItem onSelect={() => onDuplicateStep(step.id)}>
-                            Duplicate step
+                            {t('canvas.menu.duplicateStep')}
                         </ContextMenuItem>
                         <ContextMenuItem
                             variant="destructive"
                             onSelect={() => onDeleteStep(step.id)}
                         >
-                            Delete step
+                            {t('canvas.menu.deleteStep')}
                         </ContextMenuItem>
                     </>
                 )}
@@ -81,12 +83,17 @@ export function CanvasMenu({
     if (!source || !downstream) return null
 
     return (
-        <Menu subject={`${source.title || UNTITLED} → ${downstream.title || UNTITLED}`}>
+        <Menu
+            subject={t('canvas.menu.edgeSubject', {
+                source: source.title || t('step.untitled'),
+                target: downstream.title || t('step.untitled'),
+            })}
+        >
             <ContextMenuItem
                 variant="destructive"
                 onSelect={() => onUnlink(source.id, downstream.id)}
             >
-                Unlink
+                {t('canvas.menu.unlink')}
             </ContextMenuItem>
         </Menu>
     )

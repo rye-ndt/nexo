@@ -1,8 +1,16 @@
 import {cn} from '@/shared/lib/utils'
 
-export function StepSpine({total, current}: {total: number; current: number}) {
+export function StepSpine({
+    total,
+    current,
+    className = 'justify-center',
+}: {
+    total: number
+    current: number
+    className?: string
+}) {
     return (
-        <div className="flex items-center justify-center" aria-hidden>
+        <div className={cn('flex items-center', className)} aria-hidden>
             {Array.from({length: total}, (_, index) => (
                 <div key={index} className="flex items-center">
                     {index > 0 && (

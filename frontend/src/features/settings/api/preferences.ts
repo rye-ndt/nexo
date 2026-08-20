@@ -7,7 +7,15 @@
  */
 
 import {bridge, hasWailsRuntime} from '@/shared/api/bridge'
-import {EFFORTS, THINKING_LEVELS, type Effort, type ThinkingLevel} from '@/shared/lib/enums'
+import {
+    EFFORTS,
+    LANGUAGES,
+    Language,
+    THINKING_LEVELS,
+    type Effort,
+    type ThinkingLevel,
+} from '@/shared/lib/enums'
+import {applyLanguage, t} from '@/shared/lib/i18n'
 import {
     MOCK_AUTOPILOT,
     MOCK_MODEL_PRICES,
@@ -25,9 +33,11 @@ import {
     AgentDefaultOptions as FetchAgentDefaultOptions,
     AgentDefaults as FetchAgentDefaults,
     Autopilot as FetchAutopilot,
+    Language as FetchLanguage,
     ModelPrices as FetchModelPrices,
     SetAgentDefault as SaveAgentDefault,
     SetAutopilot as SaveAutopilot,
+    SetLanguage as SaveLanguage,
     SetModelPrices as SaveModelPrices,
 } from '@wailsjs/go/wails_api/API'
 
@@ -39,13 +49,15 @@ let modelPrices: ModelPrice[] = structuredClone(MOCK_MODEL_PRICES)
 
 let autopilotOn = MOCK_AUTOPILOT
 
+let chosenLanguage: Language = Language.En
+
 async function roundtrip() {
     await new Promise((resolve) => setTimeout(resolve, ROUNDTRIP_MS))
 }
 
 function modelLabel(model: string) {
     const option = mockModelOption(model)
-    if (!option) throw new Error(`${model} is not a model this agent can run.`)
+    if (!option) throw new Error(t('settings.error.unknownModel', {model}))
     return option.label
 }
 
@@ -106,9 +118,9 @@ export async function setAgentDefault(
     model: string,
     thinkingLevel: string,
 ): Promise<void> {
-    if (!isEffort(effort)) throw new Error(`${effort} is not an effort level.`)
+    if (!isEffort(effort)) throw new Error(t('settings.error.unknownEffort', {effort}))
     if (!isThinkingLevel(thinkingLevel))
-        throw new Error(`${thinkingLevel} is not a thinking level.`)
+        throw new Error(t('settings.error.unknownThinkingLevel', {level: thinkingLevel}))
 
     if (hasWailsRuntime()) {
         await bridge(() => SaveAgentDefault(effort, model, thinkingLevel))
@@ -150,6 +162,34 @@ export async function setAutopilot(on: boolean): Promise<void> {
     autopilotOn = on
 }
 
+/**
+ * Read once before the first render so the app never paints English and then
+ * corrects itself. Applying is this module's job, not the caller's — every path
+ * that changes the language goes through here.
+ */
+export async function loadLanguage(): Promise<Language> {
+    if (hasWailsRuntime()) {
+        const stored = await bridge(FetchLanguage).catch(() => Language.En)
+        chosenLanguage = isLanguage(stored) ? stored : Language.En
+    }
+
+    applyLanguage(chosenLanguage)
+
+    return chosenLanguage
+}
+
+export async function setLanguage(language: Language): Promise<void> {
+    if (hasWailsRuntime()) await bridge(() => SaveLanguage(language))
+    else await roundtrip()
+
+    chosenLanguage = language
+    applyLanguage(language)
+}
+
+export function cachedLanguage(): Language {
+    return chosenLanguage
+}
+
 export function cachedAutopilot(): boolean {
     return autopilotOn
 }
@@ -161,6 +201,10 @@ export function cachedAgentDefaults(): AgentDefault[] {
 
 export function cachedModelPrices(): ModelPrice[] {
     return modelPrices
+}
+
+function isLanguage(value: string): value is Language {
+    return LANGUAGES.some((language) => language === value)
 }
 
 function isEffort(value: string): value is Effort {

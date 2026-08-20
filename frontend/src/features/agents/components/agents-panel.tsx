@@ -2,13 +2,18 @@ import {AgentActionButton} from '@/features/agents/components/agent-action-butto
 import {AgentLogin} from '@/features/agents/components/agent-login'
 import {HelpTip} from '@/shared/components/help-tip'
 import {AgentAction} from '@/shared/lib/enums'
+import {t} from '@/shared/lib/i18n'
 import {useAgents} from '@/features/agents/use-agents'
 import type {Agent} from '@/features/agents/types'
 import type {AgentControls} from '@/features/agents/controls'
 
 function metaLine(agent: Agent) {
-    if (!agent.installed) return 'Not installed'
-    return `v${agent.version.replace(/^v/, '')} · ${agent.instanceCount} running`
+    if (!agent.installed) return t('agent.panel.notInstalled')
+
+    return t('agent.panel.meta', {
+        version: agent.version.replace(/^v/, ''),
+        count: agent.instanceCount,
+    })
 }
 
 export function AgentsPanel() {
@@ -18,13 +23,10 @@ export function AgentsPanel() {
         <section className="flex flex-col">
             <div className="flex flex-col gap-1 px-4 pt-4 pb-3">
                 <div className="flex items-center gap-2">
-                    <h3 className="text-lg font-medium">Agents that run your steps</h3>
+                    <h3 className="text-lg font-medium">{t('agent.panel.title')}</h3>
                     <HelpTip term="agent" />
                 </div>
-                <p className="text-sm text-muted-foreground">
-                    An agent has to be installed and logged in before a workflow can assign work to
-                    it.
-                </p>
+                <p className="text-sm text-muted-foreground">{t('agent.panel.hint')}</p>
             </div>
 
             <div className="divide-y divide-border border-t border-border">
@@ -34,7 +36,7 @@ export function AgentsPanel() {
 
                 {controls.agents.length === 0 && (
                     <p className="px-4 py-3 text-base text-muted-foreground">
-                        No agents configured. Add one to config.yaml to see it here.
+                        {t('agent.panel.empty')}
                     </p>
                 )}
             </div>

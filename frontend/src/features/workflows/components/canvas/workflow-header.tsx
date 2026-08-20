@@ -15,8 +15,9 @@ import {
     workflowActions,
     type WorkflowActionHandlers,
 } from '@/features/workflows/workflow-actions'
-import {CANCEL_CONFIRM, LOCK_CONFIRM, PAUSE_CONFIRM} from '@/features/workflows/workflow-copy'
+import {cancelConfirm, lockConfirm, pauseConfirm} from '@/features/workflows/workflow-copy'
 import {useToggle} from '@/shared/hooks/use-toggle'
+import {t} from '@/shared/lib/i18n'
 import type {Workflow} from '@/features/workflows/types'
 
 export function WorkflowHeader({
@@ -117,22 +118,22 @@ export function WorkflowHeader({
                             <Button
                                 variant="ghost"
                                 size="icon"
-                                aria-label="Settings"
+                                aria-label={t('canvas.header.settings')}
                                 onClick={onOpenSettings}
                             >
                                 <Settings />
                             </Button>
                         </TooltipTrigger>
-                        <TooltipContent side="bottom">Settings</TooltipContent>
+                        <TooltipContent side="bottom">{t('canvas.header.settings')}</TooltipContent>
                     </Tooltip>
                 </div>
             </div>
 
             {confirmingLock.on && workflow && (
                 <ConfirmDialog
-                    title={`Lock “${workflow.name}”?`}
-                    description={LOCK_CONFIRM.description}
-                    confirmLabel={LOCK_CONFIRM.confirmLabel}
+                    title={t('canvas.header.lockTitle', {name: workflow.name})}
+                    description={lockConfirm().description}
+                    confirmLabel={lockConfirm().confirmLabel}
                     onConfirm={lock}
                     onClose={confirmingLock.close}
                 />
@@ -140,10 +141,12 @@ export function WorkflowHeader({
 
             {confirmingPause.on && workflow && (
                 <ConfirmDialog
-                    title={PAUSE_CONFIRM.title}
-                    description={PAUSE_CONFIRM.description}
-                    confirmLabel={pausing ? 'Pausing…' : PAUSE_CONFIRM.confirmLabel}
-                    dismissLabel={PAUSE_CONFIRM.dismissLabel}
+                    title={pauseConfirm().title}
+                    description={pauseConfirm().description}
+                    confirmLabel={
+                        pausing ? t('canvas.header.pausing') : pauseConfirm().confirmLabel
+                    }
+                    dismissLabel={pauseConfirm().dismissLabel}
                     busy={pausing}
                     onConfirm={pauseRun}
                     onClose={confirmingPause.close}
@@ -152,10 +155,12 @@ export function WorkflowHeader({
 
             {confirmingCancel.on && workflow && (
                 <ConfirmDialog
-                    title={CANCEL_CONFIRM.title}
-                    description={CANCEL_CONFIRM.description}
-                    confirmLabel={cancelling ? 'Cancelling…' : 'Cancel run'}
-                    dismissLabel={CANCEL_CONFIRM.dismissLabel}
+                    title={cancelConfirm().title}
+                    description={cancelConfirm().description}
+                    confirmLabel={
+                        cancelling ? t('canvas.header.cancelling') : t('canvas.header.cancelRun')
+                    }
+                    dismissLabel={cancelConfirm().dismissLabel}
                     destructive
                     busy={cancelling}
                     onConfirm={cancelRun}

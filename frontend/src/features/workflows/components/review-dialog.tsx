@@ -1,20 +1,20 @@
 import {DialogShell} from '@/shared/components/dialog-shell'
 import {Button} from '@/shared/ui/button'
 import {useDecision} from '@/shared/hooks/use-decision'
-import {pluralize} from '@/shared/lib/format'
+import {t, tn, type MessageKey} from '@/shared/lib/i18n'
 import type {Handoff, Step} from '@/features/workflows/types'
 
 type DocSection = Exclude<keyof Handoff, 'step' | 'tldr' | 'outcome'>
 
-const SECTIONS: [DocSection, string][] = [
-    ['blockers', 'Blockers'],
-    ['knownGaps', 'Known gaps'],
-    ['mustAvoid', 'Must avoid'],
-    ['rejectedDecisions', 'Rejected decisions'],
-    ['approvedDecisions', 'Approved decisions'],
-    ['changedBehaviors', 'Changed behaviors'],
-    ['currentBehaviors', 'Current behaviors'],
-    ['nuances', 'Nuances'],
+const SECTIONS: [DocSection, MessageKey][] = [
+    ['blockers', 'workflow.review.blockers'],
+    ['knownGaps', 'workflow.review.knownGaps'],
+    ['mustAvoid', 'workflow.review.mustAvoid'],
+    ['rejectedDecisions', 'workflow.review.rejectedDecisions'],
+    ['approvedDecisions', 'workflow.review.approvedDecisions'],
+    ['changedBehaviors', 'workflow.review.changedBehaviors'],
+    ['currentBehaviors', 'workflow.review.currentBehaviors'],
+    ['nuances', 'workflow.review.nuances'],
 ]
 
 function DocSectionGroup({label, entries}: {label: string; entries: [string, string][]}) {
@@ -35,7 +35,7 @@ function DocSectionGroup({label, entries}: {label: string; entries: [string, str
 
 function HandoffBrief({doc, index, total}: {doc: Handoff; index: number; total: number}) {
     const sections = SECTIONS.map(([field, label]) => ({
-        label,
+        label: t(label),
         entries: Object.entries(doc[field]),
     })).filter((section) => section.entries.length > 0)
 
@@ -43,26 +43,26 @@ function HandoffBrief({doc, index, total}: {doc: Handoff; index: number; total: 
         <article className="flex flex-col gap-6">
             {total > 1 && (
                 <span className="micro-label">
-                    Handoff {index + 1} of {total}
+                    {t('workflow.review.handoffIndex', {index: index + 1, total})}
                 </span>
             )}
 
             {doc.tldr && (
                 <section className="flex flex-col gap-2">
-                    <span className="micro-label">In short</span>
+                    <span className="micro-label">{t('workflow.review.inShort')}</span>
                     <p className="text-xl leading-[1.5]">{doc.tldr}</p>
                 </section>
             )}
 
             {doc.step && (
                 <section className="flex flex-col gap-2">
-                    <span className="micro-label">Step</span>
+                    <span className="micro-label">{t('workflow.review.step')}</span>
                     <p className="text-sm text-muted-foreground">{doc.step}</p>
                 </section>
             )}
 
             <section className="flex flex-col gap-2">
-                <span className="micro-label">Outcome</span>
+                <span className="micro-label">{t('workflow.review.outcome')}</span>
                 <p className="text-lg leading-[1.7] whitespace-pre-wrap">{doc.outcome}</p>
             </section>
 
@@ -99,37 +99,46 @@ export function ReviewDialog({
     return (
         <DialogShell
             onClose={onClose}
-            title={step.title || 'Untitled step'}
-            description="Finished. Nothing downstream runs until you decide."
+            title={step.title || t('workflow.step.untitled')}
+            description={t('workflow.review.description')}
             term="review"
             aside={
                 waiting > 1 ? (
                     <span className="micro-label shrink-0">
-                        {pluralize(waiting, 'step')} waiting
+                        {tn(
+                            'workflow.review.waiting.one',
+                            'workflow.review.waiting.other',
+                            waiting,
+                        )}
                     </span>
                 ) : undefined
             }
             footer={
                 <>
                     <Button variant="ghost" size="sm" onClick={onClose}>
-                        Not now
+                        {t('workflow.review.notNow')}
                     </Button>
                     <span className="flex-1" />
                     <Button variant="destructive" size="sm" disabled={busy} onClick={reject}>
-                        {decision.labelOf(false, 'Reject and stop', 'Rejecting…')}
+                        {decision.labelOf(
+                            false,
+                            t('workflow.review.reject'),
+                            t('workflow.review.rejecting'),
+                        )}
                     </Button>
                     <Button size="sm" disabled={busy} onClick={confirm}>
-                        {decision.labelOf(true, 'Confirm and continue', 'Confirming…')}
+                        {decision.labelOf(
+                            true,
+                            t('workflow.review.confirm'),
+                            t('workflow.review.confirming'),
+                        )}
                     </Button>
                 </>
             }
         >
             <div className="flex flex-col gap-8 p-4">
                 {docs.length === 0 ? (
-                    <p className="text-base text-muted-foreground">
-                        This step carried nothing forward. Confirm only if you have checked its work
-                        yourself.
-                    </p>
+                    <p className="text-base text-muted-foreground">{t('workflow.review.empty')}</p>
                 ) : (
                     docs.map((doc, index) => (
                         <HandoffBrief key={index} doc={doc} index={index} total={docs.length} />

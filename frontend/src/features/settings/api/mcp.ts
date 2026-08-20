@@ -6,6 +6,7 @@
  */
 
 import {MCPAuthKind} from '@/shared/lib/enums'
+import {t} from '@/shared/lib/i18n'
 import {bridge, hasWailsRuntime} from '@/shared/api/bridge'
 import {
     mockAccount,
@@ -52,7 +53,7 @@ export async function authorizeMCPServer(serverId: string): Promise<void> {
     }
 
     if (!servers.some((server) => server.id === serverId))
-        throw new Error('That MCP server is no longer configured.')
+        throw new Error(t('settings.error.serverGone'))
 
     await roundtrip()
 
@@ -78,9 +79,8 @@ export async function setMCPCredential(serverId: string, token: string): Promise
     }
 
     const target = servers.find((server) => server.id === serverId)
-    if (!target) throw new Error('That MCP server is no longer configured.')
-    if (target.kind !== MCPAuthKind.Token)
-        throw new Error('That MCP server does not take a pasted token.')
+    if (!target) throw new Error(t('settings.error.serverGone'))
+    if (target.kind !== MCPAuthKind.Token) throw new Error(t('settings.error.serverTakesNoToken'))
 
     await roundtrip()
 
@@ -106,7 +106,7 @@ export async function revokeMCPServer(serverId: string): Promise<void> {
     }
 
     const target = servers.find((server) => server.id === serverId)
-    if (!target) throw new Error('That MCP server is no longer configured.')
+    if (!target) throw new Error(t('settings.error.serverGone'))
 
     await roundtrip()
 

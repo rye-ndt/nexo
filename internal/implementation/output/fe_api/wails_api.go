@@ -648,6 +648,14 @@ func (a *API) CompleteOnboarding() error {
 	return a.userConfig.CompleteOnboarding()
 }
 
+func (a *API) Language() string {
+	return a.userConfig.Language().String()
+}
+
+func (a *API) SetLanguage(language string) error {
+	return a.userConfig.SetLanguage(enums.Language(language))
+}
+
 func (a *API) Autopilot() bool {
 	return a.userConfig.Autopilot()
 }

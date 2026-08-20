@@ -3,8 +3,14 @@ import {useMutation, useQuery, useQueryClient} from '@tanstack/react-query'
 
 import * as api from '@/features/agents/api'
 import {AGENT_DEFAULTS_KEY, AGENT_DEFAULT_OPTIONS_KEY} from '@/features/settings/use-agent-defaults'
-import {AGENT_ACTION_FAILURES, AgentAction, InstallStage} from '@/shared/lib/enums'
+import {
+    AGENT_ACTION_FAILURES,
+    AgentAction,
+    INSTALL_STAGE_LABELS,
+    InstallStage,
+} from '@/shared/lib/enums'
 import {formatAgentName} from '@/shared/lib/format'
+import {t} from '@/shared/lib/i18n'
 import type {InstallProgress} from '@/features/agents/types'
 
 const AGENTS_KEY = ['agents']
@@ -26,9 +32,12 @@ function withoutKey(record: Record<string, string>, key: string) {
 }
 
 function progressLabel(progress: InstallProgress) {
-    if (progress.stage !== InstallStage.Download || progress.total <= 0) return progress.stage
+    if (progress.stage !== InstallStage.Download || progress.total <= 0)
+        return t(INSTALL_STAGE_LABELS[progress.stage])
 
-    return `Downloading ${Math.round((progress.downloaded / progress.total) * 100)}%`
+    return t('agent.install.downloading', {
+        percent: Math.round((progress.downloaded / progress.total) * 100),
+    })
 }
 
 export function useAgents() {
@@ -39,7 +48,7 @@ export function useAgents() {
     const agentsQuery = useQuery({
         queryKey: AGENTS_KEY,
         queryFn: api.listAgents,
-        meta: {action: 'Could not load the agents'},
+        meta: {action: t('agent.error.load')},
         refetchInterval: (query) => {
             const awaitingLogin = query.state.data?.some(
                 (agent) => Boolean(authUrls[agent.id]) && !agent.loggedIn,
@@ -91,7 +100,7 @@ export function useAgents() {
         mutation.mutate({
             agentId,
             kind,
-            action: `${AGENT_ACTION_FAILURES[kind]} ${formatAgentName(agentId)}`,
+            action: t(AGENT_ACTION_FAILURES[kind], {name: formatAgentName(agentId)}),
             run,
         })
 

@@ -1,9 +1,10 @@
 import type {Dimensions} from '@xyflow/react'
 
 import {StepState, type Effort} from '@/shared/lib/enums'
-import {UNTITLED, type StepNodeType} from '@/features/workflows/components/canvas/step-card'
+import type {StepNodeType} from '@/features/workflows/components/canvas/step-card'
 import type {UnlinkEdgeType} from '@/features/workflows/components/canvas/unlink-edge'
 import {effortOf} from '@/features/workflows/step-spec'
+import {t} from '@/shared/lib/i18n'
 import type {Point, Workflow, Step} from '@/features/workflows/types'
 import type {Role} from '@/features/roles/types'
 
@@ -93,7 +94,10 @@ export function toFlowEdges(context: EdgeContext): GraphEdge[] {
 }
 
 function unlinkLabel(source: Step, target: Step) {
-    return `Unlink ${source.title || UNTITLED} from ${target.title || UNTITLED}`
+    return t('canvas.edge.unlink', {
+        source: source.title || t('step.untitled'),
+        target: target.title || t('step.untitled'),
+    })
 }
 
 export function efforts(steps: Step[], roles: Role[]) {

@@ -4,7 +4,7 @@ import {Button} from '@/shared/ui/button'
 import {DialogShell} from '@/shared/components/dialog-shell'
 import {WorkflowLocationsFields} from '@/features/workflows/components/workflow-locations'
 import {EffortTag} from '@/shared/components/effort-tag'
-import {pluralize} from '@/shared/lib/format'
+import {t, tn} from '@/shared/lib/i18n'
 import type {Workflow, WorkflowLocations, Step} from '@/features/workflows/types'
 
 export function ImportWorkflowDialog({
@@ -31,16 +31,16 @@ export function ImportWorkflowDialog({
     return (
         <DialogShell
             onClose={onClose}
-            title="Import workflow"
-            description="Where this workflow runs on this machine."
+            title={t('workflow.import.title')}
+            description={t('workflow.import.description')}
             footer={
                 <>
                     <span className="flex-1" />
                     <Button variant="outline" size="sm" onClick={onClose}>
-                        Cancel
+                        {t('workflow.dialog.cancel')}
                     </Button>
                     <Button size="sm" disabled={!located} onClick={confirm}>
-                        Import workflow
+                        {t('workflow.import.confirm')}
                     </Button>
                 </>
             }
@@ -55,12 +55,16 @@ export function ImportWorkflowDialog({
 function FileSummary({workflow}: {workflow: Workflow}) {
     return (
         <section className="flex flex-col gap-3 border-b border-border px-4 py-4">
-            <span className="micro-label">From the file</span>
+            <span className="micro-label">{t('workflow.import.fromFile')}</span>
 
             <div className="flex flex-col gap-1">
                 <span className="text-base font-medium break-words">{workflow.name}</span>
                 <span className="text-sm text-muted-foreground">
-                    {pluralize(workflow.steps.length, 'step')}
+                    {tn(
+                        'workflow.import.steps.one',
+                        'workflow.import.steps.other',
+                        workflow.steps.length,
+                    )}
                 </span>
             </div>
 
@@ -70,10 +74,7 @@ function FileSummary({workflow}: {workflow: Workflow}) {
                 ))}
             </div>
 
-            <p className="text-sm text-muted-foreground">
-                These steps run on their own: the roles they were built from stay on the machine
-                that exported them.
-            </p>
+            <p className="text-sm text-muted-foreground">{t('workflow.import.rolesStayBehind')}</p>
         </section>
     )
 }
@@ -82,7 +83,7 @@ function StepRow({step}: {step: Step}) {
     return (
         <div className="flex items-center gap-3 rounded-lg border border-border bg-card px-3 py-2">
             <span className="min-w-0 flex-1 truncate text-base">
-                {step.title || 'Untitled step'}
+                {step.title || t('workflow.step.untitled')}
             </span>
             {step.spec && <EffortTag effort={step.spec.effort} />}
         </div>

@@ -1,14 +1,19 @@
 import {useState, type ChangeEvent, type KeyboardEvent} from 'react'
 
+import {t, type MessageKey} from '@/shared/lib/i18n'
 import {cn} from '@/shared/lib/utils'
 import type {ModelPrice, TokenPrices} from '@/features/settings/types'
 
 export const PRICE_BAND = 'w-[276px]'
 
-const PRICE_FIELDS: {field: keyof TokenPrices; name: string; label: string}[] = [
-    {field: 'input', name: 'input', label: 'in'},
-    {field: 'cachedInput', name: 'cached input', label: 'cache'},
-    {field: 'output', name: 'output', label: 'out'},
+const PRICE_FIELDS: {field: keyof TokenPrices; label: MessageKey; description: MessageKey}[] = [
+    {field: 'input', label: 'settings.prices.input', description: 'settings.prices.inputFor'},
+    {
+        field: 'cachedInput',
+        label: 'settings.prices.cachedInput',
+        description: 'settings.prices.cachedInputFor',
+    },
+    {field: 'output', label: 'settings.prices.output', description: 'settings.prices.outputFor'},
 ]
 
 /**
@@ -63,7 +68,7 @@ export function ModelPriceRow({
                     PRICE_BAND,
                 )}
             >
-                {PRICE_FIELDS.map(({field, name, label: fieldLabel}) => {
+                {PRICE_FIELDS.map(({field, label: fieldLabel, description}) => {
                     const invalid = !isPrice(draft[field])
 
                     return (
@@ -82,7 +87,7 @@ export function ModelPriceRow({
                                     invalid ? 'text-destructive' : 'text-muted-foreground',
                                 )}
                             >
-                                {fieldLabel}
+                                {t(fieldLabel)}
                             </span>
                             <span className="flex min-w-0 items-center font-mono text-base leading-none">
                                 <span
@@ -94,7 +99,7 @@ export function ModelPriceRow({
                                 </span>
                                 <input
                                     value={draft[field]}
-                                    aria-label={`${label} ${name} price per million tokens`}
+                                    aria-label={t(description, {model: label})}
                                     aria-invalid={invalid}
                                     inputMode="decimal"
                                     placeholder="—"

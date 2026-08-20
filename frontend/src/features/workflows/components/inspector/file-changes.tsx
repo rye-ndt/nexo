@@ -1,7 +1,15 @@
 import {ReportSection} from '@/features/workflows/components/inspector/report-section'
 import {FileChangeType} from '@/shared/lib/enums'
 import {cn} from '@/shared/lib/utils'
+import {t, type MessageKey} from '@/shared/lib/i18n'
 import type {FileChange} from '@/features/workflows/types'
+
+const CHANGE_TYPE_LABELS: Record<FileChangeType, MessageKey> = {
+    [FileChangeType.Created]: 'inspector.files.created',
+    [FileChangeType.Modified]: 'inspector.files.modified',
+    [FileChangeType.Deleted]: 'inspector.files.deleted',
+    [FileChangeType.Renamed]: 'inspector.files.renamed',
+}
 
 function lineTone(line: string) {
     if (line.startsWith('+++') || line.startsWith('---')) return 'text-muted-foreground/70'
@@ -12,8 +20,9 @@ function lineTone(line: string) {
 }
 
 function changePath(change: FileChange) {
-    const renamed = change.changeType === FileChangeType.Renamed && change.oldPath
-    return renamed ? `${change.oldPath} → ${change.path}` : change.path
+    if (change.changeType !== FileChangeType.Renamed || !change.oldPath) return change.path
+
+    return t('inspector.files.renamedPath', {from: change.oldPath, to: change.path})
 }
 
 function Counts({additions, deletions}: {additions: number; deletions: number}) {
@@ -29,7 +38,9 @@ function FileDiff({change}: {change: FileChange}) {
     return (
         <div className="overflow-hidden rounded-xl border border-border">
             <div className="flex items-center gap-2 border-b border-border bg-muted/40 px-3 py-2">
-                <span className="micro-label shrink-0">{change.changeType}</span>
+                <span className="micro-label shrink-0">
+                    {t(CHANGE_TYPE_LABELS[change.changeType])}
+                </span>
                 <span className="min-w-0 flex-1 truncate font-mono text-sm">
                     {changePath(change)}
                 </span>
@@ -61,9 +72,9 @@ export function FileChanges({changes}: {changes: FileChange[]}) {
 
     return (
         <ReportSection
-            label="Files changed"
+            label={t('inspector.files.label')}
             count={changes.length}
-            empty="This step left the project folder as it found it."
+            empty={t('inspector.files.empty')}
             trailing={<Counts additions={additions} deletions={deletions} />}
         >
             {changes.map((change) => (

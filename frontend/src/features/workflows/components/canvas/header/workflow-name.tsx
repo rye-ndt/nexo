@@ -2,7 +2,8 @@ import {useState, type ChangeEvent, type KeyboardEvent} from 'react'
 import {Lock} from 'lucide-react'
 
 import {Tooltip, TooltipContent, TooltipTrigger} from '@/shared/ui/tooltip'
-import {LOCKED_HINT} from '@/features/workflows/workflow-copy'
+import {lockedHint} from '@/features/workflows/workflow-copy'
+import {t} from '@/shared/lib/i18n'
 import type {Workflow} from '@/features/workflows/types'
 
 const NAME_WIDTH = 'w-full max-w-96 min-w-0 lg:min-w-40'
@@ -27,13 +28,13 @@ function LockedName({name}: {name: string}) {
                 <TooltipTrigger asChild>
                     <button
                         type="button"
-                        aria-label="This workflow is locked"
+                        aria-label={t('canvas.name.locked')}
                         className="flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-live"
                     >
                         <Lock className="size-3.5" />
                     </button>
                 </TooltipTrigger>
-                <TooltipContent side="bottom">{LOCKED_HINT}</TooltipContent>
+                <TooltipContent side="bottom">{lockedHint()}</TooltipContent>
             </Tooltip>
         </span>
     )
@@ -65,7 +66,7 @@ function WorkflowNameInput({name, onRename}: {name: string; onRename: (name: str
     return (
         <input
             value={draft}
-            aria-label="Workflow name"
+            aria-label={t('canvas.name.label')}
             autoCapitalize="off"
             autoCorrect="off"
             onChange={change}

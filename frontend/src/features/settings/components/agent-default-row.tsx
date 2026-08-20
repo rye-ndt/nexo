@@ -1,11 +1,12 @@
 import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from '@/shared/ui/select'
 import {EFFORT_LABELS, EFFORTS, THINKING_LEVEL_LABELS, type ThinkingLevel} from '@/shared/lib/enums'
 import {effortWeight} from '@/features/settings/agent-default'
+import {t} from '@/shared/lib/i18n'
 import {cn} from '@/shared/lib/utils'
 import type {AgentDefault, AgentDefaultOptions} from '@/features/settings/types'
 
 export const MODEL_COLUMN = 'w-[148px]'
-export const THINKING_COLUMN = 'w-[116px]'
+export const THINKING_COLUMN = 'w-[132px]'
 
 export function AgentDefaultRow({
     agentDefault,
@@ -21,7 +22,7 @@ export function AgentDefaultRow({
     onChangeThinkingLevel: (thinkingLevel: ThinkingLevel) => void
 }) {
     const {effort} = agentDefault
-    const label = EFFORT_LABELS[effort]
+    const label = t(EFFORT_LABELS[effort])
 
     return (
         <div className="flex items-center gap-3 px-4 py-3">
@@ -33,7 +34,7 @@ export function AgentDefaultRow({
             <Select value={agentDefault.model} disabled={saving} onValueChange={onChangeModel}>
                 <SelectTrigger
                     className={cn('shrink-0', MODEL_COLUMN)}
-                    aria-label={`${label} model`}
+                    aria-label={t('settings.defaults.modelFor', {effort: label})}
                 >
                     <SelectValue />
                 </SelectTrigger>
@@ -53,14 +54,14 @@ export function AgentDefaultRow({
             >
                 <SelectTrigger
                     className={cn('shrink-0', THINKING_COLUMN)}
-                    aria-label={`${label} thinking`}
+                    aria-label={t('settings.defaults.thinkingFor', {effort: label})}
                 >
                     <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                     {options.thinkingLevels.map((level) => (
                         <SelectItem key={level} value={level}>
-                            {THINKING_LEVEL_LABELS[level]}
+                            {t(THINKING_LEVEL_LABELS[level])}
                         </SelectItem>
                     ))}
                 </SelectContent>

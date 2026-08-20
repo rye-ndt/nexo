@@ -1,4 +1,5 @@
 import {DirectoryField} from '@/shared/components/directory-field'
+import {t} from '@/shared/lib/i18n'
 import type {WorkflowLocations} from '@/features/workflows/types'
 
 export function WorkflowLocationsFields({
@@ -10,10 +11,10 @@ export function WorkflowLocationsFields({
     return (
         <div className="flex flex-col gap-6 p-4">
             <DirectoryField
-                label="Project folder"
+                label={t('workflow.locations.label')}
                 term="projectFolder"
-                hint="Pick it now — it is fixed once the workflow is locked."
-                title="Choose the project folder"
+                hint={t('workflow.locations.hint')}
+                title={t('workflow.locations.picker')}
                 value={projectDir}
                 onChange={onProjectDirChange}
             />

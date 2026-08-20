@@ -2,6 +2,7 @@ import {CirclePlay, CircleStop, Copy, Lock, Pause, Play, Plus} from 'lucide-reac
 import type {LucideIcon} from 'lucide-react'
 
 import {isCancellable, isPausable, isResumable} from '@/features/workflows/graph'
+import {t, type MessageKey} from '@/shared/lib/i18n'
 import type {GlossaryTerm} from '@/shared/lib/glossary'
 import type {Workflow} from '@/features/workflows/types'
 
@@ -36,28 +37,42 @@ export type WorkflowAction = {
 
 export type WorkflowActionHandlers = Record<WorkflowActionId, () => void>
 
-const ACTIONS: Record<WorkflowActionId, Omit<WorkflowAction, 'id'>> = {
-    [WorkflowActionId.NewStep]: {label: 'New step', icon: Plus, emphasis: ActionEmphasis.Outline},
-    [WorkflowActionId.Duplicate]: {label: 'Duplicate', icon: Copy, emphasis: ActionEmphasis.Ghost},
+type ActionShape = Omit<WorkflowAction, 'id' | 'label' | 'disabledReason'> & {label: MessageKey}
+
+const ACTIONS: Record<WorkflowActionId, ActionShape> = {
+    [WorkflowActionId.NewStep]: {
+        label: 'workflow.action.newStep',
+        icon: Plus,
+        emphasis: ActionEmphasis.Outline,
+    },
+    [WorkflowActionId.Duplicate]: {
+        label: 'workflow.action.duplicate',
+        icon: Copy,
+        emphasis: ActionEmphasis.Ghost,
+    },
     [WorkflowActionId.Lock]: {
-        label: 'Lock',
+        label: 'workflow.action.lock',
         icon: Lock,
         emphasis: ActionEmphasis.Outline,
         term: 'lock',
     },
-    [WorkflowActionId.Run]: {label: 'Run', icon: Play, emphasis: ActionEmphasis.Primary},
+    [WorkflowActionId.Run]: {
+        label: 'workflow.action.run',
+        icon: Play,
+        emphasis: ActionEmphasis.Primary,
+    },
     [WorkflowActionId.Pause]: {
-        label: 'Pause run',
+        label: 'workflow.action.pause',
         icon: Pause,
         emphasis: ActionEmphasis.Outline,
     },
     [WorkflowActionId.Resume]: {
-        label: 'Resume run',
+        label: 'workflow.action.resume',
         icon: CirclePlay,
         emphasis: ActionEmphasis.Primary,
     },
     [WorkflowActionId.Cancel]: {
-        label: 'Cancel run',
+        label: 'workflow.action.cancel',
         icon: CircleStop,
         emphasis: ActionEmphasis.Outline,
     },
@@ -79,12 +94,17 @@ export function workflowActions(workflow: Workflow | null): WorkflowAction[] {
         isCancellable(workflow) && WorkflowActionId.Cancel,
     ].filter((id): id is WorkflowActionId => Boolean(id))
 
-    return ids.map((id) => ({id, ...ACTIONS[id], disabledReason: reasonToWait(workflow, id)}))
+    return ids.map((id) => ({
+        id,
+        ...ACTIONS[id],
+        label: t(ACTIONS[id].label),
+        disabledReason: reasonToWait(workflow, id),
+    }))
 }
 
 function reasonToWait(workflow: Workflow, id: WorkflowActionId) {
     if (id === WorkflowActionId.Lock && !workflow.projectDir.trim())
-        return 'Choose a project folder before locking this workflow.'
+        return t('workflow.api.folderBeforeLock')
 
     return undefined
 }

@@ -4,6 +4,7 @@ import {X} from 'lucide-react'
 import {Button} from '@/shared/ui/button'
 import {Input} from '@/shared/ui/input'
 import {PromptField} from '@/features/roles/components/prompt-field'
+import {t} from '@/shared/lib/i18n'
 import type {Instruction, RoleInput} from '@/features/roles/types'
 
 export function PromptEditor({
@@ -32,14 +33,14 @@ export function PromptEditor({
                 <Input
                     value={prompt.key}
                     placeholder="base"
-                    aria-label="Instruction key"
+                    aria-label={t('role.instruction.key')}
                     className="h-8 flex-1 bg-background font-mono"
                     onChange={changeKey}
                 />
                 <Button
                     variant="ghost"
                     size="icon-sm"
-                    aria-label="Remove instruction"
+                    aria-label={t('role.instruction.remove')}
                     onClick={remove}
                 >
                     <X />
@@ -50,8 +51,8 @@ export function PromptEditor({
                 className="min-h-56"
                 value={prompt.value}
                 inputs={inputs}
-                ariaLabel="Instruction text"
-                placeholder="Fetch the ticket at https://jira/browse/{{ticket_id}} and summarise it."
+                ariaLabel={t('role.instruction.text')}
+                placeholder={t('role.instruction.placeholder')}
                 onChange={changeValue}
             />
         </div>

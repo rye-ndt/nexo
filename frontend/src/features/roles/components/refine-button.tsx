@@ -1,10 +1,8 @@
 import {Loader2, Sparkle} from 'lucide-react'
 
 import {Button} from '@/shared/ui/button'
+import {t} from '@/shared/lib/i18n'
 import {cn} from '@/shared/lib/utils'
-
-const IDLE_LABEL = 'Fill in the rest'
-const WORKING_LABEL = 'Filling in'
 
 /**
  * Hands the name and role to an agent and takes back a finished role. It keeps
@@ -41,7 +39,9 @@ export function RefineButton({
             ) : (
                 <Sparkle className={cn(!disabled && 'text-live')} />
             )}
-            <span className="relative">{working ? WORKING_LABEL : IDLE_LABEL}</span>
+            <span className="relative">
+                {working ? t('role.helper.filling') : t('role.helper.fill')}
+            </span>
         </Button>
     )
 }

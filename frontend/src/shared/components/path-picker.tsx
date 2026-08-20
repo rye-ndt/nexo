@@ -14,6 +14,7 @@ import {
     registerPathChooser,
     type PathRequest,
 } from '@/shared/api/dialogs'
+import {t} from '@/shared/lib/i18n'
 import {joinPath, parentPath} from '@/shared/lib/path'
 
 type Request = PathRequest & {
@@ -62,7 +63,7 @@ function PathPicker({request, onSettle}: {request: Request; onSettle: (path: str
     const home = useQuery({
         queryKey: ['home-directory'],
         queryFn: homeDirectory,
-        meta: {action: 'Could not find your home folder'},
+        meta: {action: t('shared.pathPicker.homeFailed')},
     })
     const path = visitedPath ?? home.data ?? null
 
@@ -70,14 +71,14 @@ function PathPicker({request, onSettle}: {request: Request; onSettle: (path: str
         queryKey: ['directories', path],
         queryFn: () => listDirectories(path ?? ''),
         enabled: path !== null,
-        meta: {action: 'Could not read that folder'},
+        meta: {action: t('shared.pathPicker.readFailed')},
     })
 
     const files = useQuery({
         queryKey: ['files', path, pattern],
         queryFn: () => listFiles(path ?? '', pattern),
         enabled: path !== null && (pickingFile || saving),
-        meta: {action: 'Could not read that folder'},
+        meta: {action: t('shared.pathPicker.readFailed')},
     })
 
     const enter = (next: string) => {
@@ -86,7 +87,7 @@ function PathPicker({request, onSettle}: {request: Request; onSettle: (path: str
     }
 
     const creation = useMutation({
-        meta: {action: 'Could not create the folder'},
+        meta: {action: t('shared.pathPicker.createFailed')},
         mutationFn: ({parent, name}: {parent: string; name: string}) =>
             createDirectory(parent, name),
         onSuccess: (created) => {
@@ -115,7 +116,7 @@ function PathPicker({request, onSettle}: {request: Request; onSettle: (path: str
                         <Input
                             autoFocus
                             value={fileName}
-                            aria-label="File name"
+                            aria-label={t('shared.pathPicker.fileName')}
                             spellCheck={false}
                             className="min-w-0 flex-1 font-mono"
                             onChange={(event) => setFileName(event.target.value)}
@@ -126,11 +127,13 @@ function PathPicker({request, onSettle}: {request: Request; onSettle: (path: str
                         </span>
                     )}
                     <Button variant="outline" size="sm" onClick={dismiss}>
-                        Cancel
+                        {t('shared.pathPicker.cancel')}
                     </Button>
                     {!pickingFile && (
                         <Button size="sm" disabled={saving && !fileName.trim()} onClick={choose}>
-                            {saving ? 'Save here' : 'Choose folder'}
+                            {saving
+                                ? t('shared.pathPicker.saveHere')
+                                : t('shared.pathPicker.chooseFolder')}
                         </Button>
                     )}
                 </>
@@ -175,18 +178,18 @@ function PathPicker({request, onSettle}: {request: Request; onSettle: (path: str
                         <File className="size-4 shrink-0 text-muted-foreground" />
                         <span className="min-w-0 flex-1 truncate font-mono text-base">{name}</span>
                         {saving && name === fileName.trim() && (
-                            <span className="shrink-0 text-sm text-live">replaces this</span>
+                            <span className="shrink-0 text-sm text-live">
+                                {t('shared.pathPicker.replaces')}
+                            </span>
                         )}
                     </button>
                 ))}
 
                 {children.length === 0 && names.length === 0 && (
                     <p className="px-4 py-3 text-base text-muted-foreground">
-                        {pickingFile && 'Nothing in this folder. Go back up and try another one.'}
-                        {saving && 'Nothing here yet. Name the file below, or go somewhere else.'}
-                        {!pickingFile &&
-                            !saving &&
-                            'No folders inside this one. Choose it, make one, or go back up.'}
+                        {pickingFile && t('shared.pathPicker.emptyFile')}
+                        {saving && t('shared.pathPicker.emptySave')}
+                        {!pickingFile && !saving && t('shared.pathPicker.emptyDirectory')}
                     </p>
                 )}
 
@@ -198,7 +201,7 @@ function PathPicker({request, onSettle}: {request: Request; onSettle: (path: str
                             onClick={() => setNewName('')}
                         >
                             <FolderPlus className="size-4 shrink-0 text-muted-foreground" />
-                            <span className="text-base">New folder</span>
+                            <span className="text-base">{t('shared.pathPicker.newFolder')}</span>
                         </button>
                     ) : (
                         <div className="px-4 py-3">
@@ -206,8 +209,8 @@ function PathPicker({request, onSettle}: {request: Request; onSettle: (path: str
                                 <Input
                                     autoFocus
                                     value={newName}
-                                    placeholder="Folder name"
-                                    aria-label="New folder name"
+                                    placeholder={t('shared.pathPicker.folderName')}
+                                    aria-label={t('shared.pathPicker.newFolderName')}
                                     spellCheck={false}
                                     className="font-mono"
                                     onChange={(event) => setNewName(event.target.value)}
@@ -217,7 +220,7 @@ function PathPicker({request, onSettle}: {request: Request; onSettle: (path: str
                                     }}
                                 />
                                 <Button size="sm" onClick={createFolder}>
-                                    Create
+                                    {t('shared.pathPicker.create')}
                                 </Button>
                             </div>
                         </div>

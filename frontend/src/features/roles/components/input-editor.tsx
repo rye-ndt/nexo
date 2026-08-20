@@ -6,6 +6,7 @@ import {Input} from '@/shared/ui/input'
 import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from '@/shared/ui/select'
 import {Switch} from '@/shared/ui/switch'
 import {InputType, INPUT_TYPES, INPUT_TYPE_LABELS} from '@/shared/lib/enums'
+import {t} from '@/shared/lib/i18n'
 import type {RoleInput} from '@/features/roles/types'
 
 export function InputEditor({
@@ -46,13 +47,13 @@ export function InputEditor({
                 <Input
                     value={input.key}
                     placeholder="target_dir"
-                    aria-label="Input key"
+                    aria-label={t('role.input.key')}
                     className="h-8 flex-1 bg-background font-mono"
                     onChange={changeKey}
                 />
                 <Select value={input.type} onValueChange={changeType}>
                     <SelectTrigger
-                        aria-label="Input type"
+                        aria-label={t('role.input.type')}
                         className="h-8 w-32 shrink-0 bg-background"
                     >
                         <SelectValue />
@@ -60,20 +61,25 @@ export function InputEditor({
                     <SelectContent>
                         {INPUT_TYPES.map((type) => (
                             <SelectItem key={type} value={type}>
-                                {INPUT_TYPE_LABELS[type]}
+                                {t(INPUT_TYPE_LABELS[type])}
                             </SelectItem>
                         ))}
                     </SelectContent>
                 </Select>
-                <Button variant="ghost" size="icon-sm" aria-label="Remove input" onClick={remove}>
+                <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label={t('role.input.remove')}
+                    onClick={remove}
+                >
                     <X />
                 </Button>
             </div>
 
             <Input
                 value={input.label}
-                placeholder="Directory to review"
-                aria-label="Label shown on the step"
+                placeholder={t('role.input.labelPlaceholder')}
+                aria-label={t('role.input.label')}
                 className="h-8 bg-background"
                 onChange={changeLabel}
             />
@@ -84,7 +90,7 @@ export function InputEditor({
                 {isBoolean ? (
                     <Select value={booleanDefault} onValueChange={changeBooleanDefault}>
                         <SelectTrigger
-                            aria-label="Default value"
+                            aria-label={t('role.input.default')}
                             className="h-8 flex-1 bg-background font-mono"
                         >
                             <SelectValue />
@@ -97,19 +103,19 @@ export function InputEditor({
                 ) : (
                     <Input
                         value={input.default ?? ''}
-                        placeholder={
+                        placeholder={t(
                             input.type === InputType.MultiSelect
-                                ? 'Default picks, separated by commas'
-                                : 'Default value'
-                        }
-                        aria-label="Default value"
+                                ? 'role.input.multiDefault'
+                                : 'role.input.default',
+                        )}
+                        aria-label={t('role.input.default')}
                         className="h-8 flex-1 bg-background font-mono"
                         onChange={changeDefault}
                     />
                 )}
 
                 <label className="flex h-8 shrink-0 items-center gap-3 rounded-lg border border-border bg-background px-3 text-base">
-                    <span>Required</span>
+                    <span>{t('role.input.required')}</span>
                     <Switch checked={input.required} onCheckedChange={changeRequired} />
                 </label>
             </div>
@@ -141,7 +147,7 @@ function OptionsInput({
         <Input
             value={text}
             placeholder="lenient, normal, strict"
-            aria-label="Options, separated by commas"
+            aria-label={t('role.input.options')}
             className="h-8 bg-background font-mono"
             onChange={commit}
         />

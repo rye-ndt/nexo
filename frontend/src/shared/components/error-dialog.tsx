@@ -11,7 +11,8 @@ import {
     DialogTitle,
 } from '@/shared/ui/dialog'
 import {errorReport, type AppError} from '@/shared/lib/errors'
-import {formatMoment, pluralize} from '@/shared/lib/format'
+import {formatMoment} from '@/shared/lib/format'
+import {t, tn} from '@/shared/lib/i18n'
 import {cn} from '@/shared/lib/utils'
 
 const COPIED_MS = 2000
@@ -83,23 +84,29 @@ export function ErrorDialog({
                                     detailsOpen && 'rotate-90',
                                 )}
                             />
-                            <span className="micro-label">Details</span>
+                            <span className="micro-label">{t('shared.error.details')}</span>
                         </CollapsibleTrigger>
 
                         <span className="flex-1" />
 
                         <Button variant="ghost" size="xs" onClick={copy}>
                             {copied ? <Check /> : <Copy />}
-                            {copied ? 'Copied' : 'Copy'}
+                            {copied ? t('shared.error.copied') : t('shared.error.copy')}
                         </Button>
                     </div>
 
                     <CollapsibleContent>
                         <div className="mx-5 mb-4 rounded-lg bg-muted">
                             <dl className="flex flex-col gap-1 px-3 py-2">
-                                <DetailRow label="Code" value={error.code || '—'} />
-                                <DetailRow label="Level" value={error.severity} />
-                                <DetailRow label="Time" value={formatMoment(error.at)} />
+                                <DetailRow
+                                    label={t('shared.error.code')}
+                                    value={error.code || '—'}
+                                />
+                                <DetailRow label={t('shared.error.level')} value={error.severity} />
+                                <DetailRow
+                                    label={t('shared.error.time')}
+                                    value={formatMoment(error.at)}
+                                />
                             </dl>
 
                             <pre className="max-h-40 overflow-auto border-t border-border px-3 py-2 font-mono text-sm whitespace-pre-wrap">
@@ -112,11 +119,11 @@ export function ErrorDialog({
                 <DialogFooter className="h-14 border-t border-border px-5">
                     {queued > 0 && (
                         <span className="micro-label flex-1">
-                            {pluralize(queued, 'more error')}
+                            {tn('shared.error.queuedOne', 'shared.error.queuedOther', queued)}
                         </span>
                     )}
                     <Button autoFocus size="sm" onClick={onDismiss}>
-                        Dismiss
+                        {t('shared.error.dismiss')}
                     </Button>
                 </DialogFooter>
             </DialogContent>

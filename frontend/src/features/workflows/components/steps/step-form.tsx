@@ -2,8 +2,8 @@ import {Field} from '@/shared/components/field'
 import {HelpTip} from '@/shared/components/help-tip'
 import {InputFields} from '@/features/roles/components/input-fields'
 import {PromptField} from '@/features/roles/components/prompt-field'
-import {INPUT_REF_HINT} from '@/features/roles/input-refs'
 import {Input} from '@/shared/ui/input'
+import {t} from '@/shared/lib/i18n'
 import type {FieldValue, RoleInput} from '@/features/roles/types'
 
 export function StepForm({
@@ -25,19 +25,19 @@ export function StepForm({
 }) {
     return (
         <div className="flex flex-col gap-6 p-4">
-            <Field htmlFor="step-title" label="Title">
+            <Field htmlFor="step-title" label={t('step.form.title')}>
                 <Input
                     id="step-title"
                     value={title}
-                    placeholder="Review the auth change"
+                    placeholder={t('step.form.titlePlaceholder')}
                     onChange={(event) => onTitleChange(event.target.value)}
                 />
             </Field>
 
             <Field
                 htmlFor="step-prompt"
-                label="Prompt"
-                hint={`Starts as the role's instructions. Edit it to change this step only. ${INPUT_REF_HINT}`}
+                label={t('step.form.prompt')}
+                hint={t('step.form.promptHint')}
             >
                 <PromptField
                     id="step-prompt"
@@ -51,7 +51,7 @@ export function StepForm({
             {inputs.length > 0 && (
                 <section className="flex flex-col gap-3">
                     <span className="flex items-center gap-2">
-                        <span className="micro-label">Inputs</span>
+                        <span className="micro-label">{t('step.form.inputs')}</span>
                         <HelpTip term="input" />
                     </span>
                     <InputFields inputs={inputs} values={values} onChange={onValueChange} />

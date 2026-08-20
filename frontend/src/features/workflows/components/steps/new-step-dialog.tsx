@@ -15,6 +15,7 @@ import {
     promptFromRole,
     toInputValues,
 } from '@/features/roles/role'
+import {t} from '@/shared/lib/i18n'
 import type {StepDraft} from '@/features/workflows/types'
 import type {DraftContext, FieldValue, Role} from '@/features/roles/types'
 
@@ -66,7 +67,7 @@ export function NewStepDialog({
     return (
         <DialogShell
             onClose={onClose}
-            title={chosen ? chosen.name : 'New step'}
+            title={chosen ? chosen.name : t('step.new.title')}
             term={chosen ? undefined : 'step'}
             aside={<StepSpine total={STEP_COUNT} current={chosen ? 1 : 0} />}
             footer={
@@ -118,12 +119,12 @@ function FillFooter({
         <>
             <Button variant="ghost" size="sm" onClick={onBack}>
                 <ArrowLeft />
-                Roles
+                {t('step.new.roles')}
             </Button>
             <span className="flex-1" />
             <MissingInputsNote count={missingCount} />
             <Button size="sm" disabled={!ready} onClick={onCreate}>
-                Create step
+                {t('step.new.create')}
             </Button>
         </>
     )
@@ -134,7 +135,7 @@ function PickFooter({onCancel}: {onCancel: () => void}) {
         <>
             <span className="flex-1" />
             <Button variant="outline" size="sm" onClick={onCancel}>
-                Cancel
+                {t('step.new.cancel')}
             </Button>
         </>
     )

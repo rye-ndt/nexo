@@ -7,7 +7,7 @@ import {Button} from '@/shared/ui/button'
 import {Textarea} from '@/shared/ui/textarea'
 import {useDecision} from '@/shared/hooks/use-decision'
 import {useElapsed} from '@/shared/hooks/use-elapsed'
-import {pluralize} from '@/shared/lib/format'
+import {t, tn, type MessageKey} from '@/shared/lib/i18n'
 import {cn} from '@/shared/lib/utils'
 import type {
     Approval,
@@ -16,16 +16,16 @@ import type {
     ApprovalOption,
 } from '@/features/approvals/types'
 
-const KIND_COPY: Record<ApprovalKind, {badge: string; title: string; blurb: string}> = {
+const KIND_COPY: Record<ApprovalKind, {badge: MessageKey; title: MessageKey; blurb: MessageKey}> = {
     decision: {
-        badge: 'Decision',
-        title: 'The agent needs a decision',
-        blurb: 'It reached a fork it should not pick on its own.',
+        badge: 'approval.kind.decision.badge',
+        title: 'approval.kind.decision.title',
+        blurb: 'approval.kind.decision.blurb',
     },
     permission: {
-        badge: 'Permission',
-        title: 'The agent needs permission',
-        blurb: 'It wants to do something its step does not already cover.',
+        badge: 'approval.kind.permission.badge',
+        title: 'approval.kind.permission.title',
+        blurb: 'approval.kind.permission.blurb',
     },
 }
 
@@ -117,27 +117,39 @@ export function ApprovalDialog({
     return (
         <DialogShell
             onClose={onClose}
-            title={copy.title}
-            description="Nothing runs on it until you answer."
+            title={t(copy.title)}
+            description={t('approval.dialog.description')}
             term="approval"
             aside={
                 waiting > 1 ? (
                     <span className="micro-label shrink-0">
-                        {pluralize(waiting, 'agent')} waiting
+                        {tn(
+                            'approval.dialog.waiting.one',
+                            'approval.dialog.waiting.other',
+                            waiting,
+                        )}
                     </span>
                 ) : undefined
             }
             footer={
                 <>
                     <Button variant="ghost" size="sm" onClick={onClose}>
-                        Not now
+                        {t('approval.dialog.notNow')}
                     </Button>
                     <span className="flex-1" />
                     <Button variant="destructive" size="sm" disabled={busy} onClick={reject}>
-                        {decision.labelOf(false, 'Reject', 'Rejecting…')}
+                        {decision.labelOf(
+                            false,
+                            t('approval.dialog.reject'),
+                            t('approval.dialog.rejecting'),
+                        )}
                     </Button>
                     <Button size="sm" disabled={busy || picked.length === 0} onClick={approve}>
-                        {decision.labelOf(true, 'Approve', 'Approving…')}
+                        {decision.labelOf(
+                            true,
+                            t('approval.dialog.approve'),
+                            t('approval.dialog.approving'),
+                        )}
                     </Button>
                 </>
             }
@@ -145,24 +157,24 @@ export function ApprovalDialog({
             <div className="flex flex-col gap-6 p-4">
                 <div className="flex flex-col gap-2 rounded-lg bg-state-approval-tint p-3">
                     <div className="flex items-center justify-between gap-3">
-                        <Badge className="bg-state-approval text-white">{copy.badge}</Badge>
+                        <Badge className="bg-state-approval text-white">{t(copy.badge)}</Badge>
                         {blocked && (
                             <span className="flex items-baseline gap-2">
-                                <span className="micro-label">Blocked</span>
+                                <span className="micro-label">{t('approval.dialog.blocked')}</span>
                                 <span className="font-mono text-lg tabular-nums text-state-approval">
                                     {blocked}
                                 </span>
                             </span>
                         )}
                     </div>
-                    <p className="text-sm text-muted-foreground">{copy.blurb}</p>
+                    <p className="text-sm text-muted-foreground">{t(copy.blurb)}</p>
                 </div>
 
                 <p className="text-xl leading-[1.5]">{approval.question}</p>
 
                 {approval.detail && (
                     <section className="flex flex-col gap-2">
-                        <span className="micro-label">Context</span>
+                        <span className="micro-label">{t('approval.dialog.context')}</span>
                         <p className="border-l border-border pl-3 text-base leading-[1.7] whitespace-pre-wrap">
                             {approval.detail}
                         </p>
@@ -172,17 +184,18 @@ export function ApprovalDialog({
                 <section className="flex flex-col gap-3">
                     <div className="flex flex-col gap-2">
                         <span className="micro-label">
-                            {approval.multiSelect ? 'Pick any that apply' : 'Pick one'}
+                            {approval.multiSelect
+                                ? t('approval.dialog.pickAny')
+                                : t('approval.dialog.pickOne')}
                         </span>
                         <span className="text-sm text-muted-foreground">
-                            Approve needs at least one. Reject does not.
+                            {t('approval.dialog.pickHint')}
                         </span>
                     </div>
 
                     {approval.options.length === 0 ? (
                         <p className="text-base text-muted-foreground">
-                            This request arrived with no options, so it can only be rejected. Say
-                            why below and the agent picks it up from there.
+                            {t('approval.dialog.noOptions')}
                         </p>
                     ) : (
                         <div className="flex flex-col gap-2">
@@ -201,16 +214,15 @@ export function ApprovalDialog({
                 </section>
 
                 <section className="flex flex-col gap-2">
-                    <span className="micro-label">Comment</span>
+                    <span className="micro-label">{t('approval.dialog.comment')}</span>
                     <Textarea
                         value={guidance}
                         disabled={busy}
-                        placeholder="Anything the agent should know before it carries on."
+                        placeholder={t('approval.dialog.commentPlaceholder')}
                         onChange={(event) => setGuidance(event.target.value)}
                     />
                     <span className="text-sm text-muted-foreground">
-                        Sent either way — as guidance when you approve, as the reason when you
-                        reject.
+                        {t('approval.dialog.commentHint')}
                     </span>
                 </section>
             </div>

@@ -28,12 +28,17 @@ export function pendingInputs(step: Step, role: Role | undefined): RoleInput[] {
     })
 }
 
-export type MissingStepInputs = {step: Step; inputs: RoleInput[]}
+export type MissingStepInputs = {step: Step; role: Role; inputs: RoleInput[]}
 
 export function missingInputs(workflow: Workflow, roles: Role[]): MissingStepInputs[] {
     return workflow.steps
-        .map((step) => ({step, inputs: pendingInputs(step, roleOf(step, roles))}))
-        .filter((entry) => entry.inputs.length > 0)
+        .map((step) => {
+            const role = roleOf(step, roles)
+            return {step, role, inputs: pendingInputs(step, role)}
+        })
+        .filter(
+            (entry): entry is MissingStepInputs => Boolean(entry.role) && entry.inputs.length > 0,
+        )
 }
 
 /** Embedded inputs land inline; the rest follow as a list the agent can read. */

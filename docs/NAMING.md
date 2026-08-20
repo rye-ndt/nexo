@@ -29,6 +29,9 @@ leaves a **handoff** for the next step.
 | **Instructions** | The role's named prompt blocks, composed into what the agent receives. | Not "system prompts". The step's own free text stays **Prompt**. |
 | **Project folder** | The checkout agents read and change. | Not "working directory". |
 | **Duplicate** | Copy a workflow, new ids, run history cleared. | Not "clone". Both words existed; only this one survives. |
+| **Tour** | The one-time walkthrough a new user gets after onboarding: three surfaces, explained where they live. | Not "tutorial", not "walkthrough", not "coach marks". |
+| **Stop** | One beat of the tour — the surface it rings and the sentence it says about it. | Not "step": a step is work an agent runs, and the tour runs nothing. |
+| **Language** | The language Nexo's own interface speaks — English or Vietnamese. Picked on the first screen of onboarding, changeable in Settings › Preferences. | Not "locale": nothing about dates, numbers or currency changes with it. Not the language an agent answers in — that follows the prompt. |
 
 ## Removed concepts
 
@@ -143,6 +146,52 @@ never come back empty, and should not.
 `ReactNode`, and every `@xyflow/react` identifier (`Node`, `NodeProps`,
 `NodeChange`, `nodeTypes`, `onNodesChange`, the `react-flow__*` CSS classes).
 React Flow's word for a graph vertex stays React Flow's word; ours is *step*.
+
+## Vietnamese
+
+Every string the interface shows lives in `frontend/src/shared/lib/i18n/messages/`,
+one file per feature, keyed `feature.area.thing` and carrying both languages side
+by side so neither can drift from the other. `t('key')` reads whichever is
+current; there is no second place a string may live.
+
+The Vietnamese is written for a Vietnamese developer, not translated word for
+word. Terms that developer already reads in English every day stay in English —
+translating them makes the app *harder* to use, not easier. Left column is what
+the interface says in Vietnamese; it is as binding as the English column above.
+
+| English | Vietnamese | Note |
+| --- | --- | --- |
+| Nexo | Nexo | Never translated, never declined. |
+| Workflow | workflow | Loanword. "Luồng công việc" reads like a translated manual. |
+| Step | bước | |
+| Role | vai trò | |
+| Agent | agent | Loanword — it is a CLI they already have installed. |
+| Handoff | bàn giao | |
+| Result | kết quả | |
+| Lock | khóa | |
+| Approval | phê duyệt | |
+| Review | kiểm duyệt | Deliberately a different word from approval; the two gates must not read alike. |
+| Effort | mức nỗ lực | Quick / Standard / Deep / Exhaustive → Nhanh / Tiêu chuẩn / Sâu / Tối đa. |
+| Input | đầu vào | |
+| Knowledge base | kho kiến thức | |
+| Instructions | chỉ dẫn | |
+| Prompt | prompt | Loanword. |
+| Project folder | thư mục dự án | |
+| Duplicate | nhân bản | |
+| Tour | hướng dẫn | |
+| Stop | chặng | "bước" is taken by Step. |
+| Model | model | Loanword. |
+| Thinking | suy luận | |
+| Revert | hoàn tác | |
+| Autopilot, MCP, CLI, diff, token | unchanged | Product and protocol names. |
+
+Two rules that are not in the table:
+
+- **A language names itself in itself.** The picker says "English" and "Tiếng
+  Việt" whichever language is active. `LANGUAGE_NAMES` is not a message key.
+- **Go speaks English.** `custom_error` messages cross the bridge as they are;
+  what the interface translates is the *reading* of an error code in
+  `shared/lib/errors.ts`, not the sentence Go wrote.
 
 ## Terms that had to stay
 

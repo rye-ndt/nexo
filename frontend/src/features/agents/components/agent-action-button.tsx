@@ -1,5 +1,6 @@
 import {Button} from '@/shared/ui/button'
 import {AGENT_ACTION_BUSY_LABELS, AGENT_ACTION_LABELS, AgentAction} from '@/shared/lib/enums'
+import {t} from '@/shared/lib/i18n'
 import type {AgentControls} from '@/features/agents/controls'
 
 const RUN: Record<AgentAction, (controls: AgentControls, agentId: string) => void> = {
@@ -25,8 +26,8 @@ export function AgentActionButton({
 }) {
     const running = controls.actionOf(agentId) === action
     const label = running
-        ? (controls.progressOf(agentId) ?? AGENT_ACTION_BUSY_LABELS[action])
-        : AGENT_ACTION_LABELS[action]
+        ? (controls.progressOf(agentId) ?? t(AGENT_ACTION_BUSY_LABELS[action]))
+        : t(AGENT_ACTION_LABELS[action])
 
     return (
         <Button

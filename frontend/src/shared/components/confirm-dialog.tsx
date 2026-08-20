@@ -7,12 +7,13 @@ import {
     DialogHeader,
     DialogTitle,
 } from '@/shared/ui/dialog'
+import {t} from '@/shared/lib/i18n'
 
 export function ConfirmDialog({
     title,
     description,
     confirmLabel,
-    dismissLabel = 'Cancel',
+    dismissLabel = t('shared.confirm.dismiss'),
     destructive = false,
     busy = false,
     onConfirm,

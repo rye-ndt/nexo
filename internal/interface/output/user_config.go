@@ -32,6 +32,8 @@ type UserConfig interface {
 	SetModelPrices(model enums.ModelName, prices *TokenPrices) error
 	Onboarded() bool
 	CompleteOnboarding() error
+	Language() enums.Language
+	SetLanguage(language enums.Language) error
 	Autopilot() bool
 	SetAutopilot(on bool) error
 }

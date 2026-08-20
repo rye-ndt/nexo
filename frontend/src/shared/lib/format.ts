@@ -1,3 +1,5 @@
+import {t} from '@/shared/lib/i18n'
+
 export function formatTokens(tokens: number) {
     if (tokens < 1000) return String(tokens)
     if (tokens < 1_000_000) return compact(tokens / 1000, 'k')
@@ -57,18 +59,18 @@ export function formatRelative(iso: string) {
     if (Number.isNaN(then)) return ''
 
     const seconds = Math.max(0, Math.round((Date.now() - then) / 1000))
-    if (seconds < 60) return 'just now'
+    if (seconds < 60) return t('format.justNow')
 
     const minutes = Math.floor(seconds / 60)
-    if (minutes < 60) return `${minutes}m ago`
+    if (minutes < 60) return t('format.minutesAgo', {count: minutes})
 
     const hours = Math.floor(minutes / 60)
-    if (hours < 24) return `${hours}h ago`
+    if (hours < 24) return t('format.hoursAgo', {count: hours})
 
     const days = Math.floor(hours / 24)
-    if (days < 365) return `${days}d ago`
+    if (days < 365) return t('format.daysAgo', {count: days})
 
-    return `${Math.floor(days / 365)}y ago`
+    return t('format.yearsAgo', {count: Math.floor(days / 365)})
 }
 
 export function formatAgentName(name: string) {
@@ -76,8 +78,4 @@ export function formatAgentName(name: string) {
         .split('_')
         .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
         .join(' ')
-}
-
-export function pluralize(count: number, noun: string) {
-    return `${count} ${noun}${count === 1 ? '' : 's'}`
 }

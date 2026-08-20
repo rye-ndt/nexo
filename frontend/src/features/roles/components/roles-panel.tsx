@@ -6,12 +6,15 @@ import {NoticeDialog} from '@/shared/components/notice-dialog'
 import {RoleExportDialog} from '@/features/roles/components/role-export-dialog'
 import {RoleFormDialog} from '@/features/roles/components/role-form-dialog'
 import {RoleList} from '@/features/roles/components/role-list'
+import {TourBanner} from '@/features/onboarding/components/tour-banner'
+import {TourStopId} from '@/features/onboarding/tour'
 import {WorkingDialog} from '@/shared/components/working-dialog'
 import {chooseFile, chooseSaveFile} from '@/shared/api/dialogs'
-import {pluralize} from '@/shared/lib/format'
 import {reportError} from '@/shared/lib/error-bus'
+import {t, tn} from '@/shared/lib/i18n'
 import {useRoles, useRoleTransfer} from '@/features/roles/use-roles'
 import {useToggle} from '@/shared/hooks/use-toggle'
+import {useTourStop} from '@/features/onboarding/tour-context'
 import type {DraftContext, Role} from '@/features/roles/types'
 
 const JSON_FILES = '*.json'
@@ -33,28 +36,40 @@ export function RolesPanel({
 }) {
     const {roles, loading, removeRole} = useRoles()
     const transfer = useRoleTransfer()
+    const guided = useTourStop(TourStopId.Role)
 
     const [editing, setEditing] = useState<RoleEdit | null>(null)
+    const [leftGuidedRole, setLeftGuidedRole] = useState(false)
     const [notice, setNotice] = useState<Notice | null>(null)
     const exporting = useToggle()
 
+    const guidedRole = !onPick && guided?.openRole && !leftGuidedRole ? roles[0] : undefined
+    const shown = editing ?? (guidedRole ? {role: guidedRole} : null)
+
+    const stranded = !onPick && Boolean(guided) && !shown && !loading && roles.length === 0
+
     const newRole = () => setEditing({role: null})
     const editRole = (role: Role) => setEditing({role})
-    const closeForm = () => setEditing(null)
+
+    const closeForm = () => {
+        setLeftGuidedRole(true)
+        setEditing(null)
+        guided?.next()
+    }
     const dismissNotice = () => setNotice(null)
 
     const pickPath = async (pick: () => Promise<string>) => {
         try {
             return await pick()
         } catch (cause) {
-            reportError(cause, 'Could not open the file picker')
+            reportError(cause, t('role.error.filePicker'))
             return ''
         }
     }
 
     const runExport = async (roleIds: string[]) => {
         const path = await pickPath(() =>
-            chooseSaveFile('Export roles', exportFileName(), JSON_FILES),
+            chooseSaveFile(t('role.export.title'), exportFileName(), JSON_FILES),
         )
         if (!path) return
 
@@ -63,22 +78,22 @@ export function RolesPanel({
 
         exporting.close()
         setNotice({
-            title: `Exported ${pluralize(count, 'role')}`,
-            description: 'The file is yours to keep, move, or hand to someone else.',
+            title: tn('role.export.doneOne', 'role.export.doneOther', count),
+            description: t('role.export.doneBody'),
             detail: path,
         })
     }
 
     const runImport = async () => {
-        const path = await pickPath(() => chooseFile('Import roles', JSON_FILES))
+        const path = await pickPath(() => chooseFile(t('role.import.title'), JSON_FILES))
         if (!path) return
 
         const count = await transfer.importRoles(path).catch(() => null)
         if (count === null) return
 
         setNotice({
-            title: `Imported ${pluralize(count, 'role')}`,
-            description: 'They are ready to build steps from.',
+            title: tn('role.import.doneOne', 'role.import.doneOther', count),
+            description: t('role.import.doneBody'),
             detail: path,
         })
     }
@@ -88,17 +103,15 @@ export function RolesPanel({
             <div className="flex items-start gap-3 px-4 pt-4 pb-3">
                 <div className="flex min-w-0 flex-1 flex-col gap-1">
                     <h3 className="text-lg font-medium">
-                        {onPick ? 'Pick a role' : 'Roles your steps start from'}
+                        {onPick ? t('role.panel.pickTitle') : t('role.panel.title')}
                     </h3>
-                    <p className="text-sm text-muted-foreground">
-                        One kind of work: the agent's role, its inputs, and how hard to try.
-                    </p>
+                    <p className="text-sm text-muted-foreground">{t('role.panel.subtitle')}</p>
                 </div>
 
                 {roles.length > 0 && (
                     <Button variant="outline" size="sm" className="shrink-0" onClick={newRole}>
                         <Plus />
-                        New role
+                        {t('role.action.new')}
                     </Button>
                 )}
             </div>
@@ -117,37 +130,43 @@ export function RolesPanel({
             {!onPick && (
                 <div className="flex items-center gap-1 border-t border-border px-4 py-3">
                     <p className="min-w-0 flex-1 truncate text-sm text-muted-foreground">
-                        Roles travel as a .json file.
+                        {t('role.panel.transfer')}
                     </p>
 
                     <Button variant="ghost" size="sm" onClick={runImport}>
                         <Upload />
-                        Import
+                        {t('role.action.import')}
                     </Button>
 
                     {roles.length > 0 && (
                         <Button variant="ghost" size="sm" onClick={exporting.open}>
                             <Download />
-                            Export
+                            {t('role.action.export')}
                         </Button>
                     )}
                 </div>
             )}
 
-            {editing && (
-                <RoleFormDialog role={editing.role} context={context} onClose={closeForm} />
-            )}
+            {stranded && <TourBanner stop={TourStopId.Role} />}
+
+            {shown && <RoleFormDialog role={shown.role} context={context} onClose={closeForm} />}
 
             {exporting.on && (
                 <RoleExportDialog roles={roles} onExport={runExport} onClose={exporting.close} />
             )}
 
             {transfer.sending && (
-                <WorkingDialog title="Exporting roles" description="Writing the file. Hold on." />
+                <WorkingDialog
+                    title={t('role.export.working')}
+                    description={t('role.export.workingBody')}
+                />
             )}
 
             {transfer.receiving && (
-                <WorkingDialog title="Importing roles" description="Reading the file. Hold on." />
+                <WorkingDialog
+                    title={t('role.import.working')}
+                    description={t('role.import.workingBody')}
+                />
             )}
 
             {notice && (

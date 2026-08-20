@@ -1,4 +1,5 @@
 import {WorkflowStatus, StepState} from '@/shared/lib/enums'
+import {t} from '@/shared/lib/i18n'
 import type {Point, Workflow, WorkflowDraft, Step, StepDraft} from '@/features/workflows/types'
 import type {DraftContext} from '@/features/roles/types'
 
@@ -73,7 +74,10 @@ export function createWorkflow(draft: WorkflowDraft): Workflow {
 }
 
 /** Deep copy: new workflow id, new step ids, remapped edges, run history cleared. */
-export function copyWorkflow(workflow: Workflow, name = `${workflow.name} copy`): Workflow {
+export function copyWorkflow(
+    workflow: Workflow,
+    name = t('workflow.duplicate.name', {name: workflow.name}),
+): Workflow {
     const idMap = new Map(workflow.steps.map((step) => [step.id, crypto.randomUUID()]))
 
     return {

@@ -1,3 +1,5 @@
+import type {MessageKey} from '@/shared/lib/i18n'
+
 export const StepState = {
     Idle: 'idle',
     Blocked: 'blocked',
@@ -12,16 +14,16 @@ export const StepState = {
 
 export type StepState = (typeof StepState)[keyof typeof StepState]
 
-export const STEP_STATE_LABELS: Record<StepState, string> = {
-    [StepState.Idle]: 'Idle',
-    [StepState.Blocked]: 'Blocked',
-    [StepState.Queued]: 'Ready',
-    [StepState.Running]: 'Running',
-    [StepState.AwaitingApproval]: 'Needs approval',
-    [StepState.AwaitingReview]: 'Needs review',
-    [StepState.Done]: 'Done',
-    [StepState.Failed]: 'Failed',
-    [StepState.Cancelled]: 'Cancelled',
+export const STEP_STATE_LABELS: Record<StepState, MessageKey> = {
+    [StepState.Idle]: 'enum.stepState.idle',
+    [StepState.Blocked]: 'enum.stepState.blocked',
+    [StepState.Queued]: 'enum.stepState.queued',
+    [StepState.Running]: 'enum.stepState.running',
+    [StepState.AwaitingApproval]: 'enum.stepState.awaitingApproval',
+    [StepState.AwaitingReview]: 'enum.stepState.awaitingReview',
+    [StepState.Done]: 'enum.stepState.done',
+    [StepState.Failed]: 'enum.stepState.failed',
+    [StepState.Cancelled]: 'enum.stepState.cancelled',
 }
 
 export const WorkflowStatus = {
@@ -37,15 +39,15 @@ export const WorkflowStatus = {
 
 export type WorkflowStatus = (typeof WorkflowStatus)[keyof typeof WorkflowStatus]
 
-export const WORKFLOW_STATUS_LABELS: Record<WorkflowStatus, string> = {
-    [WorkflowStatus.Empty]: 'Empty',
-    [WorkflowStatus.Draft]: 'Draft',
-    [WorkflowStatus.Ready]: 'Ready to run',
-    [WorkflowStatus.Running]: 'Running',
-    [WorkflowStatus.Paused]: 'Paused',
-    [WorkflowStatus.Done]: 'Done',
-    [WorkflowStatus.Failed]: 'Failed',
-    [WorkflowStatus.Cancelled]: 'Cancelled',
+export const WORKFLOW_STATUS_LABELS: Record<WorkflowStatus, MessageKey> = {
+    [WorkflowStatus.Empty]: 'enum.workflowStatus.empty',
+    [WorkflowStatus.Draft]: 'enum.workflowStatus.draft',
+    [WorkflowStatus.Ready]: 'enum.workflowStatus.ready',
+    [WorkflowStatus.Running]: 'enum.workflowStatus.running',
+    [WorkflowStatus.Paused]: 'enum.workflowStatus.paused',
+    [WorkflowStatus.Done]: 'enum.workflowStatus.done',
+    [WorkflowStatus.Failed]: 'enum.workflowStatus.failed',
+    [WorkflowStatus.Cancelled]: 'enum.workflowStatus.cancelled',
 }
 
 export const FileChangeType = {
@@ -68,11 +70,11 @@ export type Effort = (typeof Effort)[keyof typeof Effort]
 
 export const EFFORTS: Effort[] = [Effort.Quick, Effort.Standard, Effort.Deep, Effort.Exhaustive]
 
-export const EFFORT_LABELS: Record<Effort, string> = {
-    [Effort.Quick]: 'Quick',
-    [Effort.Standard]: 'Standard',
-    [Effort.Deep]: 'Deep',
-    [Effort.Exhaustive]: 'Exhaustive',
+export const EFFORT_LABELS: Record<Effort, MessageKey> = {
+    [Effort.Quick]: 'enum.effort.quick',
+    [Effort.Standard]: 'enum.effort.standard',
+    [Effort.Deep]: 'enum.effort.deep',
+    [Effort.Exhaustive]: 'enum.effort.exhaustive',
 }
 
 export const ThinkingLevel = {
@@ -93,12 +95,12 @@ export const THINKING_LEVELS: ThinkingLevel[] = [
     ThinkingLevel.Max,
 ]
 
-export const THINKING_LEVEL_LABELS: Record<ThinkingLevel, string> = {
-    [ThinkingLevel.Low]: 'Low',
-    [ThinkingLevel.Medium]: 'Medium',
-    [ThinkingLevel.High]: 'High',
-    [ThinkingLevel.XHigh]: 'Very high',
-    [ThinkingLevel.Max]: 'Maximum',
+export const THINKING_LEVEL_LABELS: Record<ThinkingLevel, MessageKey> = {
+    [ThinkingLevel.Low]: 'enum.thinking.low',
+    [ThinkingLevel.Medium]: 'enum.thinking.medium',
+    [ThinkingLevel.High]: 'enum.thinking.high',
+    [ThinkingLevel.XHigh]: 'enum.thinking.xhigh',
+    [ThinkingLevel.Max]: 'enum.thinking.max',
 }
 
 export const InstallStage = {
@@ -111,12 +113,12 @@ export const InstallStage = {
 
 export type InstallStage = (typeof InstallStage)[keyof typeof InstallStage]
 
-export const INSTALL_STAGE_LABELS: Record<InstallStage, string> = {
-    [InstallStage.Queued]: 'Waiting',
-    [InstallStage.Resolve]: 'Finding release',
-    [InstallStage.Download]: 'Downloading',
-    [InstallStage.Extract]: 'Unpacking',
-    [InstallStage.Done]: 'Ready',
+export const INSTALL_STAGE_LABELS: Record<InstallStage, MessageKey> = {
+    [InstallStage.Queued]: 'enum.installStage.queued',
+    [InstallStage.Resolve]: 'enum.installStage.resolve',
+    [InstallStage.Download]: 'enum.installStage.download',
+    [InstallStage.Extract]: 'enum.installStage.extract',
+    [InstallStage.Done]: 'enum.installStage.done',
 }
 
 export const ApprovalKind = {
@@ -145,29 +147,29 @@ export const AgentAction = {
 
 export type AgentAction = (typeof AgentAction)[keyof typeof AgentAction]
 
-export const AGENT_ACTION_LABELS: Record<AgentAction, string> = {
-    [AgentAction.Install]: 'Install',
-    [AgentAction.Uninstall]: 'Uninstall',
-    [AgentAction.LogIn]: 'Log in',
-    [AgentAction.LogOut]: 'Log out',
-    [AgentAction.Verify]: 'Verify',
+export const AGENT_ACTION_LABELS: Record<AgentAction, MessageKey> = {
+    [AgentAction.Install]: 'enum.agentAction.install',
+    [AgentAction.Uninstall]: 'enum.agentAction.uninstall',
+    [AgentAction.LogIn]: 'enum.agentAction.logIn',
+    [AgentAction.LogOut]: 'enum.agentAction.logOut',
+    [AgentAction.Verify]: 'enum.agentAction.verify',
 }
 
-export const AGENT_ACTION_BUSY_LABELS: Record<AgentAction, string> = {
-    [AgentAction.Install]: 'Installing',
-    [AgentAction.Uninstall]: 'Uninstalling',
-    [AgentAction.LogIn]: 'Logging in',
-    [AgentAction.LogOut]: 'Logging out',
-    [AgentAction.Verify]: 'Verifying',
+export const AGENT_ACTION_BUSY_LABELS: Record<AgentAction, MessageKey> = {
+    [AgentAction.Install]: 'enum.agentActionBusy.install',
+    [AgentAction.Uninstall]: 'enum.agentActionBusy.uninstall',
+    [AgentAction.LogIn]: 'enum.agentActionBusy.logIn',
+    [AgentAction.LogOut]: 'enum.agentActionBusy.logOut',
+    [AgentAction.Verify]: 'enum.agentActionBusy.verify',
 }
 
-/** Completed by the agent's name to title the error dialog when the action fails. */
-export const AGENT_ACTION_FAILURES: Record<AgentAction, string> = {
-    [AgentAction.Install]: 'Could not install',
-    [AgentAction.Uninstall]: 'Could not uninstall',
-    [AgentAction.LogIn]: 'Could not start the login for',
-    [AgentAction.LogOut]: 'Could not log out of',
-    [AgentAction.Verify]: 'Could not verify that code for',
+/** Titles the error dialog when the action fails; takes the agent's name as {name}. */
+export const AGENT_ACTION_FAILURES: Record<AgentAction, MessageKey> = {
+    [AgentAction.Install]: 'enum.agentActionFailure.install',
+    [AgentAction.Uninstall]: 'enum.agentActionFailure.uninstall',
+    [AgentAction.LogIn]: 'enum.agentActionFailure.logIn',
+    [AgentAction.LogOut]: 'enum.agentActionFailure.logOut',
+    [AgentAction.Verify]: 'enum.agentActionFailure.verify',
 }
 
 export const InputType = {
@@ -192,12 +194,27 @@ export const INPUT_TYPES: InputType[] = [
     InputType.File,
 ]
 
-export const INPUT_TYPE_LABELS: Record<InputType, string> = {
-    [InputType.Text]: 'Text',
-    [InputType.Textarea]: 'Long text',
-    [InputType.Number]: 'Number',
-    [InputType.Boolean]: 'Boolean',
-    [InputType.Select]: 'Choice',
-    [InputType.MultiSelect]: 'Multiple choices',
-    [InputType.File]: 'File',
+export const INPUT_TYPE_LABELS: Record<InputType, MessageKey> = {
+    [InputType.Text]: 'enum.inputType.text',
+    [InputType.Textarea]: 'enum.inputType.textarea',
+    [InputType.Number]: 'enum.inputType.number',
+    [InputType.Boolean]: 'enum.inputType.boolean',
+    [InputType.Select]: 'enum.inputType.select',
+    [InputType.MultiSelect]: 'enum.inputType.multiselect',
+    [InputType.File]: 'enum.inputType.file',
+}
+
+export const Language = {
+    En: 'en',
+    Vi: 'vi',
+} as const
+
+export type Language = (typeof Language)[keyof typeof Language]
+
+export const LANGUAGES: Language[] = [Language.En, Language.Vi]
+
+/** Endonyms: a language names itself the same way whichever language is active. */
+export const LANGUAGE_NAMES: Record<Language, string> = {
+    [Language.En]: 'English',
+    [Language.Vi]: 'Tiếng Việt',
 }

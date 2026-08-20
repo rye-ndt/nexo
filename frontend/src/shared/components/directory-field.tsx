@@ -5,6 +5,7 @@ import {Button} from '@/shared/ui/button'
 import {HelpTip} from '@/shared/components/help-tip'
 import type {GlossaryTerm} from '@/shared/lib/glossary'
 import {reportError} from '@/shared/lib/error-bus'
+import {t} from '@/shared/lib/i18n'
 
 export function DirectoryField({
     label,
@@ -26,7 +27,7 @@ export function DirectoryField({
             const path = await chooseDirectory(title)
             if (path) onChange(path)
         } catch (cause) {
-            reportError(cause, 'Could not open the folder picker')
+            reportError(cause, t('shared.directory.pickerFailed'))
         }
     }
 
@@ -45,12 +46,12 @@ export function DirectoryField({
                             : 'min-w-0 flex-1 truncate rounded-lg border border-dashed border-input px-3 py-2 text-base text-muted-foreground'
                     }
                 >
-                    {value || 'No folder chosen'}
+                    {value || t('shared.directory.empty')}
                 </span>
 
                 <Button variant="outline" size="sm" className="shrink-0" onClick={choose}>
                     <Folder />
-                    {value ? 'Change' : 'Choose'}
+                    {value ? t('shared.directory.change') : t('shared.directory.choose')}
                 </Button>
             </div>
 

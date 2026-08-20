@@ -1,10 +1,11 @@
 import type {LucideIcon} from 'lucide-react'
 
+import {t, type MessageKey} from '@/shared/lib/i18n'
 import {cn} from '@/shared/lib/utils'
 
 export type SettingsTab<TId extends string = string> = {
     id: TId
-    label: string
+    label: MessageKey
     icon: LucideIcon
 }
 
@@ -63,7 +64,7 @@ function SettingsNavItem<TId extends string>({
                 </span>
             )}
             <Icon className="size-4 shrink-0" />
-            {tab.label}
+            {t(tab.label)}
         </button>
     )
 }

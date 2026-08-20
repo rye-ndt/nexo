@@ -14,6 +14,7 @@ import {workflowProgress} from '@/features/workflows/graph'
 import {useToggle} from '@/shared/hooks/use-toggle'
 import type {WorkflowAction, WorkflowActionHandlers} from '@/features/workflows/workflow-actions'
 import {cn} from '@/shared/lib/utils'
+import {t} from '@/shared/lib/i18n'
 import type {Workflow} from '@/features/workflows/types'
 
 export function WorkflowMenu({
@@ -43,7 +44,7 @@ export function WorkflowMenu({
                 <Button
                     variant="ghost"
                     size="icon"
-                    aria-label="Workflow menu"
+                    aria-label={t('canvas.sheet.open')}
                     className="lg:hidden"
                 >
                     <Menu />
@@ -52,9 +53,9 @@ export function WorkflowMenu({
 
             <SheetContent side="left" className="gap-0">
                 <SheetHeader className="h-14 shrink-0 justify-center border-b border-border px-4 py-0">
-                    <SheetTitle className="micro-label">Menu</SheetTitle>
+                    <SheetTitle className="micro-label">{t('canvas.sheet.title')}</SheetTitle>
                     <SheetDescription className="sr-only">
-                        Directories, progress and actions for this workflow.
+                        {t('canvas.sheet.description')}
                     </SheetDescription>
                 </SheetHeader>
 
@@ -80,7 +81,11 @@ export function WorkflowMenu({
                         </>
                     )}
 
-                    <MenuAction label="Settings" icon={Settings} onClick={pick(onOpenSettings)} />
+                    <MenuAction
+                        label={t('canvas.sheet.settings')}
+                        icon={Settings}
+                        onClick={pick(onOpenSettings)}
+                    />
                 </div>
             </SheetContent>
         </Sheet>
@@ -126,8 +131,10 @@ function WorkflowLocations({workflow, onEdit}: {workflow: Workflow; onEdit: () =
         if (workflow.locked)
             return (
                 <span className="flex flex-col gap-2 px-3 py-2">
-                    <span className="micro-label">Project folder</span>
-                    <span className="text-sm text-muted-foreground">Not set</span>
+                    <span className="micro-label">{t('canvas.sheet.projectDir')}</span>
+                    <span className="text-sm text-muted-foreground">
+                        {t('canvas.sheet.noProjectDir')}
+                    </span>
                 </span>
             )
 
@@ -138,14 +145,14 @@ function WorkflowLocations({workflow, onEdit}: {workflow: Workflow; onEdit: () =
                 className="flex items-center gap-2 rounded-lg border border-live/40 bg-live-tint px-3 py-2 text-left text-sm font-medium text-live outline-none transition-colors hover:border-live/70 focus-visible:ring-2 focus-visible:ring-ring/50"
             >
                 <FolderOpen className="size-4 shrink-0" />
-                Choose project folder
+                {t('canvas.sheet.chooseProjectDir')}
             </button>
         )
     }
 
     const body = (
         <>
-            <span className="micro-label">Project folder</span>
+            <span className="micro-label">{t('canvas.sheet.projectDir')}</span>
             <span className="truncate font-mono text-sm text-muted-foreground">
                 {workflow.projectDir}
             </span>
@@ -170,7 +177,7 @@ function WorkflowProgress({workflow}: {workflow: Workflow}) {
 
     return (
         <span className="flex items-center justify-between gap-3 px-3 py-2">
-            <span className="micro-label">Progress</span>
+            <span className="micro-label">{t('canvas.sheet.progress')}</span>
             <span className="font-mono text-sm text-muted-foreground">
                 {done}/{total}
             </span>

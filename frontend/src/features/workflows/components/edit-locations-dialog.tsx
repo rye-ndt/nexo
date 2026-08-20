@@ -5,6 +5,7 @@ import {DialogShell} from '@/shared/components/dialog-shell'
 import {WorkflowLocationsFields} from '@/features/workflows/components/workflow-locations'
 import {Button} from '@/shared/ui/button'
 import {useToggle} from '@/shared/hooks/use-toggle'
+import {t} from '@/shared/lib/i18n'
 import type {Workflow, WorkflowLocations} from '@/features/workflows/types'
 
 export function EditLocationsDialog({
@@ -35,16 +36,16 @@ export function EditLocationsDialog({
     return (
         <DialogShell
             onClose={onClose}
-            title="Project folder"
-            description="Where this workflow runs. Locking fixes it for good."
+            title={t('workflow.locations.title')}
+            description={t('workflow.locations.description')}
             footer={
                 <>
                     <span className="flex-1" />
                     <Button variant="outline" size="sm" onClick={onClose}>
-                        Cancel
+                        {t('workflow.dialog.cancel')}
                     </Button>
                     <Button size="sm" disabled={!ready} onClick={save}>
-                        Save
+                        {t('workflow.dialog.save')}
                     </Button>
                 </>
             }
@@ -53,9 +54,9 @@ export function EditLocationsDialog({
 
             {confirming.on && (
                 <ConfirmDialog
-                    title="Move this workflow?"
-                    description="Steps that already ran keep their results, but every step from here on runs against the new folder."
-                    confirmLabel="Save folder"
+                    title={t('workflow.locations.moveTitle')}
+                    description={t('workflow.locations.moveDescription')}
+                    confirmLabel={t('workflow.locations.moveConfirm')}
                     onConfirm={commit}
                     onClose={confirming.close}
                 />

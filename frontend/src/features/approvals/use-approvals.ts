@@ -1,6 +1,7 @@
 import {useMutation, useQuery, useQueryClient} from '@tanstack/react-query'
 
 import * as api from '@/features/approvals/api'
+import {t} from '@/shared/lib/i18n'
 import type {ApprovalAnswer} from '@/features/approvals/types'
 
 const APPROVALS_KEY = ['approvals']
@@ -14,13 +15,13 @@ export function useApprovals() {
     const {data} = useQuery({
         queryKey: APPROVALS_KEY,
         queryFn: api.listApprovals,
-        meta: {action: 'Could not load the waiting approvals'},
+        meta: {action: t('approval.error.load')},
         refetchInterval: POLL_MS,
         refetchIntervalInBackground: true,
     })
 
     const answer = useMutation({
-        meta: {action: 'Could not send your answer'},
+        meta: {action: t('approval.error.answer')},
         mutationFn: (args: {id: string; answer: ApprovalAnswer}) =>
             api.answerApproval(args.id, args.answer),
         onSettled: () => {

@@ -42,6 +42,8 @@ export function ImportWorkflow(arg1:string):Promise<string>;
 
 export function InstallAgent(arg1:string):Promise<void>;
 
+export function Language():Promise<string>;
+
 export function LogoutAgent(arg1:string):Promise<void>;
 
 export function MCPServers():Promise<Array<output_itf.MCPServerInfo>>;
@@ -79,6 +81,8 @@ export function SaveWorkflowDraft(arg1:string,arg2:string):Promise<void>;
 export function SetAgentDefault(arg1:string,arg2:string,arg3:string):Promise<void>;
 
 export function SetAutopilot(arg1:boolean):Promise<void>;
+
+export function SetLanguage(arg1:string):Promise<void>;
 
 export function SetMCPCredential(arg1:string,arg2:string):Promise<void>;
 

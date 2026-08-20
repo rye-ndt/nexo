@@ -1,6 +1,7 @@
 import {contextDrained, contextLeft, contextRingClass} from '@/features/workflows/context-ring'
 import {formatPercent, formatTokens} from '@/shared/lib/format'
 import {cn} from '@/shared/lib/utils'
+import {t} from '@/shared/lib/i18n'
 
 const RADIUS = 8
 
@@ -10,7 +11,10 @@ const CIRCUMFERENCE = 2 * Math.PI * RADIUS
 export function ContextStamina({used, total}: {used: number; total: number}) {
     const left = contextLeft(used, total)
     const arc = CIRCUMFERENCE * left
-    const reading = `${formatTokens(used)} of ${formatTokens(total)} context used`
+    const reading = t('canvas.context.reading', {
+        used: formatTokens(used),
+        total: formatTokens(total),
+    })
 
     return (
         <span className="relative flex size-5 shrink-0 items-center justify-center" title={reading}>
@@ -40,7 +44,7 @@ export function ContextStamina({used, total}: {used: number; total: number}) {
             </svg>
 
             <span className="sr-only">
-                {formatPercent(used, total)}% of the context window used
+                {t('canvas.context.share', {percent: formatPercent(used, total)})}
             </span>
         </span>
     )

@@ -13,6 +13,8 @@ import {draftContext} from '@/features/workflows/graph'
 import {useInterrupts} from '@/features/workflows/use-interrupts'
 import {useMissingInputs} from '@/features/workflows/use-missing-inputs'
 import {useToggle} from '@/shared/hooks/use-toggle'
+import {t} from '@/shared/lib/i18n'
+import type {InputValue} from '@/features/roles/types'
 import type {Point, StepDraft} from '@/features/workflows/types'
 import type {WorkflowStore} from '@/features/workflows/use-workflow-store'
 
@@ -46,14 +48,18 @@ export function WorkflowWorkspace({
         else active.start()
     }
 
-    const fillBlockedStep = (stepId: string) => {
+    const runFilled = (values: Record<string, Record<string, InputValue>>) => {
+        const saves = Object.entries(values)
         blockedRun.close()
-        store.selectStep(stepId)
-    }
 
-    const runAnyway = () => {
-        blockedRun.close()
-        active.start()
+        const saveThenRun = (index: number) => {
+            const save = saves[index]
+            if (!save) return active.start()
+
+            active.saveStepInputs(save[0], save[1], () => saveThenRun(index + 1))
+        }
+
+        saveThenRun(0)
     }
 
     const closeNewStep = () => setNewStepAt(null)
@@ -131,8 +137,7 @@ export function WorkflowWorkspace({
             {blockedRun.on && (
                 <MissingInputsDialog
                     entries={missing.entries}
-                    onSelectStep={fillBlockedStep}
-                    onRunAnyway={runAnyway}
+                    onRun={runFilled}
                     onClose={blockedRun.close}
                 />
             )}
@@ -169,9 +174,13 @@ export function WorkflowWorkspace({
 
             {deletingStep && (
                 <ConfirmDialog
-                    title={`Delete “${deletingStep.title || 'this step'}”?`}
-                    description="Its prompt, inputs and any result it produced go with it. This cannot be undone."
-                    confirmLabel="Delete step"
+                    title={
+                        deletingStep.title
+                            ? t('workflow.deleteStep.title', {title: deletingStep.title})
+                            : t('workflow.deleteStep.untitled')
+                    }
+                    description={t('workflow.deleteStep.description')}
+                    confirmLabel={t('workflow.deleteStep.confirm')}
                     destructive
                     onConfirm={deleteStep}
                     onClose={stopDeleting}
@@ -200,9 +209,7 @@ function EmptyWorkspace() {
                 draggable={false}
                 className="mb-4 w-[min(60%,34rem)] max-w-none opacity-35 select-none dark:opacity-45 [mask-image:radial-gradient(ellipse_at_center,black_45%,transparent_85%)]"
             />
-            <p className="text-base text-muted-foreground">
-                No workflow open. Create one to start a chain of steps.
-            </p>
+            <p className="text-base text-muted-foreground">{t('workflow.workspace.empty')}</p>
         </div>
     )
 }

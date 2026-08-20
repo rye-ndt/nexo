@@ -1,8 +1,7 @@
 import {InputType, Effort} from '@/shared/lib/enums'
+import {t} from '@/shared/lib/i18n'
 import {structureIssues} from '@/features/roles/output-structure'
 import type {FieldValue, InputValue, Role, RoleDraft, RoleInput} from '@/features/roles/types'
-
-export const NO_INSTRUCTIONS_ISSUE = 'A role needs at least one instruction.'
 
 export function emptyInput(): RoleInput {
     return {key: '', label: '', type: InputType.Text, required: false}
@@ -15,7 +14,7 @@ export function emptyRole(): RoleDraft {
         effort: Effort.Standard,
         retryable: true,
         pauseForReview: false,
-        inputs: [emptyInput()],
+        inputs: [],
         instructions: [{key: 'base', value: ''}],
         outputStructure: '',
     }
@@ -83,14 +82,22 @@ export function missingRequired(role: Role, values: Record<string, FieldValue>) 
     })
 }
 
-export function roleIssues(draft: RoleDraft) {
+export function hasAdvancedSettings(draft: RoleDraft) {
+    return (
+        draft.inputs.length > 0 ||
+        Boolean(draft.outputStructure.trim()) ||
+        draft.effort !== Effort.Standard ||
+        !draft.retryable ||
+        draft.pauseForReview
+    )
+}
+
+export function advancedIssues(draft: RoleDraft) {
     const issues: string[] = []
     const keys = draft.inputs.map((input) => input.key.trim()).filter(Boolean)
 
-    if (!draft.name.trim()) issues.push('Give the role a name.')
-    if (draft.inputs.some((input) => !input.key.trim()))
-        issues.push('Every input needs a key the agent can read.')
-    if (new Set(keys).size !== keys.length) issues.push('Two inputs share the same key.')
+    if (draft.inputs.some((input) => !input.key.trim())) issues.push(t('role.issue.inputKey'))
+    if (new Set(keys).size !== keys.length) issues.push(t('role.issue.duplicateInput'))
     if (
         draft.inputs.some(
             (input) =>
@@ -98,13 +105,21 @@ export function roleIssues(draft: RoleDraft) {
                 !input.options?.length,
         )
     )
-        issues.push('A choice input needs at least one option.')
-    if (draft.instructions.length === 0) issues.push(NO_INSTRUCTIONS_ISSUE)
-    if (draft.instructions.some((prompt) => !prompt.key.trim()))
-        issues.push('Every instruction needs a key.')
+        issues.push(t('role.issue.options'))
     if (draft.outputStructure.trim()) issues.push(...structureIssues(draft.outputStructure))
 
     return issues
+}
+
+export function roleIssues(draft: RoleDraft) {
+    const issues: string[] = []
+
+    if (!draft.name.trim()) issues.push(t('role.issue.name'))
+    if (draft.instructions.length === 0) issues.push(t('role.issue.noInstructions'))
+    if (draft.instructions.some((prompt) => !prompt.key.trim()))
+        issues.push(t('role.issue.instructionKey'))
+
+    return [...issues, ...advancedIssues(draft)]
 }
 
 export function promptFromRole(role: Role) {

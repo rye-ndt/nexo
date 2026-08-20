@@ -5,6 +5,7 @@ import {Button} from '@/shared/ui/button'
 import {ConfirmDialog} from '@/shared/components/confirm-dialog'
 import {StatusChip} from '@/shared/components/status-chip'
 import {EffortTag} from '@/shared/components/effort-tag'
+import {t} from '@/shared/lib/i18n'
 import type {Role} from '@/features/roles/types'
 
 export function RoleList({
@@ -22,18 +23,16 @@ export function RoleList({
     onRemove: (roleId: string) => void
     onCreate: () => void
 }) {
-    if (loading) return <p className="px-4 py-3 text-base text-muted-foreground">Loading roles…</p>
+    if (loading)
+        return <p className="px-4 py-3 text-base text-muted-foreground">{t('role.list.loading')}</p>
 
     if (roles.length === 0)
         return (
             <div className="flex flex-col items-center gap-3 px-6 py-12 text-center">
-                <p className="text-base text-muted-foreground">
-                    No roles yet. A role describes one kind of work — the agent's role, the inputs
-                    it needs, and how hard it should try.
-                </p>
+                <p className="text-base text-muted-foreground">{t('role.list.empty')}</p>
                 <Button variant="outline" size="sm" onClick={onCreate}>
                     <Plus />
-                    New role
+                    {t('role.action.new')}
                 </Button>
             </div>
         )
@@ -82,18 +81,22 @@ function RoleCard({
                 <span className="flex items-center gap-2 pr-16">
                     <span className="truncate text-base font-medium">{role.name}</span>
                     <EffortTag effort={role.effort} />
-                    {role.outputStructure.trim() && <StatusChip tone="info">Structured</StatusChip>}
+                    {role.outputStructure.trim() && (
+                        <StatusChip tone="info">{t('role.card.structured')}</StatusChip>
+                    )}
                     {!role.retryable && (
-                        <span className="shrink-0 text-xs text-muted-foreground">no retry</span>
+                        <span className="shrink-0 text-xs text-muted-foreground">
+                            {t('role.card.noRetry')}
+                        </span>
                     )}
                 </span>
 
                 <span className="line-clamp-2 text-sm text-muted-foreground">
-                    {role.description || 'No description set.'}
+                    {role.description || t('role.card.noDescription')}
                 </span>
 
                 {role.inputs.length === 0 ? (
-                    <span className="text-sm text-muted-foreground">No inputs</span>
+                    <span className="text-sm text-muted-foreground">{t('role.card.noInputs')}</span>
                 ) : (
                     <span className="flex flex-wrap gap-1">
                         {role.inputs.map((input) => (
@@ -102,7 +105,7 @@ function RoleCard({
                                 className="rounded-sm bg-muted px-1.5 py-0.5 font-mono text-xs break-all text-muted-foreground"
                             >
                                 {input.key}
-                                {input.required && <span className="text-live">*</span>}
+                                {input.required && <span className="text-destructive">*</span>}
                             </span>
                         ))}
                     </span>
@@ -113,7 +116,7 @@ function RoleCard({
                 <Button
                     variant="ghost"
                     size="icon-sm"
-                    aria-label={`Edit ${role.name}`}
+                    aria-label={t('role.card.edit', {name: role.name})}
                     onClick={edit}
                 >
                     <Pencil />
@@ -121,7 +124,7 @@ function RoleCard({
                 <Button
                     variant="ghost"
                     size="icon-sm"
-                    aria-label={`Delete ${role.name}`}
+                    aria-label={t('role.card.remove', {name: role.name})}
                     className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
                     onClick={askRemove}
                 >
@@ -131,9 +134,9 @@ function RoleCard({
 
             {confirming && (
                 <ConfirmDialog
-                    title={`Delete “${role.name}”?`}
-                    description="Steps already built from it keep their prompt. This cannot be undone."
-                    confirmLabel="Delete role"
+                    title={t('role.card.removeTitle', {name: role.name})}
+                    description={t('role.card.removeBody')}
+                    confirmLabel={t('role.card.removeConfirm')}
                     destructive
                     onConfirm={remove}
                     onClose={cancelRemove}

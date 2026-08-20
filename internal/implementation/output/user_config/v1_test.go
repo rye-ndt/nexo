@@ -521,3 +521,43 @@ func TestInitRefusesATableItCannotResolveFrom(t *testing.T) {
 		t.Fatal("a missing readiness check was accepted")
 	}
 }
+
+func TestLanguageRoundTripsThroughTheFile(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.json")
+
+	if err := openConfig(t, path).SetLanguage(enums.Vietnamese); err != nil {
+		t.Fatalf("set language: %v", err)
+	}
+
+	if spoken := openConfig(t, path).Language(); spoken != enums.Vietnamese {
+		t.Fatalf("reopened config speaks %s, want %s", spoken, enums.Vietnamese)
+	}
+}
+
+func TestAConfigWrittenBeforeLanguageExistedSpeaksEnglish(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.json")
+
+	old := `{"onboarded": true, "autopilot": true}`
+
+	if err := os.WriteFile(path, []byte(old), 0o600); err != nil {
+		t.Fatalf("write old config: %v", err)
+	}
+
+	if spoken := openConfig(t, path).Language(); spoken != enums.English {
+		t.Fatalf("a config with no language key speaks %s, want %s", spoken, enums.English)
+	}
+}
+
+func TestAnUnknownLanguageIsRejected(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.json")
+
+	cfg := openConfig(t, path)
+
+	if err := cfg.SetLanguage("kl"); err == nil {
+		t.Fatal("a language the app does not speak was accepted")
+	}
+
+	if spoken := cfg.Language(); spoken != enums.English {
+		t.Fatalf("a refused language changed the config to %s", spoken)
+	}
+}

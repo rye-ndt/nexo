@@ -22,6 +22,7 @@ type file struct {
 	ModelPrices   map[enums.ModelName]*output_itf.TokenPrices `json:"model_prices"`
 	Onboarded     bool                                        `json:"onboarded"`
 	Autopilot     bool                                        `json:"autopilot"`
+	Language      enums.Language                              `json:"language"`
 }
 
 type v1 struct {
@@ -82,6 +83,10 @@ func read(path string) (*file, error) {
 		if err := json.Unmarshal(raw, cfg); err != nil {
 			return nil, custom_error.Critical("cannot decode user config %s: %v", path, err)
 		}
+	}
+
+	if !cfg.Language.Valid() {
+		cfg.Language = enums.English
 	}
 
 	cfg.AgentDefaults = picked(renamedEfforts(cfg.AgentDefaults))
@@ -341,6 +346,40 @@ func (c *v1) SetAutopilot(on bool) error {
 
 	if err := c.write(); err != nil {
 		c.cfg.Autopilot = previous
+		return err
+	}
+
+	return nil
+}
+
+func (c *v1) Language() enums.Language {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	if !c.cfg.Language.Valid() {
+		return enums.English
+	}
+
+	return c.cfg.Language
+}
+
+func (c *v1) SetLanguage(language enums.Language) error {
+	if !language.Valid() {
+		return custom_error.Critical("%s is not a language this app speaks", language)
+	}
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.cfg.Language == language {
+		return nil
+	}
+
+	previous := c.cfg.Language
+	c.cfg.Language = language
+
+	if err := c.write(); err != nil {
+		c.cfg.Language = previous
 		return err
 	}
 

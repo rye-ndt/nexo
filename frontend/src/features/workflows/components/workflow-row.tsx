@@ -3,7 +3,7 @@ import {CircleStop, Lock, MoreHorizontal, Pause} from 'lucide-react'
 import type {LucideIcon} from 'lucide-react'
 
 import {WORKFLOW_TITLE_CLASSES} from '@/features/workflows/workflow-status'
-import {CANCELLED_HINT, LOCKED_HINT, PAUSED_HINT} from '@/features/workflows/workflow-copy'
+import {cancelledHint, lockedHint, pausedHint} from '@/features/workflows/workflow-copy'
 import {
     ContextMenu,
     ContextMenuContent,
@@ -20,6 +20,7 @@ import {
 import {Tooltip, TooltipContent, TooltipTrigger} from '@/shared/ui/tooltip'
 import {WorkflowStatus} from '@/shared/lib/enums'
 import {formatRelative, formatTokens, formatUSD} from '@/shared/lib/format'
+import {t} from '@/shared/lib/i18n'
 import {hasActiveStep, workflowRunWindow, workflowStatus} from '@/features/workflows/graph'
 import {useElapsed} from '@/shared/hooks/use-elapsed'
 import {cn} from '@/shared/lib/utils'
@@ -31,24 +32,24 @@ function markerFor(workflow: Workflow, status: WorkflowStatus): Marker | null {
     if (status === WorkflowStatus.Cancelled)
         return {
             icon: CircleStop,
-            label: 'Cancelled',
-            hint: CANCELLED_HINT,
+            label: t('workflow.row.cancelled'),
+            hint: cancelledHint(),
             className: 'text-state-idle',
         }
 
     if (status === WorkflowStatus.Paused)
         return {
             icon: Pause,
-            label: 'Paused',
-            hint: PAUSED_HINT,
+            label: t('workflow.row.paused'),
+            hint: pausedHint(),
             className: 'text-state-approval',
         }
 
     if (workflow.locked)
         return {
             icon: Lock,
-            label: 'Locked',
-            hint: LOCKED_HINT,
+            label: t('workflow.row.locked'),
+            hint: lockedHint(),
             className: 'text-muted-foreground',
         }
 
@@ -77,15 +78,15 @@ export function WorkflowRow({
     const stopPropagation = (event: MouseEvent<HTMLButtonElement>) => event.stopPropagation()
 
     const entries = [
-        {label: 'Duplicate', run: () => onDuplicate(workflow.id)},
-        {label: 'Export', run: () => onExport(workflow.id)},
-        {label: 'Delete', destructive: true, run: () => onDelete(workflow.id)},
+        {label: t('workflow.row.duplicate'), run: () => onDuplicate(workflow.id)},
+        {label: t('workflow.row.export'), run: () => onExport(workflow.id)},
+        {label: t('workflow.row.delete'), destructive: true, run: () => onDelete(workflow.id)},
     ]
 
     return (
         <ContextMenu>
             <ContextMenuTrigger asChild>
-                <div className="group relative min-w-0">
+                <div data-tour={active ? 'workflow' : undefined} className="group relative min-w-0">
                     <button
                         type="button"
                         onClick={select}
@@ -123,7 +124,7 @@ export function WorkflowRow({
                         <DropdownMenuTrigger asChild>
                             <button
                                 type="button"
-                                aria-label={`Options for ${workflow.name}`}
+                                aria-label={t('workflow.row.options', {name: workflow.name})}
                                 onClick={stopPropagation}
                                 className="absolute top-2 right-1 flex size-7 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-opacity duration-[120ms] outline-none hover:bg-muted hover:text-foreground focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring/50 group-hover:opacity-100 aria-expanded:opacity-100"
                             >
@@ -186,20 +187,29 @@ function WorkflowTelemetry({workflow}: {workflow: Workflow}) {
     const elapsed = useElapsed(timed ? startedAt : undefined, finishedAt)
 
     if (!workflow.startedAt)
-        return <span className="text-sm text-muted-foreground">Not run yet</span>
+        return <span className="text-sm text-muted-foreground">{t('workflow.row.notRun')}</span>
 
     const spent = workflow.spent
     const tokens = spent ? spent.input + spent.cached + spent.output : 0
 
     return (
         <span className="flex items-center gap-1.5 font-mono text-sm tabular-nums text-muted-foreground">
-            <span aria-label={`${formatTokens(tokens)} tokens`}>{formatTokens(tokens)}</span>
+            <span aria-label={t('workflow.row.tokens', {tokens: formatTokens(tokens)})}>
+                {formatTokens(tokens)}
+            </span>
             <span aria-hidden>·</span>
-            <span aria-label={elapsed ? `ran for ${elapsed}` : 'run time unknown'}>
+            <span
+                aria-label={
+                    elapsed ? t('workflow.row.ranFor', {elapsed}) : t('workflow.row.noRunTime')
+                }
+            >
                 {elapsed ?? '—'}
             </span>
             <span aria-hidden>·</span>
-            <span className="text-foreground" aria-label={workflow.priced ? 'cost' : 'not priced'}>
+            <span
+                className="text-foreground"
+                aria-label={workflow.priced ? t('workflow.row.cost') : t('workflow.row.notPriced')}
+            >
                 {workflow.priced ? formatUSD(workflow.costUsd ?? 0) : '—'}
             </span>
         </span>

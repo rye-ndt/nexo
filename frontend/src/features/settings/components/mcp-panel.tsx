@@ -8,52 +8,53 @@ import {MCPAuthKind} from '@/shared/lib/enums'
 import {useMCPServers} from '@/features/settings/use-mcp'
 import {useToggle} from '@/shared/hooks/use-toggle'
 import {formatRelative} from '@/shared/lib/format'
+import {t, type MessageKey} from '@/shared/lib/i18n'
 import type {MCPServer} from '@/features/settings/types'
 
 type KindCopy = {
-    connect: string
-    connecting: string
-    disconnect: string
-    disconnecting: string
+    connect: MessageKey
+    connecting: MessageKey
+    disconnect: MessageKey
+    disconnecting: MessageKey
     destructive: boolean
-    title: (server: MCPServer) => string
-    description: (server: MCPServer) => string
+    title: MessageKey
+    describe: (server: MCPServer) => string
 }
 
-function revokable(regain: string): KindCopy {
+function revokable(withAccount: MessageKey, withoutAccount: MessageKey): KindCopy {
     return {
-        connect: 'Authorize',
-        connecting: 'Authorizing',
-        disconnect: 'Revoke',
-        disconnecting: 'Revoking',
+        connect: 'settings.mcp.authorize',
+        connecting: 'settings.mcp.authorizing',
+        disconnect: 'settings.mcp.revoke',
+        disconnecting: 'settings.mcp.revoking',
         destructive: true,
-        title: (server) => `Revoke ${server.name} access`,
-        description: (server) =>
-            `Agents lose access to ${server.name} ${regain}. This deletes ${
-                server.account
-                    ? `the credential stored for ${server.account}`
-                    : 'the stored credential'
-            }.`,
+        title: 'settings.mcp.revokeTitle',
+        describe: (server) =>
+            server.account
+                ? t(withAccount, {name: server.name, account: server.account})
+                : t(withoutAccount, {name: server.name}),
     }
 }
 
 const KIND_COPY: Record<MCPAuthKind, KindCopy> = {
-    [MCPAuthKind.DynamicRegistration]: revokable('until you authorize it again'),
-    [MCPAuthKind.Device]: revokable('until you authorize it again'),
+    [MCPAuthKind.DynamicRegistration]: revokable(
+        'settings.mcp.revokeAuthAccount',
+        'settings.mcp.revokeAuth',
+    ),
+    [MCPAuthKind.Device]: revokable('settings.mcp.revokeAuthAccount', 'settings.mcp.revokeAuth'),
     [MCPAuthKind.Token]: {
-        ...revokable('until you save a new token'),
-        connect: 'Save token',
-        connecting: 'Saving',
+        ...revokable('settings.mcp.revokeTokenAccount', 'settings.mcp.revokeToken'),
+        connect: 'settings.mcp.saveToken',
+        connecting: 'settings.mcp.savingToken',
     },
     [MCPAuthKind.Enable]: {
-        connect: 'Enable',
-        connecting: 'Enabling',
-        disconnect: 'Disable',
-        disconnecting: 'Disabling',
+        connect: 'settings.mcp.enable',
+        connecting: 'settings.mcp.enabling',
+        disconnect: 'settings.mcp.disable',
+        disconnecting: 'settings.mcp.disabling',
         destructive: false,
-        title: (server) => `Disable ${server.name}`,
-        description: () =>
-            'Nexo quits the Chrome it started, and agents stop driving your browser. You stay signed in to every site, and turning it back on takes one click.',
+        title: 'settings.mcp.disableTitle',
+        describe: () => t('settings.mcp.disableDescription'),
     },
 }
 
@@ -67,19 +68,16 @@ export function MCPPanel() {
         <section className="flex flex-col">
             <div className="flex flex-col gap-1 px-4 pt-4 pb-3">
                 <div className="flex items-center gap-2">
-                    <h3 className="text-lg font-medium">Servers agents can call</h3>
+                    <h3 className="text-lg font-medium">{t('settings.mcp.title')}</h3>
                     <HelpTip term="mcp" />
                 </div>
-                <p className="text-sm text-muted-foreground">
-                    The list comes from config.yaml. Authorize a server once and every agent reaches
-                    it through the proxy.
-                </p>
+                <p className="text-sm text-muted-foreground">{t('settings.mcp.hint')}</p>
             </div>
 
             <div className="divide-y divide-border border-t border-border">
                 {loading && (
                     <p className="px-4 py-3 text-base text-muted-foreground">
-                        Loading MCP servers…
+                        {t('settings.mcp.loading')}
                     </p>
                 )}
 
@@ -98,7 +96,7 @@ export function MCPPanel() {
 
                 {isEmpty && (
                     <p className="px-4 py-3 text-base text-muted-foreground">
-                        No MCP servers in config.yaml. Add one there and reopen this panel.
+                        {t('settings.mcp.empty')}
                     </p>
                 )}
             </div>
@@ -163,15 +161,15 @@ function MCPServerRow({
                         disabled={busy}
                         onClick={confirmingRevoke.open}
                     >
-                        {revoking ? copy.disconnecting : copy.disconnect}
+                        {t(revoking ? copy.disconnecting : copy.disconnect)}
                     </Button>
 
                     {confirmingRevoke.on && (
                         <ConfirmDialog
                             destructive={copy.destructive}
-                            title={copy.title(server)}
-                            description={copy.description(server)}
-                            confirmLabel={copy.disconnect}
+                            title={t(copy.title, {name: server.name})}
+                            description={copy.describe(server)}
+                            confirmLabel={t(copy.disconnect)}
                             onConfirm={revoke}
                             onClose={confirmingRevoke.close}
                         />
@@ -204,7 +202,7 @@ function MCPConnectAction({
     onSetToken: (input: {serverId: string; token: string}) => void
 }) {
     const copy = KIND_COPY[server.kind]
-    const label = pending ? copy.connecting : copy.connect
+    const label = t(pending ? copy.connecting : copy.connect)
 
     if (server.kind === MCPAuthKind.Token)
         return (
@@ -251,7 +249,7 @@ function MCPTokenForm({
             <Input
                 type="password"
                 className="h-8 w-48"
-                placeholder="Paste access token"
+                placeholder={t('settings.mcp.tokenPlaceholder')}
                 value={token}
                 autoComplete="off"
                 disabled={busy}

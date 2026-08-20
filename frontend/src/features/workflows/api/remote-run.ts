@@ -13,6 +13,7 @@
 import {bridge, hasWailsRuntime} from '@/shared/api/bridge'
 import {listRoles} from '@/features/roles/api'
 import {StepState} from '@/shared/lib/enums'
+import {t} from '@/shared/lib/i18n'
 import {hasActiveStep, isFinished, label} from '@/features/workflows/graph'
 import {resolvedPrompt} from '@/features/workflows/step-inputs'
 import {specOf} from '@/features/workflows/step-spec'
@@ -54,8 +55,7 @@ export function remoteRefs(workflowId: string, stepId: string) {
     const remote = findWorkflow(workflowId).remote
     const remoteStepId = remote?.stepIds[stepId]
 
-    if (!remote || !remoteStepId)
-        throw new Error('This step has not run yet, so there is nothing to inspect.')
+    if (!remote || !remoteStepId) throw new Error(t('workflow.api.stepNotRun'))
 
     return {workflowId: remote.workflowId, stepId: remoteStepId}
 }
@@ -96,8 +96,7 @@ function track(workflow: Workflow, remote: RemoteRunIds) {
 export async function startRemoteRun(workflow: Workflow): Promise<boolean> {
     if (!hasWailsRuntime()) return false
     if (runs.has(workflow.id)) return true
-    if (!workflow.projectDir.trim())
-        throw new Error('Set a project folder before running this workflow.')
+    if (!workflow.projectDir.trim()) throw new Error(t('workflow.api.setProjectDir'))
 
     const known = workflow.remote
 
@@ -110,8 +109,7 @@ export async function startRemoteRun(workflow: Workflow): Promise<boolean> {
     const spec = await buildRunSpec(workflow)
     const result = await bridge(() => RunWorkflow(spec))
 
-    if (!result.workflow_id)
-        throw new Error('The run started without a workflow id. Check the app log and try again.')
+    if (!result.workflow_id) throw new Error(t('workflow.api.noWorkflowId'))
 
     track(workflow, {workflowId: result.workflow_id, stepIds: result.step_ids ?? {}})
     return true

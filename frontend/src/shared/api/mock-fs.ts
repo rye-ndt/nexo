@@ -1,5 +1,6 @@
 /** Enough of a tree for the stand-in path picker to feel like a real one. */
 
+import {t} from '@/shared/lib/i18n'
 import {joinPath} from '@/shared/lib/path'
 
 export const MOCK_HOME = '/Users/rye'
@@ -156,7 +157,7 @@ const CONTENTS: Record<string, string> = {
 
 export function mockReadFile(path: string): string {
     const body = CONTENTS[path]
-    if (body === undefined) throw new Error(`${path} could not be read.`)
+    if (body === undefined) throw new Error(t('shared.mockFs.unreadable', {path}))
 
     return body
 }
@@ -165,7 +166,7 @@ export function mockWriteFile(path: string, body: string) {
     const parent = path.slice(0, path.lastIndexOf('/')) || '/'
     const name = path.slice(path.lastIndexOf('/') + 1)
 
-    if (!name) throw new Error('Give the file a name.')
+    if (!name) throw new Error(t('shared.mockFs.fileNameRequired'))
 
     CONTENTS[path] = body
 
@@ -177,11 +178,12 @@ export function mockWriteFile(path: string, body: string) {
 export function mockCreateDirectory(parent: string, name: string): string {
     const trimmed = name.trim()
 
-    if (!trimmed) throw new Error('Give the folder a name.')
-    if (ILLEGAL_NAME.test(trimmed)) throw new Error('A folder name cannot contain a slash.')
+    if (!trimmed) throw new Error(t('shared.mockFs.folderNameRequired'))
+    if (ILLEGAL_NAME.test(trimmed)) throw new Error(t('shared.mockFs.folderSlash'))
 
     const siblings = CHILDREN[parent] ?? []
-    if (siblings.includes(trimmed)) throw new Error(`${trimmed} already exists here.`)
+    if (siblings.includes(trimmed))
+        throw new Error(t('shared.mockFs.folderExists', {name: trimmed}))
 
     CHILDREN[parent] = [...siblings, trimmed]
     return joinPath(parent, trimmed)

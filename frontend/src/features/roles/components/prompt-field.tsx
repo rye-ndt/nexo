@@ -2,6 +2,7 @@ import {useRef, type ChangeEvent, type UIEvent} from 'react'
 
 import {inputRefs, promptSegments} from '@/features/roles/input-refs'
 import {Textarea} from '@/shared/ui/textarea'
+import {tn} from '@/shared/lib/i18n'
 import {cn} from '@/shared/lib/utils'
 import type {RoleInput} from '@/features/roles/types'
 
@@ -91,9 +92,9 @@ export function PromptField({
 
             {unknown.length > 0 && (
                 <p className="text-sm text-state-approval">
-                    {unknown.map((key) => `{{${key}}}`).join(', ')}{' '}
-                    {unknown.length === 1 ? 'is not an input' : 'are not inputs'} on this role, so
-                    it reaches the agent as written.
+                    {tn('role.prompt.unknownOne', 'role.prompt.unknownOther', unknown.length, {
+                        refs: unknown.map((key) => `{{${key}}}`).join(', '),
+                    })}
                 </p>
             )}
         </div>

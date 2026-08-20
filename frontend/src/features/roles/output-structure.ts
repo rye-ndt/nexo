@@ -15,6 +15,8 @@
  * the agent repeats that element as many times as the work needs.
  */
 
+import {t} from '@/shared/lib/i18n'
+
 const KEY_LINE = /^([A-Za-z_][A-Za-z0-9_]*)\s*:(.*)$/
 const INDENT_STEP = 2
 
@@ -54,11 +56,11 @@ export function structureIssues(source: string): string[] {
     build(tokens, issues)
 
     if (tokens.length === 0 && issues.length === 0)
-        issues.push({line: 1, message: 'Describe at least one field.'})
+        issues.push({line: 1, message: t('role.structure.empty')})
 
     return issues
         .sort((left, right) => left.line - right.line)
-        .map((issue) => `Line ${issue.line}: ${issue.message}`)
+        .map((issue) => t('role.structure.atLine', {line: issue.line, message: issue.message}))
 }
 
 function tokenize(source: string, issues: StructureIssue[]): Token[] {
@@ -71,7 +73,7 @@ function tokenize(source: string, issues: StructureIssue[]): Token[] {
         if (trimmed === '' || trimmed.startsWith('#')) return
 
         if (text.includes('\t')) {
-            issues.push({line, message: 'Indent with spaces, not tabs.'})
+            issues.push({line, message: t('role.structure.tabs')})
             return
         }
 
@@ -80,7 +82,7 @@ function tokenize(source: string, issues: StructureIssue[]): Token[] {
         const content = bullet ? trimmed.replace(/^-\s*/, '') : trimmed
 
         if (bullet && content === '') {
-            issues.push({line, message: 'A list item needs a field after the dash.'})
+            issues.push({line, message: t('role.structure.bulletEmpty')})
             return
         }
 
@@ -104,9 +106,9 @@ function tokenize(source: string, issues: StructureIssue[]): Token[] {
 }
 
 function fieldShapeMessage(content: string): string {
-    if (!content.includes(':')) return 'A field needs a colon between its name and what goes in it.'
+    if (!content.includes(':')) return t('role.structure.noColon')
 
-    return 'A field name can only use letters, numbers and underscores, and cannot start with a number.'
+    return t('role.structure.badName')
 }
 
 function build(tokens: Token[], issues: StructureIssue[]): void {
@@ -138,7 +140,7 @@ function build(tokens: Token[], issues: StructureIssue[]): void {
         if (frame.children.some((sibling) => sibling.key === field.key)) {
             issues.push({
                 line: token.line,
-                message: `Two fields at this level are both called "${field.key}".`,
+                message: t('role.structure.duplicate', {key: field.key}),
             })
             continue
         }
@@ -166,8 +168,7 @@ function unwindTo(token: Token, stack: Frame[], issues: StructureIssue[]): boole
         if (token.bullet && token.indent === stack[stack.length - 1].bulletIndent) {
             issues.push({
                 line: token.line,
-                message:
-                    'A list describes one element and the agent repeats it as often as the work needs, so it can only hold one item.',
+                message: t('role.structure.listOneItem'),
             })
             return false
         }
@@ -183,7 +184,7 @@ function openList(token: Token, frame: Frame, issues: StructureIssue[]): boolean
     if (!frame.owner) {
         issues.push({
             line: token.line,
-            message: 'A list needs a field above it to name what the list holds.',
+            message: t('role.structure.listNeedsOwner'),
         })
         return false
     }
@@ -195,10 +196,10 @@ function openList(token: Token, frame: Frame, issues: StructureIssue[]): boolean
 }
 
 function indentMessage(found: number, expected: number): string {
-    if (found % INDENT_STEP !== 0) return 'Indent two spaces for each level.'
-    if (found > expected) return 'This field is indented too far for what it sits under.'
+    if (found % INDENT_STEP !== 0) return t('role.structure.indentStep')
+    if (found > expected) return t('role.structure.indentDeep')
 
-    return 'This field is not lined up with the fields it sits beside.'
+    return t('role.structure.indentOff')
 }
 
 function reportEmptyGroups(
@@ -210,7 +211,7 @@ function reportEmptyGroups(
         if (field.description === '' && field.children.length === 0)
             issues.push({
                 line: lines.get(field) ?? 1,
-                message: `"${field.key}" needs either a description or fields indented under it.`,
+                message: t('role.structure.groupEmpty', {key: field.key}),
             })
 
         reportEmptyGroups(field.children, lines, issues)

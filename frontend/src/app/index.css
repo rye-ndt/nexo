@@ -132,6 +132,7 @@
     --state-failed-tint: #fff0ef;
 
     --sidebar: #ffffff;
+    --veil: rgb(27 28 30 / 0.45);
 
     --default-contextmenu: hide;
 }
@@ -157,6 +158,7 @@
     --input: oklch(1 0 0 / 15%);
     --ring: #fd7b38;
     --sidebar: oklch(0.205 0 0);
+    --veil: rgb(0 0 0 / 0.62);
 }
 
 @layer base {
@@ -188,6 +190,21 @@
 
 @utility surface-card {
     @apply bg-card rounded-[20px] shadow-[0_2px_16px_rgba(27,28,30,0.04)];
+}
+
+/*
+    The tour's cut-out: one shadow chain, drawn outwards from the ringed element
+    — the live ring, its tint halo, then the veil over everything else. It has to
+    be one declaration because `ring-*` writes box-shadow too, and the second
+    declaration would win and drop the ring.
+*/
+@utility veil-around {
+    @apply pointer-events-none fixed z-50 rounded-xl duration-200;
+    transition-property: top, left, width, height;
+    box-shadow:
+        0 0 0 2px var(--live),
+        0 0 0 7px var(--live-tint),
+        0 0 0 100vmax var(--veil);
 }
 
 @utility scrim {

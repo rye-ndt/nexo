@@ -9,17 +9,24 @@ import {WorkflowWorkspace} from '@/features/workflows/components/workflow-worksp
 import {WorkflowsRail} from '@/features/workflows/components/workflows-rail'
 import {SettingsDialog} from '@/features/settings/components/settings-dialog'
 import {WorkingDialog} from '@/shared/components/working-dialog'
-import {WelcomeDialog} from '@/features/onboarding/components/welcome-dialog'
-import {useDependencies} from '@/features/onboarding/use-dependencies'
+import {OnboardingDialog} from '@/features/onboarding/components/onboarding-dialog'
+import {TourLayer} from '@/features/onboarding/components/tour-layer'
+import {TourProvider} from '@/features/onboarding/components/tour-provider'
+import {OnboardingPhase} from '@/features/onboarding/types'
+import {useOnboarding} from '@/features/onboarding/use-onboarding'
 import {useWorkflowStore} from '@/features/workflows/use-workflow-store'
 import {useWorkflowTransfer} from '@/features/workflows/use-workflow-transfer'
+import {useLanguage} from '@/shared/hooks/use-language'
 import {useToggle} from '@/shared/hooks/use-toggle'
+import {t} from '@/shared/lib/i18n'
 import type {WorkflowLocations} from '@/features/workflows/types'
 
 function App() {
+    useLanguage()
+
     const store = useWorkflowStore()
     const transfer = useWorkflowTransfer(store.importWorkflow)
-    const dependencies = useDependencies()
+    const onboarding = useOnboarding()
 
     const rail = useToggle(true)
     const settings = useToggle()
@@ -29,7 +36,10 @@ function App() {
     const pendingDelete = store.workflows.find((workflow) => workflow.id === pendingDeleteId)
 
     const createWorkflow = (locations: WorkflowLocations) => {
-        store.addWorkflow({name: `Workflow ${store.workflows.length + 1}`, ...locations})
+        store.addWorkflow({
+            name: t('app.workflow.defaultName', {count: store.workflows.length + 1}),
+            ...locations,
+        })
         newWorkflow.close()
     }
 
@@ -41,89 +51,83 @@ function App() {
     }
 
     return (
-        <div className="flex h-screen gap-3 overflow-hidden bg-background p-3 text-foreground">
-            {rail.on && (
-                <WorkflowsRail
-                    workflows={store.workflows}
-                    activeWorkflowId={store.activeWorkflowId}
-                    onSelect={store.selectWorkflow}
-                    onCreate={newWorkflow.open}
-                    onImport={transfer.beginImport}
-                    onDuplicate={store.duplicateWorkflow}
-                    onExport={transfer.exportWorkflow}
-                    onDelete={setPendingDeleteId}
-                    onReorder={store.reorderWorkflow}
+        <TourProvider active={onboarding.phase === OnboardingPhase.Tour} onDone={onboarding.finish}>
+            <div className="flex h-screen gap-3 overflow-hidden bg-background p-3 text-foreground">
+                {rail.on && (
+                    <WorkflowsRail
+                        workflows={store.workflows}
+                        activeWorkflowId={store.activeWorkflowId}
+                        onSelect={store.selectWorkflow}
+                        onCreate={newWorkflow.open}
+                        onImport={transfer.beginImport}
+                        onDuplicate={store.duplicateWorkflow}
+                        onExport={transfer.exportWorkflow}
+                        onDelete={setPendingDeleteId}
+                        onReorder={store.reorderWorkflow}
+                    />
+                )}
+
+                <WorkflowWorkspace
+                    store={store}
+                    railOpen={rail.on}
+                    onToggleRail={rail.toggle}
+                    onOpenSettings={settings.open}
                 />
-            )}
 
-            <WorkflowWorkspace
-                store={store}
-                railOpen={rail.on}
-                onToggleRail={rail.toggle}
-                onOpenSettings={settings.open}
-            />
+                {pendingDelete && (
+                    <DeleteWorkflowDialog
+                        key={pendingDelete.id}
+                        workflow={pendingDelete}
+                        onConfirm={confirmDelete}
+                        onClose={cancelDelete}
+                    />
+                )}
 
-            {pendingDelete && (
-                <DeleteWorkflowDialog
-                    key={pendingDelete.id}
-                    workflow={pendingDelete}
-                    onConfirm={confirmDelete}
-                    onClose={cancelDelete}
-                />
-            )}
+                {newWorkflow.on && (
+                    <NewWorkflowDialog onCreate={createWorkflow} onClose={newWorkflow.close} />
+                )}
 
-            {newWorkflow.on && (
-                <NewWorkflowDialog onCreate={createWorkflow} onClose={newWorkflow.close} />
-            )}
+                {transfer.pending && (
+                    <ImportWorkflowDialog
+                        key={transfer.pending.id}
+                        workflow={transfer.pending}
+                        onImport={transfer.confirmImport}
+                        onClose={transfer.cancelImport}
+                    />
+                )}
 
-            {transfer.pending && (
-                <ImportWorkflowDialog
-                    key={transfer.pending.id}
-                    workflow={transfer.pending}
-                    onImport={transfer.confirmImport}
-                    onClose={transfer.cancelImport}
-                />
-            )}
+                {transfer.reading && (
+                    <WorkingDialog
+                        title={t('app.transfer.importing.title')}
+                        description={t('app.transfer.importing.description')}
+                    />
+                )}
 
-            {transfer.reading && (
-                <WorkingDialog
-                    title="Importing workflow"
-                    description="Reading the file. Hold on."
-                />
-            )}
+                {transfer.writing && (
+                    <WorkingDialog
+                        title={t('app.transfer.exporting.title')}
+                        description={t('app.transfer.exporting.description')}
+                    />
+                )}
 
-            {transfer.writing && (
-                <WorkingDialog
-                    title="Exporting workflow"
-                    description="Writing the file. Hold on."
-                />
-            )}
+                {transfer.notice && (
+                    <NoticeDialog
+                        title={transfer.notice.title}
+                        description={transfer.notice.description}
+                        detail={transfer.notice.detail}
+                        onClose={transfer.dismissNotice}
+                    />
+                )}
 
-            {transfer.notice && (
-                <NoticeDialog
-                    title={transfer.notice.title}
-                    description={transfer.notice.description}
-                    detail={transfer.notice.detail}
-                    onClose={transfer.dismissNotice}
-                />
-            )}
+                <SettingsDialog open={settings.on} onOpenChange={settings.set} />
 
-            <SettingsDialog open={settings.on} onOpenChange={settings.set} />
+                <PathPickerHost />
 
-            <PathPickerHost />
+                <OnboardingDialog onboarding={onboarding} />
 
-            {dependencies.ready && dependencies.required && (
-                <WelcomeDialog
-                    dependencies={dependencies.dependencies}
-                    ratio={dependencies.ratio}
-                    settled={dependencies.settled}
-                    canContinue={dependencies.canContinue}
-                    failed={dependencies.failed}
-                    onRetry={dependencies.retry}
-                    onStart={dependencies.dismiss}
-                />
-            )}
-        </div>
+                <TourLayer />
+            </div>
+        </TourProvider>
     )
 }
 

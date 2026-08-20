@@ -5,7 +5,7 @@ import {Button} from '@/shared/ui/button'
 import {DialogShell} from '@/shared/components/dialog-shell'
 import {EffortTag} from '@/shared/components/effort-tag'
 import {cn} from '@/shared/lib/utils'
-import {pluralize} from '@/shared/lib/format'
+import {t, tn} from '@/shared/lib/i18n'
 import type {Role} from '@/features/roles/types'
 
 export function RoleExportDialog({
@@ -33,25 +33,28 @@ export function RoleExportDialog({
     return (
         <DialogShell
             onClose={onClose}
-            title="Export roles"
-            description="They go into one .json file you choose the place for."
+            title={t('role.export.title')}
+            description={t('role.export.description')}
             aside={
                 <Button variant="ghost" size="sm" onClick={everyone ? none : all}>
-                    {everyone ? 'Clear' : 'Select all'}
+                    {everyone ? t('role.export.clear') : t('role.export.selectAll')}
                 </Button>
             }
             footer={
                 <>
                     <p className="min-w-0 flex-1 text-sm text-muted-foreground">
                         {pickedIds.length === 0
-                            ? 'Tick the ones to take with you.'
-                            : `${pickedIds.length} of ${roles.length} selected`}
+                            ? t('role.export.hint')
+                            : t('role.export.selected', {
+                                  count: pickedIds.length,
+                                  total: roles.length,
+                              })}
                     </p>
                     <Button variant="ghost" size="sm" onClick={onClose}>
-                        Cancel
+                        {t('role.form.cancel')}
                     </Button>
                     <Button size="sm" disabled={pickedIds.length === 0} onClick={send}>
-                        Export {pluralize(pickedIds.length, 'role')}
+                        {tn('role.export.confirmOne', 'role.export.confirmOther', pickedIds.length)}
                     </Button>
                 </>
             }
@@ -110,7 +113,7 @@ function ExportRow({
                 </span>
 
                 <span className="line-clamp-1 text-sm text-muted-foreground">
-                    {role.description || 'No description set.'}
+                    {role.description || t('role.card.noDescription')}
                 </span>
             </span>
         </button>

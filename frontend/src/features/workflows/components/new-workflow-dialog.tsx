@@ -5,6 +5,7 @@ import {RequiredAgents} from '@/features/workflows/components/required-agents'
 import {WorkflowLocationsFields} from '@/features/workflows/components/workflow-locations'
 import {Button} from '@/shared/ui/button'
 import {useRequiredAgents} from '@/features/workflows/use-required-agents'
+import {t} from '@/shared/lib/i18n'
 import type {WorkflowLocations} from '@/features/workflows/types'
 
 export function NewWorkflowDialog({
@@ -29,16 +30,16 @@ export function NewWorkflowDialog({
     return (
         <DialogShell
             onClose={onClose}
-            title="New workflow"
-            description="Where this workflow runs, and the agents it needs."
+            title={t('workflow.new.title')}
+            description={t('workflow.new.description')}
             footer={
                 <>
                     <span className="flex-1" />
                     <Button variant="outline" size="sm" onClick={onClose}>
-                        Cancel
+                        {t('workflow.dialog.cancel')}
                     </Button>
                     <Button size="sm" disabled={!located || !agents.ready} onClick={create}>
-                        Create workflow
+                        {t('workflow.new.create')}
                     </Button>
                 </>
             }

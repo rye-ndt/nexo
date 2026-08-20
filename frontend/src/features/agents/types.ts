@@ -14,12 +14,3 @@ export type InstallProgress = {
     downloaded: number
     total: number
 }
-
-export type Dependency = {
-    id: string
-    name: string
-    version: string
-    stage: InstallStage
-    progress: InstallProgress | null
-    failed: boolean
-}

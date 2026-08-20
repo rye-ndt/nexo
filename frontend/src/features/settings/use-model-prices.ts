@@ -1,6 +1,7 @@
 import {useMutation, useQuery, useQueryClient} from '@tanstack/react-query'
 
 import * as api from '@/features/settings/api/preferences'
+import {t} from '@/shared/lib/i18n'
 import type {TokenPrices} from '@/features/settings/types'
 
 const MODEL_PRICES_KEY = ['model-prices']
@@ -16,11 +17,11 @@ export function useModelPrices() {
     const prices = useQuery({
         queryKey: MODEL_PRICES_KEY,
         queryFn: api.listModelPrices,
-        meta: {action: 'Could not load what your models cost'},
+        meta: {action: t('settings.error.loadPrices')},
     })
 
     const save = useMutation({
-        meta: {action: 'Could not save that price'},
+        meta: {action: t('settings.error.savePrice')},
         mutationFn: ({model, prices}: ModelPricesEdit) => api.setModelPrices(model, prices),
         onSuccess: () => queryClient.invalidateQueries({queryKey: MODEL_PRICES_KEY}),
     })

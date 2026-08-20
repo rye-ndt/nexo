@@ -147,8 +147,13 @@ export function useWorkflowStore() {
         ),
         duplicateStep: onActive((workflowId, stepId: string) => duplicateStep(workflowId, stepId)),
         removeStep: onActive((workflowId, stepId: string) => removeStep(workflowId, stepId)),
-        saveStepInputs: onActive((workflowId, stepId: string, values: Record<string, InputValue>) =>
-            store.saveStepInputs({workflowId, stepId, values}),
+        saveStepInputs: onActive(
+            (
+                workflowId,
+                stepId: string,
+                values: Record<string, InputValue>,
+                onSuccess?: () => void,
+            ) => store.saveStepInputs({workflowId, stepId, values}, {onSuccess}),
         ),
         answerStepAcceptance: onActive((workflowId, stepId: string, accepted: boolean) =>
             store.answerStepAcceptance({workflowId, stepId, accepted}),

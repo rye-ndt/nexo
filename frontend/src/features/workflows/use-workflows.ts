@@ -3,6 +3,7 @@ import {useMutation, useQuery, useQueryClient} from '@tanstack/react-query'
 import * as api from '@/features/workflows/api'
 import * as graph from '@/features/workflows/graph'
 import {StepState} from '@/shared/lib/enums'
+import {t, type MessageKey} from '@/shared/lib/i18n'
 import type {InputValue} from '@/features/roles/types'
 import type {
     Point,
@@ -30,14 +31,14 @@ function editDraft(workflows: Workflow[], workflowId: string, edit: WorkflowEdit
 }
 
 function useWorkflowMutation<TArgs>(
-    action: string,
+    action: MessageKey,
     mutationFn: (args: TArgs) => Promise<unknown>,
     optimistic: (workflows: Workflow[], args: TArgs) => Workflow[],
 ) {
     const queryClient = useQueryClient()
 
     return useMutation({
-        meta: {action},
+        meta: {action: t(action)},
         mutationFn,
         onMutate: async (args: TArgs) => {
             await queryClient.cancelQueries({queryKey: WORKFLOWS_KEY})
@@ -59,14 +60,14 @@ export function useWorkflows() {
     const {data} = useQuery({
         queryKey: WORKFLOWS_KEY,
         queryFn: api.listWorkflows,
-        meta: {action: 'Could not load your workflows'},
+        meta: {action: t('workflow.error.load')},
         refetchInterval: (query) =>
             query.state.data?.some(graph.hasActiveStep) ? RUN_POLL_MS : false,
         refetchIntervalInBackground: true,
     })
 
     const create = useWorkflowMutation(
-        'Could not create the workflow',
+        'workflow.error.create',
         (args: {workflowId: string; draft: WorkflowDraft}) =>
             api.createWorkflow(args.workflowId, args.draft),
         (workflows, {workflowId, draft}) => [
@@ -76,7 +77,7 @@ export function useWorkflows() {
     )
 
     const duplicate = useWorkflowMutation(
-        'Could not duplicate the workflow',
+        'workflow.error.duplicate',
         (args: {sourceId: string; workflowId: string}) =>
             api.duplicateWorkflow(args.sourceId, args.workflowId),
         (workflows, {sourceId, workflowId}) => {
@@ -88,14 +89,14 @@ export function useWorkflows() {
     )
 
     const importWorkflow = useWorkflowMutation(
-        'Could not import the workflow',
+        'workflow.error.import',
         (args: {workflow: Workflow; locations: WorkflowLocations}) =>
             api.importWorkflow(args.workflow, args.locations),
         (workflows, {workflow, locations}) => [{...workflow, ...locations}, ...workflows],
     )
 
     const rename = useWorkflowMutation(
-        'Could not rename the workflow',
+        'workflow.error.rename',
         (args: {workflowId: string; name: string}) =>
             api.updateWorkflow(args.workflowId, {name: args.name}),
         (workflows, {workflowId, name}) =>
@@ -103,7 +104,7 @@ export function useWorkflows() {
     )
 
     const setLocations = useWorkflowMutation(
-        'Could not save the workflow directories',
+        'workflow.error.locations',
         (args: {workflowId: string; projectDir: string}) =>
             api.updateWorkflow(args.workflowId, {projectDir: args.projectDir}),
         (workflows, {workflowId, projectDir}) =>
@@ -111,52 +112,52 @@ export function useWorkflows() {
     )
 
     const lock = useWorkflowMutation(
-        'Could not lock the workflow',
+        'workflow.error.lock',
         (args: {workflowId: string}) => api.updateWorkflow(args.workflowId, {locked: true}),
         (workflows, {workflowId}) =>
             editWorkflow(workflows, workflowId, (workflow) => ({...workflow, locked: true})),
     )
 
     const start = useWorkflowMutation(
-        'Could not start the run',
+        'workflow.error.start',
         (args: {workflowId: string}) => api.updateWorkflow(args.workflowId, {started: true}),
         (workflows, {workflowId}) =>
             editWorkflow(workflows, workflowId, (workflow) => ({...workflow, started: true})),
     )
 
     const pause = useWorkflowMutation(
-        'Could not pause the run',
+        'workflow.error.pause',
         (args: {workflowId: string}) => api.pauseWorkflow(args.workflowId),
         (workflows, {workflowId}) => editWorkflow(workflows, workflowId, graph.pauseRun),
     )
 
     const resume = useWorkflowMutation(
-        'Could not resume the run',
+        'workflow.error.resume',
         (args: {workflowId: string}) => api.resumeWorkflow(args.workflowId),
         (workflows, {workflowId}) => editWorkflow(workflows, workflowId, graph.resumeRun),
     )
 
     const cancel = useWorkflowMutation(
-        'Could not cancel the run',
+        'workflow.error.cancel',
         (args: {workflowId: string}) => api.cancelWorkflow(args.workflowId),
         (workflows, {workflowId}) => editWorkflow(workflows, workflowId, graph.cancelRun),
     )
 
     const reorder = useWorkflowMutation(
-        'Could not reorder the workflows',
+        'workflow.error.reorder',
         (args: {workflowId: string; toIndex: number}) =>
             api.reorderWorkflow(args.workflowId, args.toIndex),
         (workflows, {workflowId, toIndex}) => graph.moveWorkflow(workflows, workflowId, toIndex),
     )
 
     const remove = useWorkflowMutation(
-        'Could not delete the workflow',
+        'workflow.error.delete',
         (args: {workflowId: string}) => api.deleteWorkflow(args.workflowId),
         (workflows, {workflowId}) => workflows.filter((workflow) => workflow.id !== workflowId),
     )
 
     const createStep = useWorkflowMutation(
-        'Could not add the step',
+        'workflow.error.addStep',
         (args: {workflowId: string; stepId: string; draft: StepDraft; position: Point}) =>
             api.createStep(args.workflowId, args.stepId, args.draft, args.position),
         (workflows, {workflowId, stepId, draft, position}) =>
@@ -166,7 +167,7 @@ export function useWorkflows() {
     )
 
     const duplicateStep = useWorkflowMutation(
-        'Could not duplicate the step',
+        'workflow.error.duplicateStep',
         (args: {workflowId: string; stepId: string; copyId: string; position: Point}) =>
             api.duplicateStep(args.workflowId, args.stepId, args.copyId, args.position),
         (workflows, {workflowId, stepId, copyId, position}) =>
@@ -179,7 +180,7 @@ export function useWorkflows() {
     )
 
     const updateStep = useWorkflowMutation(
-        'Could not save the step',
+        'workflow.error.saveStep',
         (args: {workflowId: string; stepId: string; patch: Partial<Step>}) =>
             api.updateStep(args.workflowId, args.stepId, args.patch),
         (workflows, {workflowId, stepId, patch}) =>
@@ -191,7 +192,7 @@ export function useWorkflows() {
     // Layout is a view concern, not part of the graph, so it stays editable on a
     // locked workflow — hence editWorkflow rather than editDraft.
     const moveStep = useWorkflowMutation(
-        'Could not move the step',
+        'workflow.error.moveStep',
         (args: {workflowId: string; stepId: string; position: Point}) =>
             api.moveStep(args.workflowId, args.stepId, args.position),
         (workflows, {workflowId, stepId, position}) =>
@@ -201,7 +202,7 @@ export function useWorkflows() {
     )
 
     const saveInputs = useWorkflowMutation(
-        'Could not save the inputs',
+        'workflow.error.saveInputs',
         (args: {workflowId: string; stepId: string; values: Record<string, InputValue>}) =>
             api.setStepInputs(args.workflowId, args.stepId, args.values),
         (workflows, {workflowId, stepId, values}) =>
@@ -213,7 +214,7 @@ export function useWorkflows() {
     )
 
     const answerAcceptance = useWorkflowMutation(
-        'Could not record your decision',
+        'workflow.error.decision',
         (args: {workflowId: string; stepId: string; accepted: boolean}) =>
             api.answerStepAcceptance(args.workflowId, args.stepId, args.accepted),
         (workflows, {workflowId, stepId, accepted}) =>
@@ -225,7 +226,7 @@ export function useWorkflows() {
     )
 
     const revert = useWorkflowMutation(
-        'Could not revert to this step',
+        'workflow.error.revert',
         (args: {workflowId: string; stepId: string}) =>
             api.revertWorkflowTo(args.workflowId, args.stepId),
         (workflows, {workflowId, stepId}) =>
@@ -233,7 +234,7 @@ export function useWorkflows() {
     )
 
     const deleteStep = useWorkflowMutation(
-        'Could not delete the step',
+        'workflow.error.deleteStep',
         (args: {workflowId: string; stepId: string}) =>
             api.deleteStep(args.workflowId, args.stepId),
         (workflows, {workflowId, stepId}) =>
@@ -241,7 +242,7 @@ export function useWorkflows() {
     )
 
     const connect = useWorkflowMutation(
-        'Could not link the steps',
+        'workflow.error.connect',
         (args: {workflowId: string; sourceId: string; targetId: string}) =>
             api.addDependency(args.workflowId, args.sourceId, args.targetId),
         (workflows, {workflowId, sourceId, targetId}) =>
@@ -251,7 +252,7 @@ export function useWorkflows() {
     )
 
     const disconnect = useWorkflowMutation(
-        'Could not unlink the steps',
+        'workflow.error.disconnect',
         (args: {workflowId: string; sourceId: string; targetId: string}) =>
             api.removeDependency(args.workflowId, args.sourceId, args.targetId),
         (workflows, {workflowId, sourceId, targetId}) =>

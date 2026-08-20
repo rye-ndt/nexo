@@ -1,6 +1,7 @@
 import {useMutation, useQuery, useQueryClient} from '@tanstack/react-query'
 
 import * as api from '@/features/roles/api'
+import {t} from '@/shared/lib/i18n'
 
 const ROLES_KEY = ['roles']
 
@@ -9,18 +10,18 @@ export function useRoles() {
     const {data, isPending} = useQuery({
         queryKey: ROLES_KEY,
         queryFn: api.listRoles,
-        meta: {action: 'Could not load your roles'},
+        meta: {action: t('role.error.load')},
     })
 
     const invalidate = () => queryClient.invalidateQueries({queryKey: ROLES_KEY})
 
     const save = useMutation({
-        meta: {action: 'Could not save the role'},
+        meta: {action: t('role.error.save')},
         mutationFn: api.upsertRole,
         onSuccess: invalidate,
     })
     const remove = useMutation({
-        meta: {action: 'Could not delete the role'},
+        meta: {action: t('role.error.remove')},
         mutationFn: api.removeRole,
         onSuccess: invalidate,
     })
@@ -38,13 +39,13 @@ export function useRoleTransfer() {
     const queryClient = useQueryClient()
 
     const send = useMutation({
-        meta: {action: 'Could not export your roles'},
+        meta: {action: t('role.error.export')},
         mutationFn: ({roleIds, path}: {roleIds: string[]; path: string}) =>
             api.exportRoles(roleIds, path),
     })
 
     const receive = useMutation({
-        meta: {action: 'Could not import that file'},
+        meta: {action: t('role.error.import')},
         mutationFn: (path: string) => api.importRoles(path),
         onSuccess: () => queryClient.invalidateQueries({queryKey: ROLES_KEY}),
     })

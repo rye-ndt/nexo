@@ -10,6 +10,7 @@ import {useMutation} from '@tanstack/react-query'
 import * as api from '@/features/workflows/api'
 import {chooseFile, chooseSaveFile} from '@/shared/api/dialogs'
 import {reportError} from '@/shared/lib/error-bus'
+import {t} from '@/shared/lib/i18n'
 import type {Workflow, WorkflowLocations} from '@/features/workflows/types'
 
 export type TransferNotice = {title: string; description: string; detail: string}
@@ -27,12 +28,12 @@ export function useWorkflowTransfer(
     const [notice, setNotice] = useState<TransferNotice | null>(null)
 
     const read = useMutation({
-        meta: {action: 'Could not read that file'},
+        meta: {action: t('workflow.error.readFile')},
         mutationFn: (path: string) => api.readWorkflowFile(path),
     })
 
     const write = useMutation({
-        meta: {action: 'Could not export the workflow'},
+        meta: {action: t('workflow.error.export')},
         mutationFn: ({workflowId, path}: {workflowId: string; path: string}) =>
             api.exportWorkflow(workflowId, path),
     })
@@ -41,13 +42,15 @@ export function useWorkflowTransfer(
         try {
             return await pick()
         } catch (cause) {
-            reportError(cause, 'Could not open the file picker')
+            reportError(cause, t('workflow.error.filePicker'))
             return ''
         }
     }
 
     const beginImport = async () => {
-        const path = await pickPath(() => chooseFile('Import workflow', JSON_FILES))
+        const path = await pickPath(() =>
+            chooseFile(t('workflow.transfer.importPicker'), JSON_FILES),
+        )
         if (!path) return
 
         const workflow = await read.mutateAsync(path).catch(() => null)
@@ -62,15 +65,15 @@ export function useWorkflowTransfer(
         onImport(pending, locations)
         setPending(null)
         setNotice({
-            title: `Imported ${pending.name}`,
-            description: 'It is a draft: nothing runs until you lock and start it.',
+            title: t('workflow.transfer.imported.title', {name: pending.name}),
+            description: t('workflow.transfer.imported.description'),
             detail: locations.projectDir,
         })
     }
 
     const exportWorkflow = async (workflowId: string) => {
         const path = await pickPath(() =>
-            chooseSaveFile('Export workflow', exportFileName(), JSON_FILES),
+            chooseSaveFile(t('workflow.transfer.exportPicker'), exportFileName(), JSON_FILES),
         )
         if (!path) return
 
@@ -78,8 +81,8 @@ export function useWorkflowTransfer(
         if (name === null) return
 
         setNotice({
-            title: `Exported ${name}`,
-            description: 'The file carries the graph and what each step runs as. Roles stay here.',
+            title: t('workflow.transfer.exported.title', {name}),
+            description: t('workflow.transfer.exported.description'),
             detail: path,
         })
     }

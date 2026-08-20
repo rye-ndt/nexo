@@ -1,3 +1,5 @@
+import {t} from '@/shared/lib/i18n'
+
 export function FailureBubble({tldr}: {tldr: string}) {
     return (
         <div
@@ -11,7 +13,7 @@ export function FailureBubble({tldr}: {tldr: string}) {
                 !
             </span>
             <p className="line-clamp-4 text-sm leading-snug">
-                <span className="sr-only">Why this step stopped: </span>
+                <span className="sr-only">{t('canvas.failure.label')}</span>
                 {tldr}
             </p>
             <span

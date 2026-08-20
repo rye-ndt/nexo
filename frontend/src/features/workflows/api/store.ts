@@ -5,6 +5,7 @@
  */
 
 import {bridge, hasWailsRuntime} from '@/shared/api/bridge'
+import {t} from '@/shared/lib/i18n'
 import {byRailRank, isPausable, pauseRun} from '@/features/workflows/graph'
 import {MOCK_WORKFLOWS} from '@/features/workflows/mock-workflows'
 import type {Workflow} from '@/features/workflows/types'
@@ -29,19 +30,19 @@ export function prependWorkflow(workflow: Workflow): Workflow {
 
 export function findWorkflow(workflowId: string) {
     const workflow = workflows.find((workflow) => workflow.id === workflowId)
-    if (!workflow) throw new Error('That workflow is gone. Pick another one from the rail.')
+    if (!workflow) throw new Error(t('workflow.api.gone'))
     return workflow
 }
 
 export function findOpenWorkflow(workflowId: string) {
     const workflow = findWorkflow(workflowId)
-    if (workflow.locked) throw new Error('This workflow is locked. Duplicate it to make changes.')
+    if (workflow.locked) throw new Error(t('workflow.api.locked'))
     return workflow
 }
 
 export function findStep(workflow: Workflow, stepId: string) {
     const step = workflow.steps.find((step) => step.id === stepId)
-    if (!step) throw new Error('That step is gone. Pick another one on the canvas.')
+    if (!step) throw new Error(t('workflow.api.stepGone'))
     return step
 }
 

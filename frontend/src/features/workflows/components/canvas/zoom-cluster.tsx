@@ -4,6 +4,7 @@ import type {ComponentType} from 'react'
 
 import {Button} from '@/shared/ui/button'
 import {FIT_MS, FIT_VIEW_OPTIONS, ZOOM_MS} from '@/features/workflows/components/canvas/view'
+import {t} from '@/shared/lib/i18n'
 
 export function ZoomCluster() {
     const {zoomIn, zoomOut, fitView} = useReactFlow()
@@ -12,17 +13,17 @@ export function ZoomCluster() {
         <Panel position="bottom-left" style={{margin: 12}}>
             <div className="flex flex-col divide-y divide-border overflow-hidden rounded-lg bg-card shadow-[0_2px_16px_rgba(27,28,30,0.04)] ring-1 ring-border">
                 <ZoomButton
-                    label="Zoom in"
+                    label={t('canvas.zoom.in')}
                     icon={Plus}
                     onClick={() => zoomIn({duration: ZOOM_MS})}
                 />
                 <ZoomButton
-                    label="Zoom out"
+                    label={t('canvas.zoom.out')}
                     icon={Minus}
                     onClick={() => zoomOut({duration: ZOOM_MS})}
                 />
                 <ZoomButton
-                    label="Fit view"
+                    label={t('canvas.zoom.fit')}
                     icon={Maximize}
                     onClick={() => fitView({...FIT_VIEW_OPTIONS, duration: FIT_MS})}
                 />

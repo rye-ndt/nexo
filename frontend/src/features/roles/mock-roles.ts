@@ -1,4 +1,5 @@
 import {INPUT_TYPES, InputType, EFFORTS, Effort} from '@/shared/lib/enums'
+import {t} from '@/shared/lib/i18n'
 import type {Agent} from '@/features/agents/types'
 import type {DraftContext, Role, RoleArchive, RoleDraft, RoleRecord} from '@/features/roles/types'
 
@@ -131,8 +132,8 @@ recommendation: what the next step should do about it`,
 export function mockHelperBlocked(agents: Agent[]): string {
     const harness = agents.find((agent) => agent.id === 'claude_code')
 
-    if (!harness?.installed) return 'Install Claude Code to use this.'
-    if (!harness.loggedIn) return 'Log in to Claude Code to use this.'
+    if (!harness?.installed) return t('role.helper.needsInstall')
+    if (!harness.loggedIn) return t('role.helper.needsLogin')
 
     return ''
 }

@@ -6,6 +6,7 @@ import {
     DialogFooter,
     DialogTitle,
 } from '@/shared/ui/dialog'
+import {t} from '@/shared/lib/i18n'
 
 export function NoticeDialog({
     title,
@@ -39,7 +40,7 @@ export function NoticeDialog({
 
                 <DialogFooter className="h-14 border-t border-border px-5">
                     <Button autoFocus size="sm" onClick={onClose}>
-                        Done
+                        {t('shared.notice.done')}
                     </Button>
                 </DialogFooter>
             </DialogContent>

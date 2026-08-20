@@ -4,11 +4,12 @@
  * highlighting, and substitutes the values a step supplied.
  */
 
+import type {MessageKey} from '@/shared/lib/i18n'
 import type {FieldValue, InputValue} from '@/features/roles/types'
 
 const REFERENCE = /\{\{\s*([\w.-]+)\s*\}\}/g
 
-export const INPUT_REF_HINT = 'Wrap an input key in {{ }} to drop its value into the text.'
+export const INPUT_REF_HINT: MessageKey = 'role.form.inputRefHint'
 
 type PromptSegment = {
     text: string

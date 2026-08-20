@@ -6,6 +6,7 @@ import {HelpTip} from '@/shared/components/help-tip'
 import {AgentAction} from '@/shared/lib/enums'
 import {isAgentReady, type RequiredAgent} from '@/features/workflows/use-required-agents'
 import {formatAgentName} from '@/shared/lib/format'
+import {t} from '@/shared/lib/i18n'
 import {cn} from '@/shared/lib/utils'
 import type {AgentControls} from '@/features/agents/controls'
 
@@ -23,12 +24,13 @@ export function RequiredAgents({
     return (
         <div className="flex flex-col">
             <p className="px-4 py-4 text-base text-muted-foreground">
-                Your preferences run on these agents. Each one has to be logged in before the
-                workflow can start.
+                {t('workflow.agents.intro')}
             </p>
 
             {loading ? (
-                <p className="px-4 py-3 text-base text-muted-foreground">Checking agents…</p>
+                <p className="px-4 py-3 text-base text-muted-foreground">
+                    {t('workflow.agents.checking')}
+                </p>
             ) : (
                 <div className="divide-y divide-border border-t border-border">
                     {required.map((entry) => (
@@ -45,24 +47,20 @@ function NoAgentLoggedIn() {
         <div className="flex flex-col items-start gap-2 px-4 py-5">
             <span className="flex items-center gap-2 text-base font-medium">
                 <Boxes className="size-4 shrink-0 text-muted-foreground" />
-                No agent is logged in
+                {t('workflow.agents.noneTitle')}
                 <HelpTip term="agent" />
             </span>
 
-            <p className="text-sm text-muted-foreground">
-                A workflow runs on whichever agent your effort levels resolve to, and none of them
-                resolve yet. Install Claude Code, Codex or Open Code under Settings › Agents and log
-                in; the levels fill in and this workflow can be created.
-            </p>
+            <p className="text-sm text-muted-foreground">{t('workflow.agents.noneBody')}</p>
         </div>
     )
 }
 
 function statusLine(entry: RequiredAgent) {
-    if (!entry.agent) return 'Not available — add it to config.yaml'
-    if (!entry.agent.installed) return 'Not installed'
-    if (!entry.agent.loggedIn) return 'Not logged in'
-    return `v${entry.agent.version} · Ready`
+    if (!entry.agent) return t('workflow.agents.notAvailable')
+    if (!entry.agent.installed) return t('workflow.agents.notInstalled')
+    if (!entry.agent.loggedIn) return t('workflow.agents.notLoggedIn')
+    return t('workflow.agents.ready', {version: entry.agent.version})
 }
 
 function RequiredAgentRow({entry, controls}: {entry: RequiredAgent; controls: AgentControls}) {
@@ -109,7 +107,7 @@ function RequiredAgentRow({entry, controls}: {entry: RequiredAgent; controls: Ag
             </div>
 
             <p className="text-sm text-muted-foreground">
-                Runs {entry.modelLabels.join(', ')} for your effort levels.
+                {t('workflow.agents.models', {models: entry.modelLabels.join(', ')})}
             </p>
 
             {agent && authUrl && !agent.loggedIn && (

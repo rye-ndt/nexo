@@ -11,6 +11,7 @@
  */
 
 import {InstallStage} from '@/shared/lib/enums'
+import {t} from '@/shared/lib/i18n'
 import type {Agent, InstallProgress} from '@/features/agents/types'
 
 const RESOLVE_MS = 400
@@ -117,8 +118,7 @@ export async function mockStartLogin(agentId: string): Promise<string> {
 export async function mockSubmitAuthCode(agentId: string, code: string): Promise<void> {
     await wait(RESOLVE_MS)
 
-    if (code.trim().length < MIN_CODE_LENGTH)
-        throw new Error('That code looks incomplete. Copy the whole value from the login page.')
+    if (code.trim().length < MIN_CODE_LENGTH) throw new Error(t('agent.error.codeIncomplete'))
 
     markLoggedIn(agentId)
 }

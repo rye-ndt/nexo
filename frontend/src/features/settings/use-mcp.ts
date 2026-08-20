@@ -6,6 +6,7 @@ import {
     revokeMCPServer,
     setMCPCredential,
 } from '@/features/settings/api/mcp'
+import {t} from '@/shared/lib/i18n'
 
 const MCP_SERVERS_KEY = ['mcp-servers']
 
@@ -15,24 +16,24 @@ export function useMCPServers() {
     const {data, isPending} = useQuery({
         queryKey: MCP_SERVERS_KEY,
         queryFn: listMCPServers,
-        meta: {action: 'Could not load the MCP servers'},
+        meta: {action: t('settings.error.loadServers')},
     })
 
     const authorize = useMutation({
-        meta: {action: 'Could not authorize the server'},
+        meta: {action: t('settings.error.authorizeServer')},
         mutationFn: authorizeMCPServer,
         onSuccess: () => queryClient.invalidateQueries({queryKey: MCP_SERVERS_KEY}),
     })
 
     const setToken = useMutation({
-        meta: {action: 'Could not save the token'},
+        meta: {action: t('settings.error.saveToken')},
         mutationFn: ({serverId, token}: {serverId: string; token: string}) =>
             setMCPCredential(serverId, token),
         onSuccess: () => queryClient.invalidateQueries({queryKey: MCP_SERVERS_KEY}),
     })
 
     const revoke = useMutation({
-        meta: {action: 'Could not revoke the authorization'},
+        meta: {action: t('settings.error.revokeServer')},
         mutationFn: revokeMCPServer,
         onSuccess: () => queryClient.invalidateQueries({queryKey: MCP_SERVERS_KEY}),
     })

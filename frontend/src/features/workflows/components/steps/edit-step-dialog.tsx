@@ -14,6 +14,7 @@ import {missingRequired, toFieldValues, toInputValues} from '@/features/roles/ro
 import {roleOf} from '@/features/workflows/step-inputs'
 import {effortOf} from '@/features/workflows/step-spec'
 import type {Step} from '@/features/workflows/types'
+import {t} from '@/shared/lib/i18n'
 import type {FieldValue} from '@/features/roles/types'
 
 export function EditStepDialog({
@@ -61,7 +62,7 @@ export function EditStepDialog({
     return (
         <DialogShell
             onClose={onClose}
-            title={title.trim() || 'Untitled step'}
+            title={title.trim() || t('step.untitled')}
             footer={
                 <>
                     <Button
@@ -71,15 +72,15 @@ export function EditStepDialog({
                         onClick={confirmingDelete.open}
                     >
                         <Trash2 />
-                        Delete step
+                        {t('step.edit.deleteStep')}
                     </Button>
                     <span className="flex-1" />
                     <MissingInputsNote count={missing.length} />
                     <Button variant="outline" size="sm" onClick={onClose}>
-                        Cancel
+                        {t('step.edit.cancel')}
                     </Button>
                     <Button size="sm" disabled={!ready} onClick={save}>
-                        Save
+                        {t('step.edit.save')}
                     </Button>
                 </>
             }
@@ -87,17 +88,17 @@ export function EditStepDialog({
             <div className="flex flex-col gap-2 border-b border-border px-4 py-3">
                 <div className="flex items-center justify-between gap-3">
                     <span className="flex items-center gap-2">
-                        <span className="micro-label">Role</span>
+                        <span className="micro-label">{t('step.edit.role')}</span>
                         <HelpTip term="role" />
                     </span>
                     <span className="flex min-w-0 items-center gap-2 text-muted-foreground">
                         <Lock className="size-3 shrink-0" aria-hidden="true" />
                         <span className="truncate font-mono text-base text-foreground">
-                            {role?.name ?? 'No longer available'}
+                            {role?.name ?? t('step.edit.roleGone')}
                         </span>
                     </span>
                 </div>
-                <p className="text-sm text-muted-foreground">Fixed when the step was created.</p>
+                <p className="text-sm text-muted-foreground">{t('step.edit.roleFixed')}</p>
             </div>
 
             <InheritedAgent effort={effortOf(step, roles)} fromRole={Boolean(role)} />
@@ -114,9 +115,11 @@ export function EditStepDialog({
 
             {confirmingDelete.on && (
                 <ConfirmDialog
-                    title={`Delete “${step.title || 'this step'}”?`}
-                    description="Its prompt, inputs and any result it produced go with it. This cannot be undone."
-                    confirmLabel="Delete step"
+                    title={t('step.edit.deleteTitle', {
+                        name: step.title || t('step.edit.deleteThisStep'),
+                    })}
+                    description={t('step.edit.deleteBody')}
+                    confirmLabel={t('step.edit.deleteStep')}
                     destructive
                     onConfirm={onDelete}
                     onClose={confirmingDelete.close}

@@ -1,8 +1,9 @@
-import {Plus, Upload} from 'lucide-react'
+import {FolderInput, Plus} from 'lucide-react'
 
 import {HelpTip} from '@/shared/components/help-tip'
 import {WorkflowRow} from '@/features/workflows/components/workflow-row'
 import {cn} from '@/shared/lib/utils'
+import {t} from '@/shared/lib/i18n'
 import {useRailReorder} from '@/features/workflows/use-rail-reorder'
 import {Button} from '@/shared/ui/button'
 import {ScrollArea} from '@/shared/ui/scroll-area'
@@ -36,7 +37,7 @@ export function WorkflowsRail({
         <aside className="surface-card flex h-full w-[280px] shrink-0 flex-col overflow-hidden ring-1 ring-border-strong">
             <div className="flex h-14 shrink-0 items-center justify-between border-b border-border pr-2 pl-4">
                 <span className="flex items-center gap-2">
-                    <span className="micro-label">Workflows</span>
+                    <span className="micro-label">{t('workflow.rail.title')}</span>
                     <HelpTip term="workflow" side="bottom" />
                 </span>
                 <div className="flex items-center gap-1">
@@ -45,14 +46,14 @@ export function WorkflowsRail({
                             <Button
                                 variant="ghost"
                                 size="icon-sm"
-                                aria-label="Import workflow"
+                                aria-label={t('workflow.rail.import')}
                                 onClick={onImport}
                                 className="text-muted-foreground hover:bg-muted hover:text-foreground"
                             >
-                                <Upload />
+                                <FolderInput />
                             </Button>
                         </TooltipTrigger>
-                        <TooltipContent side="bottom">Import workflow</TooltipContent>
+                        <TooltipContent side="bottom">{t('workflow.rail.import')}</TooltipContent>
                     </Tooltip>
 
                     <Tooltip>
@@ -60,27 +61,27 @@ export function WorkflowsRail({
                             <Button
                                 variant="ghost"
                                 size="icon-sm"
-                                aria-label="New workflow"
+                                aria-label={t('workflow.rail.new')}
                                 onClick={onCreate}
                                 className="text-muted-foreground hover:bg-muted hover:text-foreground"
                             >
                                 <Plus />
                             </Button>
                         </TooltipTrigger>
-                        <TooltipContent side="bottom">New workflow</TooltipContent>
+                        <TooltipContent side="bottom">{t('workflow.rail.new')}</TooltipContent>
                     </Tooltip>
                 </div>
             </div>
 
             {workflows.length === 0 ? (
                 <div className="flex flex-1 flex-col items-center justify-center gap-2 px-6 text-center">
-                    <p className="text-base text-muted-foreground">No workflows yet.</p>
+                    <p className="text-base text-muted-foreground">{t('workflow.rail.empty')}</p>
                     <button
                         type="button"
                         onClick={onCreate}
                         className="rounded-md text-base font-medium underline underline-offset-4 outline-none hover:text-foreground/70 focus-visible:ring-2 focus-visible:ring-ring/50"
                     >
-                        Create your first workflow
+                        {t('workflow.rail.createFirst')}
                     </button>
                 </div>
             ) : (

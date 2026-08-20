@@ -19,6 +19,7 @@ import {useElapsed} from '@/shared/hooks/use-elapsed'
 import {useToggle} from '@/shared/hooks/use-toggle'
 import {EFFORT_LABELS, type Effort, StepState, THINKING_LEVEL_LABELS} from '@/shared/lib/enums'
 import {formatMoment, formatPercent} from '@/shared/lib/format'
+import {t} from '@/shared/lib/i18n'
 import {Button} from '@/shared/ui/button'
 
 /** A step only has a snapshot to go back to once it has reported. */
@@ -27,26 +28,28 @@ const REVERTABLE = new Set<StepState>([StepState.Done, StepState.Failed])
 function summarize(effort: Effort | null, role?: Role, agentDefault?: AgentDefault) {
     return [
         role?.name,
-        effort && EFFORT_LABELS[effort],
+        effort && t(EFFORT_LABELS[effort]),
         agentDefault &&
-            `${agentDefault.modelLabel} · ${THINKING_LEVEL_LABELS[agentDefault.thinkingLevel]}`,
+            t('inspector.status.model', {
+                model: agentDefault.modelLabel,
+                thinking: t(THINKING_LEVEL_LABELS[agentDefault.thinkingLevel]),
+            }),
     ]
         .filter(Boolean)
         .join(' · ')
 }
 
 function emptyLine(step: Step) {
-    if (step.state === StepState.Cancelled)
-        return 'This step never started. The run was cancelled before its turn came.'
-    if (step.state === StepState.Blocked)
-        return 'This step has not run. It is waiting on the steps upstream of it.'
-    return 'This step has not run yet.'
+    if (step.state === StepState.Cancelled) return t('inspector.status.emptyCancelled')
+    if (step.state === StepState.Blocked) return t('inspector.status.emptyBlocked')
+
+    return t('inspector.status.empty')
 }
 
 function pendingLine(step: Step) {
-    if (step.state === StepState.Cancelled)
-        return 'You cancelled the run while this step was working. Its work was discarded, so there is no result.'
-    return 'The result lands when this step stops.'
+    if (step.state === StepState.Cancelled) return t('inspector.status.pendingCancelled')
+
+    return t('inspector.status.pending')
 }
 
 function ignoreChange() {}
@@ -54,7 +57,7 @@ function ignoreChange() {}
 function ReadOnlyInputs({role, step}: {role: Role; step: Step}) {
     return (
         <section className="flex flex-col gap-3 px-4 py-4">
-            <span className="micro-label">Inputs</span>
+            <span className="micro-label">{t('inspector.status.inputs')}</span>
             <InputFields
                 inputs={role.inputs}
                 values={toFieldValues(role, step.values)}
@@ -108,7 +111,7 @@ export function StepStatusDialog({
         <>
             <DialogShell
                 onClose={onClose}
-                title={step.title || 'Untitled step'}
+                title={step.title || t('step.untitled')}
                 description={summarize(effort, role, agentDefault)}
                 aside={<StateBadge state={step.state} />}
                 footer={
@@ -123,11 +126,13 @@ export function StepStatusDialog({
                                 disabled={reverting}
                                 onClick={confirm.open}
                             >
-                                {reverting ? 'Reverting…' : 'Revert to this step'}
+                                {reverting
+                                    ? t('inspector.status.reverting')
+                                    : t('inspector.status.revert')}
                             </Button>
                         )}
                         <Button variant="outline" size="sm" onClick={onClose}>
-                            Close
+                            {t('inspector.status.close')}
                         </Button>
                     </>
                 }
@@ -136,15 +141,28 @@ export function StepStatusDialog({
                     {run ? (
                         <>
                             <div className="grid grid-cols-2 gap-2 px-4 py-4">
-                                <Stat label="Started" value={formatMoment(run.startedAt)} />
                                 <Stat
-                                    label={
-                                        step.state === StepState.Cancelled ? 'Stopped' : 'Finished'
-                                    }
+                                    label={t('inspector.status.started')}
+                                    value={formatMoment(run.startedAt)}
+                                />
+                                <Stat
+                                    label={t(
+                                        step.state === StepState.Cancelled
+                                            ? 'inspector.status.stopped'
+                                            : 'inspector.status.finished',
+                                    )}
                                     value={formatMoment(run.finishedAt)}
                                 />
-                                <Stat label="Elapsed" value={elapsed ?? '—'} />
-                                {retried && <Stat label="Retries" value={String(run.retryCount)} />}
+                                <Stat
+                                    label={t('inspector.status.elapsed')}
+                                    value={elapsed ?? '—'}
+                                />
+                                {retried && (
+                                    <Stat
+                                        label={t('inspector.status.retries')}
+                                        value={String(run.retryCount)}
+                                    />
+                                )}
                             </div>
 
                             {context && (
@@ -152,11 +170,15 @@ export function StepStatusDialog({
                                     <ContextDonut used={context.used} total={context.total} />
                                     <div className="flex min-w-0 flex-col gap-2">
                                         <span className="flex items-center gap-2">
-                                            <span className="micro-label">Context</span>
+                                            <span className="micro-label">
+                                                {t('inspector.status.context')}
+                                            </span>
                                             <HelpTip term="context" />
                                         </span>
                                         <span className="font-mono text-lg leading-none">
-                                            {formatPercent(context.used, context.total)}% used
+                                            {t('inspector.status.contextUsed', {
+                                                percent: formatPercent(context.used, context.total),
+                                            })}
                                         </span>
                                     </div>
                                 </div>

@@ -1,6 +1,7 @@
 import {useMutation, useQuery} from '@tanstack/react-query'
 
 import * as api from '@/features/roles/api'
+import {t} from '@/shared/lib/i18n'
 import type {DraftContext, RoleDraft} from '@/features/roles/types'
 
 const HELPER_KEY = ['role-helper']
@@ -19,7 +20,7 @@ export function useRoleHelper(
     })
 
     const fill = useMutation({
-        meta: {action: 'Could not fill this role in'},
+        meta: {action: t('role.error.fill')},
         mutationFn: (draft: RoleDraft) => api.refineRole(draft, context),
         onSuccess: onFilled,
     })

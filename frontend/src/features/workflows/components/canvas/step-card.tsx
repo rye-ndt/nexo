@@ -10,6 +10,7 @@ import {FailureBubble} from '@/features/workflows/components/canvas/failure-bubb
 import {StepActivity} from '@/features/workflows/components/canvas/step-activity'
 import {upstreamOf} from '@/features/workflows/graph'
 import {cn} from '@/shared/lib/utils'
+import {t} from '@/shared/lib/i18n'
 import type {Workflow, Step} from '@/features/workflows/types'
 
 type StepNodeData = {
@@ -21,8 +22,6 @@ type StepNodeData = {
 }
 
 export type StepNodeType = Node<StepNodeData, 'step'>
-
-export const UNTITLED = 'Untitled step'
 
 const TITLE_CLASSES: Record<StepState, string> = {
     [StepState.Idle]: 'text-state-approval',
@@ -49,8 +48,10 @@ function failureTldr(step: Step) {
 }
 
 function upstreamLine(upstream: Step[]) {
-    if (upstream.length === 1) return `Runs after ${upstream[0].title || UNTITLED}`
-    return `Runs after all ${upstream.length} upstream steps`
+    if (upstream.length === 1)
+        return t('canvas.card.runsAfter', {name: upstream[0].title || t('step.untitled')})
+
+    return t('canvas.card.runsAfterAll', {count: upstream.length})
 }
 
 export function StepCard({data, selected}: NodeProps<StepNodeType>) {
@@ -101,7 +102,7 @@ export function StepCard({data, selected}: NodeProps<StepNodeType>) {
                         !step.title && 'text-muted-foreground',
                     )}
                 >
-                    {step.title || UNTITLED}
+                    {step.title || t('step.untitled')}
                 </span>
                 {elapsed && (
                     <span className="shrink-0 font-mono text-xs text-muted-foreground">
@@ -113,7 +114,9 @@ export function StepCard({data, selected}: NodeProps<StepNodeType>) {
             <div className="relative mt-2 flex items-center justify-between gap-2 text-sm">
                 <span className="flex min-w-0 items-center gap-2">
                     {effort && <EffortTag effort={effort} />}
-                    {needsInput && <StatusChip tone="attention">Inputs</StatusChip>}
+                    {needsInput && (
+                        <StatusChip tone="attention">{t('canvas.card.inputs')}</StatusChip>
+                    )}
                 </span>
                 <span className="flex shrink-0 items-center gap-2">
                     {context && <ContextStamina used={context.used} total={context.total} />}

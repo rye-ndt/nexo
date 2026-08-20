@@ -3,6 +3,7 @@ import type {ComponentType} from 'react'
 
 import {StatusChip, type ChipTone} from '@/shared/components/status-chip'
 import {StepState, STEP_STATE_LABELS} from '@/shared/lib/enums'
+import {t} from '@/shared/lib/i18n'
 import {cn} from '@/shared/lib/utils'
 
 const STATE_TONES: Record<StepState, ChipTone> = {
@@ -20,7 +21,7 @@ const STATE_TONES: Record<StepState, ChipTone> = {
 export function StateBadge({state, className}: {state: StepState; className?: string}) {
     return (
         <StatusChip tone={STATE_TONES[state]} className={className}>
-            {STEP_STATE_LABELS[state]}
+            {t(STEP_STATE_LABELS[state])}
         </StatusChip>
     )
 }

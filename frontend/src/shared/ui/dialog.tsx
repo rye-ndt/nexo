@@ -1,6 +1,7 @@
 import * as React from 'react'
 import {Dialog as DialogPrimitive} from 'radix-ui'
 
+import {t} from '@/shared/lib/i18n'
 import {cn} from '@/shared/lib/utils'
 import {Button} from '@/shared/ui/button'
 import {XIcon} from 'lucide-react'
@@ -53,7 +54,7 @@ function DialogContent({
                     <DialogPrimitive.Close data-slot="dialog-close" asChild>
                         <Button variant="ghost" className="absolute top-4 right-4" size="icon-sm">
                             <XIcon />
-                            <span className="sr-only">Close</span>
+                            <span className="sr-only">{t('shared.dialog.close')}</span>
                         </Button>
                     </DialogPrimitive.Close>
                 )}

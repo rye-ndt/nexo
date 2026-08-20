@@ -1,14 +1,15 @@
 import {ConfirmDialog} from '@/shared/components/confirm-dialog'
 import {workflowProgress} from '@/features/workflows/graph'
+import {t, tn} from '@/shared/lib/i18n'
 import type {Workflow} from '@/features/workflows/types'
 
 function stakes(workflow: Workflow) {
     const {done, total} = workflowProgress(workflow)
 
-    if (total === 0) return 'It has no steps yet.'
-    if (done === 0) return `Its ${total} ${total === 1 ? 'step goes' : 'steps go'} with it.`
+    if (total === 0) return t('workflow.delete.noSteps')
+    if (done === 0) return tn('workflow.delete.steps.one', 'workflow.delete.steps.other', total)
 
-    return `Its ${total} steps go with it, including ${done} finished and their results.`
+    return t('workflow.delete.finished', {total, done})
 }
 
 export function DeleteWorkflowDialog({
@@ -22,9 +23,9 @@ export function DeleteWorkflowDialog({
 }) {
     return (
         <ConfirmDialog
-            title={`Delete “${workflow.name}”?`}
-            description={`${stakes(workflow)} This cannot be undone.`}
-            confirmLabel="Delete workflow"
+            title={t('workflow.delete.title', {name: workflow.name})}
+            description={stakes(workflow)}
+            confirmLabel={t('workflow.delete.confirm')}
             destructive
             onConfirm={onConfirm}
             onClose={onClose}

@@ -78,6 +78,10 @@ export function InstallAgent(arg1) {
   return window['go']['wails_api']['API']['InstallAgent'](arg1);
 }
 
+export function Language() {
+  return window['go']['wails_api']['API']['Language']();
+}
+
 export function LogoutAgent(arg1) {
   return window['go']['wails_api']['API']['LogoutAgent'](arg1);
 }
@@ -152,6 +156,10 @@ export function SetAgentDefault(arg1, arg2, arg3) {
 
 export function SetAutopilot(arg1) {
   return window['go']['wails_api']['API']['SetAutopilot'](arg1);
+}
+
+export function SetLanguage(arg1) {
+  return window['go']['wails_api']['API']['SetLanguage'](arg1);
 }
 
 export function SetMCPCredential(arg1, arg2) {

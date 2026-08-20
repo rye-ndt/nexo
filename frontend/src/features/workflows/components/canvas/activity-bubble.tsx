@@ -1,6 +1,7 @@
 import {useEffect, useRef, type UIEvent} from 'react'
 
 import {cn} from '@/shared/lib/utils'
+import {t} from '@/shared/lib/i18n'
 import type {ActivityLine} from '@/features/workflows/types'
 
 const STICK_SLACK_PX = 16
@@ -25,7 +26,7 @@ export function ActivityBubble({lines}: {lines: ActivityLine[]}) {
 
     return (
         <div className="absolute bottom-full left-0 mb-2 w-full animate-in rounded-lg bg-card p-2.5 ring-1 ring-live/25 duration-200 fade-in slide-in-from-bottom-1 motion-reduce:animate-none">
-            <span className="sr-only">What this step is doing now</span>
+            <span className="sr-only">{t('canvas.activity.label')}</span>
 
             <ol
                 ref={feed}

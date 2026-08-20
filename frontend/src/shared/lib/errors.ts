@@ -1,3 +1,5 @@
+import {t, type MessageKey} from '@/shared/lib/i18n'
+
 type ErrorSeverity = 'critical' | 'bypass' | 'unknown'
 
 export type AppError = {
@@ -11,88 +13,79 @@ export type AppError = {
     at: string
 }
 
-type Reading = {title: string; hint: string}
+type Reading = {title: MessageKey; hint: MessageKey}
 
 const GO_ENVELOPE = /^\[Err\](?: Type: (\S+) -)? Message: ([\s\S]*) - Critical: (critical|bypass)$/
 
-const FALLBACK_TITLE = 'Something went wrong'
+const FALLBACK_TITLE: MessageKey = 'error.fallbackTitle'
 
 const READINGS: Record<string, Reading> = {
     err_cannot_get_auth_info: {
-        title: 'Stored credentials could not be read',
-        hint: 'Authorize the server again in Settings › MCP.',
+        title: 'error.cannotGetAuthInfo.title',
+        hint: 'error.cannotGetAuthInfo.hint',
     },
-    err_mcp_not_found: {
-        title: 'That server is not configured',
-        hint: 'The roster comes from config.yaml. Add the server there and restart the app.',
-    },
+    err_mcp_not_found: {title: 'error.mcpNotFound.title', hint: 'error.mcpNotFound.hint'},
     err_mcp_discovery_failed: {
-        title: 'The server did not say how to authorize',
-        hint: 'Check the server URL in config.yaml, then try again.',
+        title: 'error.mcpDiscoveryFailed.title',
+        hint: 'error.mcpDiscoveryFailed.hint',
     },
     err_mcp_registration_failed: {
-        title: 'The server refused to register this app',
-        hint: 'Check the server URL in config.yaml, then try again.',
+        title: 'error.mcpRegistrationFailed.title',
+        hint: 'error.mcpRegistrationFailed.hint',
     },
     err_mcp_authorize_failed: {
-        title: 'Authorization did not finish',
-        hint: 'Start it again and approve in the browser tab that opens.',
+        title: 'error.mcpAuthorizeFailed.title',
+        hint: 'error.mcpAuthorizeFailed.hint',
     },
     err_mcp_authorize_timeout: {
-        title: 'Authorization timed out',
-        hint: 'The approval took too long. Start it again and finish in the browser tab that opens.',
+        title: 'error.mcpAuthorizeTimeout.title',
+        hint: 'error.mcpAuthorizeTimeout.hint',
     },
     err_mcp_token_exchange: {
-        title: 'The server rejected the login',
-        hint: 'Start the authorization again. If it keeps failing, the client id in config.yaml is wrong.',
+        title: 'error.mcpTokenExchange.title',
+        hint: 'error.mcpTokenExchange.hint',
     },
     err_mcp_store_credentials: {
-        title: 'The credentials could not be saved',
-        hint: 'Check that the app data directory is writable, then authorize again.',
+        title: 'error.mcpStoreCredentials.title',
+        hint: 'error.mcpStoreCredentials.hint',
     },
     err_mcp_not_authenticated: {
-        title: 'That server is not authorized yet',
-        hint: 'Authorize it in Settings › MCP before an agent can call it.',
+        title: 'error.mcpNotAuthenticated.title',
+        hint: 'error.mcpNotAuthenticated.hint',
     },
     err_mcp_credentials_expired: {
-        title: 'The credentials expired',
-        hint: 'Authorize the server again in Settings › MCP.',
+        title: 'error.mcpCredentialsExpired.title',
+        hint: 'error.mcpCredentialsExpired.hint',
     },
     err_mcp_forbidden_request: {
-        title: 'The proxy blocked that request',
-        hint: 'An agent asked for a URL the proxy does not forward. Nothing was sent.',
+        title: 'error.mcpForbiddenRequest.title',
+        hint: 'error.mcpForbiddenRequest.hint',
     },
     err_mcp_request_failed: {
-        title: 'The server did not answer',
-        hint: 'Check your connection, then try again.',
+        title: 'error.mcpRequestFailed.title',
+        hint: 'error.mcpRequestFailed.hint',
     },
     err_role_file_invalid: {
-        title: 'That file is not a role export',
-        hint: 'Nothing was imported. Export a fresh file from the app that has the roles.',
+        title: 'error.roleFileInvalid.title',
+        hint: 'error.roleFileInvalid.hint',
     },
     err_workflow_file_invalid: {
-        title: 'That file is not a workflow export',
-        hint: 'Nothing was imported. Export a fresh file from the app that has the workflow.',
+        title: 'error.workflowFileInvalid.title',
+        hint: 'error.workflowFileInvalid.hint',
     },
-    err_role_conflict: {
-        title: 'Those roles clash with the ones you have',
-        hint: 'Nothing was imported. Delete the ones named here, then import again — an imported role keeps the id it was exported with, so renaming yours is not enough.',
-    },
+    err_role_conflict: {title: 'error.roleConflict.title', hint: 'error.roleConflict.hint'},
     err_mcp_token_required: {
-        title: 'That server needs an access token',
-        hint: 'Paste a token for it in Settings › MCP.',
+        title: 'error.mcpTokenRequired.title',
+        hint: 'error.mcpTokenRequired.hint',
     },
-    err_chrome_not_found: {
-        title: 'Google Chrome is not installed',
-        hint: 'Nexo drives the Chrome in your applications folder. Install it there, then enable chrome-devtools again.',
-    },
+    err_chrome_not_found: {title: 'error.chromeNotFound.title', hint: 'error.chromeNotFound.hint'},
     err_chrome_launch_failed: {
-        title: 'Chrome would not start with remote debugging on',
-        hint: 'Quit the Chrome window Nexo opened, then enable it again. Nexo drives its own copy of your profile on its own port, so your everyday Chrome can stay open.',
+        title: 'error.chromeLaunchFailed.title',
+        hint: 'error.chromeLaunchFailed.hint',
     },
     err_chrome_not_connected: {
-        title: 'Chrome is not running',
-        hint: 'Enable chrome-devtools in Settings › MCP, then run the step again.',
+        title: 'error.chromeNotConnected.title',
+        hint: 'error.chromeNotConnected.hint',
     },
 }
 
@@ -134,9 +127,9 @@ export function toAppError(cause: unknown, action = ''): AppError {
         id: crypto.randomUUID(),
         code,
         severity,
-        title: reading?.title || action || FALLBACK_TITLE,
+        title: reading ? t(reading.title) : action || t(FALLBACK_TITLE),
         message: readable(message),
-        hint: reading?.hint ?? '',
+        hint: reading ? t(reading.hint) : '',
         detail: [raw, framesOf(cause)].filter(Boolean).join('\n\n'),
         at: new Date().toISOString(),
     }

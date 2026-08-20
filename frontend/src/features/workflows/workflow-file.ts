@@ -6,10 +6,13 @@
 
 import {copyWorkflow} from '@/features/workflows/graph'
 import {specOf} from '@/features/workflows/step-spec'
+import {t} from '@/shared/lib/i18n'
 import type {Workflow} from '@/features/workflows/types'
 import type {Role} from '@/features/roles/types'
 
-const NOT_A_WORKFLOW = 'That file is not a workflow export.'
+function notAWorkflow() {
+    return new Error(t('workflow.api.fileInvalid'))
+}
 
 export function toExportedWorkflow(workflow: Workflow, roles: Role[]): Workflow {
     const clean = copyWorkflow(workflow, workflow.name)
@@ -35,21 +38,19 @@ function readWorkflow(raw: string): Workflow {
     try {
         parsed = JSON.parse(raw) as Workflow
     } catch {
-        throw new Error(NOT_A_WORKFLOW)
+        throw notAWorkflow()
     }
 
-    if (typeof parsed?.name !== 'string' || !Array.isArray(parsed.steps))
-        throw new Error(NOT_A_WORKFLOW)
+    if (typeof parsed?.name !== 'string' || !Array.isArray(parsed.steps)) throw notAWorkflow()
 
     const ids = new Set(parsed.steps.map((step) => step?.id))
 
     for (const step of parsed.steps) {
-        if (typeof step?.id !== 'string') throw new Error(NOT_A_WORKFLOW)
-        if (typeof step.title !== 'string' || typeof step.prompt !== 'string')
-            throw new Error(NOT_A_WORKFLOW)
-        if (!isPoint(step.position)) throw new Error(NOT_A_WORKFLOW)
-        if (!Array.isArray(step.dependsOn)) throw new Error(NOT_A_WORKFLOW)
-        if (step.dependsOn.some((id) => !ids.has(id))) throw new Error(NOT_A_WORKFLOW)
+        if (typeof step?.id !== 'string') throw notAWorkflow()
+        if (typeof step.title !== 'string' || typeof step.prompt !== 'string') throw notAWorkflow()
+        if (!isPoint(step.position)) throw notAWorkflow()
+        if (!Array.isArray(step.dependsOn)) throw notAWorkflow()
+        if (step.dependsOn.some((id) => !ids.has(id))) throw notAWorkflow()
     }
 
     return parsed
