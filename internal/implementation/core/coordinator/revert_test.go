@@ -15,7 +15,7 @@ import (
 
 	"hexago/internal/helpers/enums"
 	"hexago/internal/implementation/core/coordinator"
-	"hexago/internal/implementation/core/session_manager"
+	"hexago/internal/implementation/core/workflow_manager"
 	"hexago/internal/implementation/input/storage"
 	"hexago/internal/implementation/input/workspace_history"
 	"hexago/internal/implementation/output/message_queue"
@@ -33,8 +33,8 @@ const (
 	featureTestFile = "src/feature_test.go"
 	changelogFile   = "CHANGELOG.md"
 
-	agentsDoc  = "AGENTS.md"
-	gotchasDoc = ".agent/gotchas.md"
+	agentsDoc  = ".harness/context/AGENTS.md"
+	gotchasDoc = ".harness/context/.agent/gotchas.md"
 )
 
 const (
@@ -54,7 +54,7 @@ const (
 	changelogBody = "# changelog\n\n- the fourth step doubled the feature\n"
 
 	gotchaNote = "\n- the shadow repo excludes this file on purpose\n"
-	agentsNote = "\n- learned by an agent and kept across sessions\n"
+	agentsNote = "\n- learned by an agent and kept across workflows\n"
 )
 
 type mutation struct {
@@ -105,17 +105,17 @@ func (silentLogger) Error(string, ...any) {}
 
 type pending struct {
 	agentID uuid.UUID
-	task    string
+	step    string
 }
 
 type harness struct {
-	t        *testing.T
-	dir      string
-	session  uuid.UUID
-	ids      map[string]uuid.UUID
-	sessions core_itf.SessionManager
-	history  input_itf.WorkspaceHistory
-	coord    core_itf.Coordinator
+	t         *testing.T
+	dir       string
+	workflow  uuid.UUID
+	ids       map[string]uuid.UUID
+	workflows core_itf.WorkflowManager
+	history   input_itf.WorkspaceHistory
+	coord     core_itf.Coordinator
 
 	mu       sync.Mutex
 	queued   []pending
@@ -125,7 +125,7 @@ type harness struct {
 
 // stubAgents stands in for the whole agent side. Prompted work is queued rather than
 // done inline: a real agent reports long after the coordinator has drained the event
-// its assignment emitted, and steppedSessions replays that ordering deterministically.
+// its assignment emitted, and steppedWorkflows replays that ordering deterministically.
 type stubAgents struct{ h *harness }
 
 func (s *stubAgents) SupportedAgents() (map[enums.AgentHarness][]enums.ModelName, error) {
@@ -139,7 +139,7 @@ func (s *stubAgents) RequestInstance(*core_itf.AgentRequest) (*core_itf.Agent, e
 }
 
 func (s *stubAgents) Send(agentID uuid.UUID, message string) error {
-	s.h.queue(agentID, taskNameOf(message))
+	s.h.queue(agentID, stepNameOf(message))
 
 	return nil
 }
@@ -154,26 +154,26 @@ func (s *stubAgents) Kill(uuid.UUID) error { return nil }
 
 func (s *stubAgents) HeartBeat(uuid.UUID) error { return nil }
 
-// steppedSessions is the real session manager plus a clock for the stubbed agents: a
-// queued agent runs after the coordinator has asked for ready tasks and found none, so
+// steppedWorkflows is the real workflow manager plus a clock for the stubbed agents: a
+// queued agent runs after the coordinator has asked for ready steps and found none, so
 // every report lands on an idle loop, with no timers and no sleeps involved.
-type steppedSessions struct {
-	core_itf.SessionManager
+type steppedWorkflows struct {
+	core_itf.WorkflowManager
 	h *harness
 }
 
-func (s *steppedSessions) ReadyTasks(session uuid.UUID) ([]*core_itf.TaskSpec, error) {
-	specs, err := s.SessionManager.ReadyTasks(session)
+func (s *steppedWorkflows) ReadySteps(workflow uuid.UUID) ([]*core_itf.StepSpec, error) {
+	specs, err := s.WorkflowManager.ReadySteps(workflow)
 
 	s.h.flush()
 
 	return specs, err
 }
 
-func taskNameOf(prompt string) string {
+func stepNameOf(prompt string) string {
 	line, _, _ := strings.Cut(prompt, "\n")
 
-	return strings.TrimSpace(strings.TrimPrefix(line, "# Task:"))
+	return strings.TrimSpace(strings.TrimPrefix(line, "# Step:"))
 }
 
 func newHarness(t *testing.T) *harness {
@@ -190,41 +190,41 @@ func newHarness(t *testing.T) *harness {
 		t.Fatalf("init storage: %v", err)
 	}
 
-	cfg := &input_itf.SessionConfig{
+	cfg := &input_itf.WorkflowConfig{
 		HeartbeatTimeout:       time.Hour,
 		HeartbeatScanInterval:  time.Hour,
 		AgentHeartbeatInterval: time.Hour,
 	}
 
-	sessions, err := session_manager.InitV1(cfg, store.TaskStore(), message_queue.InitV1())
+	workflows, err := workflow_manager.InitV1(cfg, store.StepStore(), message_queue.InitV1())
 	if err != nil {
-		t.Fatalf("init session manager: %v", err)
+		t.Fatalf("init workflow manager: %v", err)
 	}
 
-	t.Cleanup(sessions.Stop)
+	t.Cleanup(workflows.Stop)
 
-	history, err := workspace_history.InitV1(filepath.Join(t.TempDir(), "sessions"))
+	history, err := workspace_history.InitV1(filepath.Join(t.TempDir(), "workflows"))
 	if err != nil {
 		t.Fatalf("init workspace history: %v", err)
 	}
 
-	coord, err := coordinator.InitV1(cfg, &steppedSessions{SessionManager: sessions, h: h}, &stubAgents{h: h}, history, silentLogger{})
+	coord, err := coordinator.InitV1(cfg, &steppedWorkflows{WorkflowManager: workflows, h: h}, &stubAgents{h: h}, history, silentLogger{})
 	if err != nil {
 		t.Fatalf("init coordinator: %v", err)
 	}
 
 	t.Cleanup(coord.Stop)
 
-	h.sessions = sessions
+	h.workflows = workflows
 	h.history = history
 	h.coord = coord
 
-	session, err := sessions.NewSession(&core_itf.InitSession{WorkingDirPath: h.dir})
+	workflow, err := workflows.NewWorkflow(&core_itf.InitWorkflow{ProjectDirPath: h.dir})
 	if err != nil {
-		t.Fatalf("new session: %v", err)
+		t.Fatalf("new workflow: %v", err)
 	}
 
-	h.session = session
+	h.workflow = workflow
 
 	for _, name := range chain {
 		deps := []uuid.UUID{}
@@ -232,26 +232,26 @@ func newHarness(t *testing.T) *harness {
 			deps = append(deps, h.ids[after])
 		}
 
-		taskID, err := sessions.AddTask(session, &core_itf.AddTask{
+		stepID, err := workflows.AddStep(workflow, &core_itf.AddStep{
 			Name:       name,
 			DependsOn:  deps,
 			AgentSpecs: &core_itf.AgentRequest{Name: enums.Sonnet},
 		})
 		if err != nil {
-			t.Fatalf("add task %s: %v", name, err)
+			t.Fatalf("add step %s: %v", name, err)
 		}
 
-		h.ids[name] = taskID
+		h.ids[name] = stepID
 	}
 
 	return h
 }
 
-func (h *harness) queue(agentID uuid.UUID, task string) {
+func (h *harness) queue(agentID uuid.UUID, step string) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
-	h.queued = append(h.queued, pending{agentID: agentID, task: task})
+	h.queued = append(h.queued, pending{agentID: agentID, step: step})
 }
 
 func (h *harness) flush() {
@@ -266,43 +266,43 @@ func (h *harness) flush() {
 }
 
 func (h *harness) perform(item pending) {
-	s, found := script[item.task]
+	s, found := script[item.step]
 	if !found {
-		h.fail("an agent was prompted for unknown task %q", item.task)
+		h.fail("an agent was prompted for unknown step %q", item.step)
 
 		return
 	}
 
-	h.requireSnapshotOf(s.after, item.task)
+	h.requireSnapshotOf(s.after, item.step)
 
 	for _, m := range s.mutations {
 		h.apply(m)
 	}
 
 	h.mu.Lock()
-	h.executed = append(h.executed, item.task)
+	h.executed = append(h.executed, item.step)
 	h.mu.Unlock()
 
-	if err := h.sessions.Report(item.agentID, enums.TaskCompleted, []*core_itf.HandoverDoc{{
-		TLDR:    "step " + item.task + " finished",
-		Outcome: "step " + item.task + " changed the files it owns",
+	if err := h.workflows.Report(item.agentID, enums.StepCompleted, []*core_itf.Handoff{{
+		TLDR:    "step " + item.step + " finished",
+		Outcome: "step " + item.step + " changed the files it owns",
 	}}); err != nil {
-		h.fail("report of %s: %v", item.task, err)
+		h.fail("report of %s: %v", item.step, err)
 	}
 }
 
 // requireSnapshotOf is the property the whole feature rests on: by the time an agent is
 // free to write, its predecessor must already be committed, and that commit must hold
 // exactly what the predecessor changed and nothing this agent is about to do.
-func (h *harness) requireSnapshotOf(predecessor, task string) {
+func (h *harness) requireSnapshotOf(predecessor, step string) {
 	snapshot := uuid.Nil
 	if predecessor != "" {
 		snapshot = h.ids[predecessor]
 	}
 
-	changes, err := h.history.Diff(h.session, snapshot)
+	changes, err := h.history.Diff(h.workflow, snapshot)
 	if err != nil {
-		h.fail("no workspace snapshot of %q when %q started writing: %v", predecessor, task, err)
+		h.fail("no workspace snapshot of %q when %q started writing: %v", predecessor, step, err)
 
 		return
 	}
@@ -313,7 +313,7 @@ func (h *harness) requireSnapshotOf(predecessor, task string) {
 
 	got, want := changeSet(changes), trackedChanges(script[predecessor])
 	if !reflect.DeepEqual(got, want) {
-		h.fail("snapshot of %q read when %q started writing = %v, want %v", predecessor, task, got, want)
+		h.fail("snapshot of %q read when %q started writing = %v, want %v", predecessor, step, got, want)
 	}
 }
 
@@ -389,8 +389,8 @@ func (h *harness) forget() {
 func (h *harness) runToCompletion(expected ...string) {
 	h.t.Helper()
 
-	if err := h.coord.Run(h.session); err != nil {
-		h.t.Fatalf("run session: %v", err)
+	if err := h.coord.Run(h.workflow); err != nil {
+		h.t.Fatalf("run workflow: %v", err)
 	}
 
 	h.waitFor("steps "+strings.Join(expected, ",")+" to run and be snapshotted", func() bool {
@@ -398,7 +398,7 @@ func (h *harness) runToCompletion(expected ...string) {
 			return false
 		}
 
-		_, err := h.history.Diff(h.session, h.ids[expected[len(expected)-1]])
+		_, err := h.history.Diff(h.workflow, h.ids[expected[len(expected)-1]])
 
 		return err == nil
 	})
@@ -422,17 +422,17 @@ func (h *harness) waitFor(what string, done func() bool) {
 	h.t.Fatalf("timed out waiting for %s, steps run so far: %v", what, h.ran())
 }
 
-func (h *harness) statuses() map[string]*core_itf.TaskReport {
+func (h *harness) statuses() map[string]*core_itf.StepResult {
 	h.t.Helper()
 
-	status, err := h.sessions.Status(h.session)
+	status, err := h.workflows.Status(h.workflow)
 	if err != nil {
-		h.t.Fatalf("session status: %v", err)
+		h.t.Fatalf("workflow status: %v", err)
 	}
 
-	byName := map[string]*core_itf.TaskReport{}
+	byName := map[string]*core_itf.StepResult{}
 	for name, id := range h.ids {
-		byName[name] = status.Tasks[id]
+		byName[name] = status.Steps[id]
 	}
 
 	return byName
@@ -500,11 +500,11 @@ func readTree(t *testing.T, dir string) map[string]string {
 
 		rel = filepath.ToSlash(rel)
 
-		if rel == ".agent" {
+		if rel == ".harness" {
 			return fs.SkipDir
 		}
 
-		if entry.IsDir() || rel == agentsDoc {
+		if entry.IsDir() {
 			return nil
 		}
 
@@ -565,7 +565,7 @@ func TestRevertToRestoresTheWorkspaceAndRewindsTheGraph(t *testing.T) {
 
 	assertTree(t, h.dir, treeAfter(chain...))
 
-	if err := h.coord.RevertTo(h.session, h.ids["b"]); err != nil {
+	if err := h.coord.RevertTo(h.workflow, h.ids["b"]); err != nil {
 		t.Fatalf("revert to b: %v", err)
 	}
 
@@ -599,54 +599,54 @@ func TestRevertToRestoresTheWorkspaceAndRewindsTheGraph(t *testing.T) {
 		t.Errorf("%s lost the note the third step wrote, got %q", gotchasDoc, body)
 	}
 
-	if _, err := os.Stat(filepath.Join(h.dir, ".agent", "flows", "build-test-run.md")); err != nil {
+	if _, err := os.Stat(filepath.Join(h.dir, ".harness", "context", ".agent", "flows", "build-test-run.md")); err != nil {
 		t.Errorf("the knowledge base was rolled back: %v", err)
 	}
 
 	reports := h.statuses()
 
 	for _, name := range []string{"a", "b"} {
-		if reports[name].Status != enums.TaskCompleted {
-			t.Errorf("task %s status = %s, want %s", name, reports[name].Status, enums.TaskCompleted)
+		if reports[name].Status != enums.StepCompleted {
+			t.Errorf("step %s status = %s, want %s", name, reports[name].Status, enums.StepCompleted)
 		}
 
-		if len(reports[name].HandoverDocs) == 0 {
-			t.Errorf("task %s lost its handover docs", name)
+		if len(reports[name].Handoffs) == 0 {
+			t.Errorf("step %s lost its handoffs", name)
 			continue
 		}
 
-		if got := reports[name].HandoverDocs[0].Task; got != name {
-			t.Errorf("task %s handover doc names %q, want the task itself", name, got)
+		if got := reports[name].Handoffs[0].Step; got != name {
+			t.Errorf("step %s handoff names %q, want the step itself", name, got)
 		}
 	}
 
 	for _, name := range []string{"c", "d"} {
-		if reports[name].Status != enums.TaskNotTaken {
-			t.Errorf("task %s status = %s, want %s", name, reports[name].Status, enums.TaskNotTaken)
+		if reports[name].Status != enums.StepNotTaken {
+			t.Errorf("step %s status = %s, want %s", name, reports[name].Status, enums.StepNotTaken)
 		}
 
-		if len(reports[name].HandoverDocs) != 0 {
-			t.Errorf("task %s kept %d handover docs for work that no longer exists", name, len(reports[name].HandoverDocs))
+		if len(reports[name].Handoffs) != 0 {
+			t.Errorf("step %s kept %d handoffs for work that no longer exists", name, len(reports[name].Handoffs))
 		}
 	}
 }
 
-func TestSessionRunsAgainFromTheRevertPoint(t *testing.T) {
+func TestWorkflowRunsAgainFromTheRevertPoint(t *testing.T) {
 	h := newHarness(t)
 
 	h.runToCompletion(chain...)
 
-	if err := h.coord.RevertTo(h.session, h.ids["b"]); err != nil {
+	if err := h.coord.RevertTo(h.workflow, h.ids["b"]); err != nil {
 		t.Fatalf("revert to b: %v", err)
 	}
 
-	specs, err := h.sessions.ReadyTasks(h.session)
+	specs, err := h.workflows.ReadySteps(h.workflow)
 	if err != nil {
-		t.Fatalf("ready tasks: %v", err)
+		t.Fatalf("ready steps: %v", err)
 	}
 
-	if len(specs) != 1 || specs[0].TaskID != h.ids["c"] {
-		t.Fatalf("after a revert the pool must offer c again, got %d ready tasks", len(specs))
+	if len(specs) != 1 || specs[0].StepID != h.ids["c"] {
+		t.Fatalf("after a revert the pool must offer c again, got %d ready steps", len(specs))
 	}
 
 	h.forget()

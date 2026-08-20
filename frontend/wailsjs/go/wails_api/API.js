@@ -18,8 +18,8 @@ export function AnswerApproval(arg1, arg2, arg3, arg4) {
   return window['go']['wails_api']['API']['AnswerApproval'](arg1, arg2, arg3, arg4);
 }
 
-export function AnswerTaskAcceptance(arg1, arg2) {
-  return window['go']['wails_api']['API']['AnswerTaskAcceptance'](arg1, arg2);
+export function AnswerStepReview(arg1, arg2) {
+  return window['go']['wails_api']['API']['AnswerStepReview'](arg1, arg2);
 }
 
 export function AuthAgent(arg1) {
@@ -34,8 +34,8 @@ export function Autopilot() {
   return window['go']['wails_api']['API']['Autopilot']();
 }
 
-export function CancelSession(arg1) {
-  return window['go']['wails_api']['API']['CancelSession'](arg1);
+export function CancelWorkflow(arg1) {
+  return window['go']['wails_api']['API']['CancelWorkflow'](arg1);
 }
 
 export function ChooseDirectory(arg1) {
@@ -54,24 +54,24 @@ export function CompleteOnboarding() {
   return window['go']['wails_api']['API']['CompleteOnboarding']();
 }
 
-export function DeleteSessionDraft(arg1) {
-  return window['go']['wails_api']['API']['DeleteSessionDraft'](arg1);
+export function DeleteWorkflowDraft(arg1) {
+  return window['go']['wails_api']['API']['DeleteWorkflowDraft'](arg1);
 }
 
-export function ExportSession(arg1, arg2) {
-  return window['go']['wails_api']['API']['ExportSession'](arg1, arg2);
+export function ExportRoles(arg1, arg2) {
+  return window['go']['wails_api']['API']['ExportRoles'](arg1, arg2);
 }
 
-export function ExportTemplates(arg1, arg2) {
-  return window['go']['wails_api']['API']['ExportTemplates'](arg1, arg2);
+export function ExportWorkflow(arg1, arg2) {
+  return window['go']['wails_api']['API']['ExportWorkflow'](arg1, arg2);
 }
 
-export function ImportSession(arg1) {
-  return window['go']['wails_api']['API']['ImportSession'](arg1);
+export function ImportRoles(arg1) {
+  return window['go']['wails_api']['API']['ImportRoles'](arg1);
 }
 
-export function ImportTemplates(arg1) {
-  return window['go']['wails_api']['API']['ImportTemplates'](arg1);
+export function ImportWorkflow(arg1) {
+  return window['go']['wails_api']['API']['ImportWorkflow'](arg1);
 }
 
 export function InstallAgent(arg1) {
@@ -90,52 +90,56 @@ export function Onboarded() {
   return window['go']['wails_api']['API']['Onboarded']();
 }
 
-export function PauseSession(arg1) {
-  return window['go']['wails_api']['API']['PauseSession'](arg1);
+export function PauseWorkflow(arg1) {
+  return window['go']['wails_api']['API']['PauseWorkflow'](arg1);
 }
 
 export function PendingApprovals() {
   return window['go']['wails_api']['API']['PendingApprovals']();
 }
 
-export function RefineTemplate(arg1) {
-  return window['go']['wails_api']['API']['RefineTemplate'](arg1);
+export function RefineRole(arg1) {
+  return window['go']['wails_api']['API']['RefineRole'](arg1);
 }
 
-export function RemoveTemplate(arg1) {
-  return window['go']['wails_api']['API']['RemoveTemplate'](arg1);
+export function RemoveRole(arg1) {
+  return window['go']['wails_api']['API']['RemoveRole'](arg1);
 }
 
-export function ResumeSession(arg1) {
-  return window['go']['wails_api']['API']['ResumeSession'](arg1);
+export function ResumeWorkflow(arg1) {
+  return window['go']['wails_api']['API']['ResumeWorkflow'](arg1);
 }
 
-export function RetrySessionTask(arg1) {
-  return window['go']['wails_api']['API']['RetrySessionTask'](arg1);
+export function RetryWorkflowStep(arg1) {
+  return window['go']['wails_api']['API']['RetryWorkflowStep'](arg1);
 }
 
-export function RevertSessionTo(arg1, arg2) {
-  return window['go']['wails_api']['API']['RevertSessionTo'](arg1, arg2);
+export function RevertWorkflowTo(arg1, arg2) {
+  return window['go']['wails_api']['API']['RevertWorkflowTo'](arg1, arg2);
 }
 
 export function RevokeMCPServer(arg1) {
   return window['go']['wails_api']['API']['RevokeMCPServer'](arg1);
 }
 
-export function RunSession(arg1) {
-  return window['go']['wails_api']['API']['RunSession'](arg1);
+export function Role(arg1) {
+  return window['go']['wails_api']['API']['Role'](arg1);
 }
 
-export function SaveSessionDraft(arg1, arg2) {
-  return window['go']['wails_api']['API']['SaveSessionDraft'](arg1, arg2);
+export function RoleHelperBlocked() {
+  return window['go']['wails_api']['API']['RoleHelperBlocked']();
 }
 
-export function SessionDrafts() {
-  return window['go']['wails_api']['API']['SessionDrafts']();
+export function Roles() {
+  return window['go']['wails_api']['API']['Roles']();
 }
 
-export function SessionStatus(arg1) {
-  return window['go']['wails_api']['API']['SessionStatus'](arg1);
+export function RunWorkflow(arg1) {
+  return window['go']['wails_api']['API']['RunWorkflow'](arg1);
+}
+
+export function SaveWorkflowDraft(arg1, arg2) {
+  return window['go']['wails_api']['API']['SaveWorkflowDraft'](arg1, arg2);
 }
 
 export function SetAgentDefault(arg1, arg2, arg3) {
@@ -162,30 +166,26 @@ export function Startup(arg1) {
   return window['go']['wails_api']['API']['Startup'](arg1);
 }
 
+export function StepDiff(arg1, arg2) {
+  return window['go']['wails_api']['API']['StepDiff'](arg1, arg2);
+}
+
 export function SubmitAuthCode(arg1, arg2) {
   return window['go']['wails_api']['API']['SubmitAuthCode'](arg1, arg2);
-}
-
-export function TaskDiff(arg1, arg2) {
-  return window['go']['wails_api']['API']['TaskDiff'](arg1, arg2);
-}
-
-export function Template(arg1) {
-  return window['go']['wails_api']['API']['Template'](arg1);
-}
-
-export function TemplateHelperBlocked() {
-  return window['go']['wails_api']['API']['TemplateHelperBlocked']();
-}
-
-export function Templates() {
-  return window['go']['wails_api']['API']['Templates']();
 }
 
 export function UninstallAgent(arg1) {
   return window['go']['wails_api']['API']['UninstallAgent'](arg1);
 }
 
-export function UpsertTemplate(arg1) {
-  return window['go']['wails_api']['API']['UpsertTemplate'](arg1);
+export function UpsertRole(arg1) {
+  return window['go']['wails_api']['API']['UpsertRole'](arg1);
+}
+
+export function WorkflowDrafts() {
+  return window['go']['wails_api']['API']['WorkflowDrafts']();
+}
+
+export function WorkflowStatus(arg1) {
+  return window['go']['wails_api']['API']['WorkflowStatus'](arg1);
 }

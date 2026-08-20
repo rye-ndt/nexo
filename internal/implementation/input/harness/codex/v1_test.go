@@ -124,7 +124,7 @@ func TestActivityTextSummarizesCodexItems(t *testing.T) {
 	}{
 		{item: codexItem{Type: "commandExecution", Command: "go test ./..."}, want: "Running go test ./..."},
 		{item: change, want: "Editing internal/service.go"},
-		{item: codexItem{Type: "mcpToolCall", Server: "harness", Tool: "report_task"}, want: "Using harness.report_task"},
+		{item: codexItem{Type: "mcpToolCall", Server: "harness", Tool: "report_step"}, want: "Using harness.report_step"},
 		{item: codexItem{Type: "webSearch", Query: "Codex app server"}, want: "Searching web for Codex app server"},
 	}
 

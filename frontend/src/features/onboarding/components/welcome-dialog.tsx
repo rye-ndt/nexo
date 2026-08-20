@@ -69,7 +69,7 @@ export function WelcomeDialog({
 
                 {failed && canContinue && (
                     <p className="text-sm text-muted-foreground">
-                        You can start with the harnesses that are ready.
+                        You can start with the agents that are ready.
                     </p>
                 )}
 

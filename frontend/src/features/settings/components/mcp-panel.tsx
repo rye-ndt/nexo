@@ -3,6 +3,7 @@ import {useState, type FormEvent} from 'react'
 import {Button} from '@/shared/ui/button'
 import {ConfirmDialog} from '@/shared/components/confirm-dialog'
 import {Input} from '@/shared/ui/input'
+import {HelpTip} from '@/shared/components/help-tip'
 import {StatusChip} from '@/shared/components/status-chip'
 import {MCPAuthKind} from '@/shared/lib/enums'
 import {useMCPServers} from '@/features/settings/use-mcp'
@@ -70,7 +71,10 @@ export function MCPPanel() {
     return (
         <section className="flex flex-col">
             <div className="flex flex-col gap-1 px-4 pt-4 pb-3">
-                <h3 className="text-lg font-medium">Servers agents can call</h3>
+                <div className="flex items-center gap-2">
+                    <h3 className="text-lg font-medium">Servers agents can call</h3>
+                    <HelpTip term="mcp" />
+                </div>
                 <p className="text-sm text-muted-foreground">
                     The list comes from config.yaml. Authorize a server once and every agent reaches
                     it through the proxy.

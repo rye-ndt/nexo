@@ -7,7 +7,7 @@
  */
 
 import {bridge, hasWailsRuntime} from '@/shared/api/bridge'
-import {TASK_LEVELS, THINKING_LEVELS, type TaskLevel, type ThinkingLevel} from '@/shared/lib/enums'
+import {EFFORTS, THINKING_LEVELS, type Effort, type ThinkingLevel} from '@/shared/lib/enums'
 import {
     MOCK_AGENT_DEFAULT_OPTIONS,
     MOCK_AGENT_DEFAULTS,
@@ -44,7 +44,7 @@ async function roundtrip() {
 
 function modelLabel(model: string) {
     const option = MOCK_AGENT_DEFAULT_OPTIONS.models.find((candidate) => candidate.model === model)
-    if (!option) throw new Error(`${model} is not a model this harness can run.`)
+    if (!option) throw new Error(`${model} is not a model this agent can run.`)
     return option.label
 }
 
@@ -55,10 +55,10 @@ export async function listAgentDefaults(): Promise<AgentDefault[]> {
     const stored: AgentDefault[] = []
 
     for (const info of infos) {
-        if (!isTaskLevel(info.task_level) || !isThinkingLevel(info.thinking_level)) continue
+        if (!isEffort(info.effort) || !isThinkingLevel(info.thinking_level)) continue
 
         stored.push({
-            taskLevel: info.task_level,
+            effort: info.effort,
             model: info.model,
             modelLabel: info.model_label,
             thinkingLevel: info.thinking_level,
@@ -90,7 +90,7 @@ export async function agentDefaultOptions(): Promise<AgentDefaultOptions> {
     const info = await bridge(FetchAgentDefaultOptions)
 
     return {
-        taskLevels: (info.task_levels ?? []).filter(isTaskLevel),
+        efforts: (info.efforts ?? []).filter(isEffort),
         models: (info.models ?? []).map((model) => ({
             model: model.model,
             label: model.label,
@@ -101,15 +101,16 @@ export async function agentDefaultOptions(): Promise<AgentDefaultOptions> {
 }
 
 export async function setAgentDefault(
-    taskLevel: string,
+    effort: string,
     model: string,
     thinkingLevel: string,
 ): Promise<void> {
-    if (!isTaskLevel(taskLevel)) throw new Error(`${taskLevel} is not a task level.`)
-    if (!isThinkingLevel(thinkingLevel)) throw new Error(`${thinkingLevel} is not an effort level.`)
+    if (!isEffort(effort)) throw new Error(`${effort} is not an effort level.`)
+    if (!isThinkingLevel(thinkingLevel))
+        throw new Error(`${thinkingLevel} is not a thinking level.`)
 
     if (hasWailsRuntime()) {
-        await bridge(() => SaveAgentDefault(taskLevel, model, thinkingLevel))
+        await bridge(() => SaveAgentDefault(effort, model, thinkingLevel))
         return
     }
 
@@ -117,9 +118,7 @@ export async function setAgentDefault(
     await roundtrip()
 
     defaults = defaults.map((current) =>
-        current.taskLevel === taskLevel
-            ? {...current, model, modelLabel: label, thinkingLevel}
-            : current,
+        current.effort === effort ? {...current, model, modelLabel: label, thinkingLevel} : current,
     )
 }
 
@@ -165,8 +164,8 @@ export function cachedModelPrices(): ModelPrice[] {
     return modelPrices
 }
 
-function isTaskLevel(value: string): value is TaskLevel {
-    return TASK_LEVELS.some((level) => level === value)
+function isEffort(value: string): value is Effort {
+    return EFFORTS.some((level) => level === value)
 }
 
 function isThinkingLevel(value: string): value is ThinkingLevel {

@@ -1,9 +1,10 @@
 import {
     AgentDefaultRow,
-    EFFORT_COLUMN,
     MODEL_COLUMN,
+    THINKING_COLUMN,
 } from '@/features/settings/components/agent-default-row'
 import {ModelPriceRow, PRICE_BAND} from '@/features/settings/components/model-price-row'
+import {HelpTip} from '@/shared/components/help-tip'
 import {useAgentDefaults} from '@/features/settings/use-agent-defaults'
 import {useAutopilot} from '@/features/settings/use-autopilot'
 import {useModelPrices} from '@/features/settings/use-model-prices'
@@ -22,10 +23,10 @@ function AutopilotSection() {
                     Autopilot
                 </h3>
                 <p className="text-sm text-muted-foreground">
-                    A node whose template requires manual acceptance stops when it finishes and
-                    waits for you to read its handover. Autopilot ignores that flag everywhere:
-                    every node hands straight to the next one and the session runs to the end
-                    unattended. Leave it off while you still want to read the work.
+                    A step whose role pauses for your review stops when it finishes and waits for
+                    you to read its handoff. Autopilot ignores that flag everywhere: every step
+                    hands straight to the next one and the workflow runs to the end unattended.
+                    Leave it off while you still want to read the work.
                 </p>
             </div>
 
@@ -82,18 +83,18 @@ function ModelPricingSection() {
 }
 
 export function PreferencesPanel() {
-    const {defaults, options, loading, pendingTaskLevel, setAgentDefault} = useAgentDefaults()
+    const {defaults, options, loading, pendingEffort, setAgentDefault} = useAgentDefaults()
 
     const changeModel = (agentDefault: AgentDefault) => (model: string) =>
         setAgentDefault({
-            taskLevel: agentDefault.taskLevel,
+            effort: agentDefault.effort,
             model,
             thinkingLevel: agentDefault.thinkingLevel,
         })
 
     const changeThinkingLevel = (agentDefault: AgentDefault) => (thinkingLevel: ThinkingLevel) =>
         setAgentDefault({
-            taskLevel: agentDefault.taskLevel,
+            effort: agentDefault.effort,
             model: agentDefault.model,
             thinkingLevel,
         })
@@ -104,18 +105,21 @@ export function PreferencesPanel() {
 
             <section className="flex flex-col">
                 <div className="flex flex-col gap-1 px-4 pt-4 pb-3">
-                    <h3 className="text-lg font-medium">Model per task level</h3>
+                    <h3 className="text-lg font-medium">Model per effort level</h3>
                     <p className="text-sm text-muted-foreground">
-                        Every node inherits its model and effort from its task level. Change a row
-                        and every node at that level follows, including nodes you have already
+                        Every step inherits its model from the effort its role asks for. Change a
+                        row and every step at that effort follows, including steps you have already
                         drawn.
                     </p>
                 </div>
 
                 <div className="flex items-center gap-3 border-y border-border px-4 py-2">
-                    <span className="micro-label min-w-0 flex-1">Task level</span>
+                    <span className="micro-label min-w-0 flex-1">Effort</span>
                     <span className={cn('micro-label shrink-0', MODEL_COLUMN)}>Model</span>
-                    <span className={cn('micro-label shrink-0', EFFORT_COLUMN)}>Effort</span>
+                    <span className={cn('flex shrink-0 items-center gap-2', THINKING_COLUMN)}>
+                        <span className="micro-label">Thinking</span>
+                        <HelpTip term="thinking" />
+                    </span>
                 </div>
 
                 {loading || !options ? (
@@ -126,10 +130,10 @@ export function PreferencesPanel() {
                     <div className="divide-y divide-border">
                         {defaults.map((agentDefault) => (
                             <AgentDefaultRow
-                                key={agentDefault.taskLevel}
+                                key={agentDefault.effort}
                                 agentDefault={agentDefault}
                                 options={options}
-                                saving={pendingTaskLevel === agentDefault.taskLevel}
+                                saving={pendingEffort === agentDefault.effort}
                                 onChangeModel={changeModel(agentDefault)}
                                 onChangeThinkingLevel={changeThinkingLevel(agentDefault)}
                             />

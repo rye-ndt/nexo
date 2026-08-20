@@ -57,9 +57,9 @@ func TestNewAcceptsShippedConfig(t *testing.T) {
 		t.Fatal("mcp_servers.control.endpoint_file is empty, so the shim has nothing to read")
 	}
 
-	if control.MaxTasksPerSession <= 0 || control.MaxSessionsListed <= 0 {
-		t.Fatalf("mcp_servers.control caps must be positive, got %d tasks and %d sessions",
-			control.MaxTasksPerSession, control.MaxSessionsListed)
+	if control.MaxStepsPerWorkflow <= 0 || control.MaxWorkflowsListed <= 0 {
+		t.Fatalf("mcp_servers.control caps must be positive, got %d steps and %d workflows",
+			control.MaxStepsPerWorkflow, control.MaxWorkflowsListed)
 	}
 }
 

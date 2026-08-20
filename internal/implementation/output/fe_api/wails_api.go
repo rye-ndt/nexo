@@ -26,59 +26,59 @@ const installProgressEvent = "harness:install:progress"
 
 const (
 	idApproval = "approval"
-	idTemplate = "template"
-	idSession  = "session"
-	idTask     = "task"
-	idDraft    = "session draft"
+	idRole     = "role"
+	idWorkflow = "workflow"
+	idStep     = "step"
+	idDraft    = "workflow draft"
 )
 
 type API struct {
-	ctx            context.Context
-	agentManager   core_itf.AgentManager
-	mcpProxy       core_itf.MCPProxyServer
-	approvals      core_itf.ApprovalBroker
-	templates      core_itf.AgentTemplateManager
-	sessions       core_itf.SessionManager
-	control        core_itf.SessionControl
-	coordinator    core_itf.Coordinator
-	history        input_itf.WorkspaceHistory
-	userConfig     output_itf.UserConfig
-	drafts         input_itf.DraftStorage
-	sessionArchive input_itf.SessionArchive
-	templateHelp   core_itf.TemplateHelper
+	ctx             context.Context
+	agentManager    core_itf.AgentManager
+	mcpProxy        core_itf.MCPProxyServer
+	approvals       core_itf.ApprovalBroker
+	roles           core_itf.RoleManager
+	workflows       core_itf.WorkflowManager
+	control         core_itf.WorkflowControl
+	coordinator     core_itf.Coordinator
+	history         input_itf.WorkspaceHistory
+	userConfig      output_itf.UserConfig
+	drafts          input_itf.DraftStorage
+	workflowArchive input_itf.WorkflowArchive
+	roleHelp        core_itf.RoleHelper
 }
 
 var _ output_itf.FEAPI = (*API)(nil)
 
 type Deps struct {
-	AgentManager   core_itf.AgentManager
-	MCPProxy       core_itf.MCPProxyServer
-	Approvals      core_itf.ApprovalBroker
-	Templates      core_itf.AgentTemplateManager
-	Sessions       core_itf.SessionManager
-	Control        core_itf.SessionControl
-	Coordinator    core_itf.Coordinator
-	History        input_itf.WorkspaceHistory
-	UserConfig     output_itf.UserConfig
-	Drafts         input_itf.DraftStorage
-	SessionArchive input_itf.SessionArchive
-	TemplateHelper core_itf.TemplateHelper
+	AgentManager    core_itf.AgentManager
+	MCPProxy        core_itf.MCPProxyServer
+	Approvals       core_itf.ApprovalBroker
+	Roles           core_itf.RoleManager
+	Workflows       core_itf.WorkflowManager
+	Control         core_itf.WorkflowControl
+	Coordinator     core_itf.Coordinator
+	History         input_itf.WorkspaceHistory
+	UserConfig      output_itf.UserConfig
+	Drafts          input_itf.DraftStorage
+	WorkflowArchive input_itf.WorkflowArchive
+	RoleHelper      core_itf.RoleHelper
 }
 
 func New(deps *Deps) *API {
 	return &API{
-		agentManager:   deps.AgentManager,
-		mcpProxy:       deps.MCPProxy,
-		approvals:      deps.Approvals,
-		templates:      deps.Templates,
-		sessions:       deps.Sessions,
-		control:        deps.Control,
-		coordinator:    deps.Coordinator,
-		history:        deps.History,
-		userConfig:     deps.UserConfig,
-		drafts:         deps.Drafts,
-		sessionArchive: deps.SessionArchive,
-		templateHelp:   deps.TemplateHelper,
+		agentManager:    deps.AgentManager,
+		mcpProxy:        deps.MCPProxy,
+		approvals:       deps.Approvals,
+		roles:           deps.Roles,
+		workflows:       deps.Workflows,
+		control:         deps.Control,
+		coordinator:     deps.Coordinator,
+		history:         deps.History,
+		userConfig:      deps.UserConfig,
+		drafts:          deps.Drafts,
+		workflowArchive: deps.WorkflowArchive,
+		roleHelp:        deps.RoleHelper,
 	}
 }
 
@@ -93,8 +93,8 @@ func (a *API) Shutdown(ctx context.Context) {
 		a.coordinator.Stop()
 	}
 
-	if a.sessions != nil {
-		a.sessions.Stop()
+	if a.workflows != nil {
+		a.workflows.Stop()
 	}
 
 	if a.approvals != nil {
@@ -146,10 +146,10 @@ func fromID[T any](kind, id string, do func(uuid.UUID) (T, error)) (T, error) {
 	return do(parsed)
 }
 
-func withSessionTask(sessionID, taskID string, do func(session, task uuid.UUID) error) error {
-	return withID(idSession, sessionID, func(session uuid.UUID) error {
-		return withID(idTask, taskID, func(task uuid.UUID) error {
-			return do(session, task)
+func withWorkflowStep(workflowID, stepID string, do func(workflow, step uuid.UUID) error) error {
+	return withID(idWorkflow, workflowID, func(workflow uuid.UUID) error {
+		return withID(idStep, stepID, func(step uuid.UUID) error {
+			return do(workflow, step)
 		})
 	})
 }
@@ -234,7 +234,7 @@ func approvalInfo(request *core_itf.ApprovalRequest) *output_itf.ApprovalInfo {
 	return &output_itf.ApprovalInfo{
 		ID:          request.ID.String(),
 		AgentID:     request.AgentID.String(),
-		TaskID:      request.TaskID.String(),
+		StepID:      request.StepID.String(),
 		Kind:        request.Kind.String(),
 		Question:    request.Question,
 		Detail:      request.Detail,
@@ -280,41 +280,41 @@ func (a *API) approvalAgent(requestID uuid.UUID) uuid.UUID {
 	return uuid.Nil
 }
 
-func (a *API) Templates() ([]*output_itf.TemplateInfo, error) {
-	stored, err := a.templates.List()
+func (a *API) Roles() ([]*output_itf.RoleInfo, error) {
+	stored, err := a.roles.List()
 	if err != nil {
 		return nil, err
 	}
 
-	infos := make([]*output_itf.TemplateInfo, 0, len(stored))
+	infos := make([]*output_itf.RoleInfo, 0, len(stored))
 
-	for _, template := range stored {
-		infos = append(infos, templateInfo(template))
+	for _, role := range stored {
+		infos = append(infos, roleInfo(role))
 	}
 
 	return infos, nil
 }
 
-func (a *API) Template(id string) (*output_itf.TemplateInfo, error) {
-	return fromID(idTemplate, id, func(parsed uuid.UUID) (*output_itf.TemplateInfo, error) {
-		template, err := a.templates.Get(parsed)
+func (a *API) Role(id string) (*output_itf.RoleInfo, error) {
+	return fromID(idRole, id, func(parsed uuid.UUID) (*output_itf.RoleInfo, error) {
+		role, err := a.roles.Get(parsed)
 		if err != nil {
 			return nil, err
 		}
 
-		return templateInfo(template), nil
+		return roleInfo(role), nil
 	})
 }
 
-func (a *API) UpsertTemplate(template *output_itf.TemplateInfo) (string, error) {
-	if template == nil {
-		return "", custom_error.Critical("template is empty")
+func (a *API) UpsertRole(role *output_itf.RoleInfo) (string, error) {
+	if role == nil {
+		return "", custom_error.Critical("role is empty")
 	}
 
 	id := uuid.Nil
 
-	if template.ID != "" {
-		parsed, err := parseID(idTemplate, template.ID)
+	if role.ID != "" {
+		parsed, err := parseID(idRole, role.ID)
 		if err != nil {
 			return "", err
 		}
@@ -322,33 +322,33 @@ func (a *API) UpsertTemplate(template *output_itf.TemplateInfo) (string, error) 
 		id = parsed
 	}
 
-	params := map[string]*core_itf.TemplateParams{}
+	inputs := map[string]*core_itf.RoleInputs{}
 
-	for key, param := range template.Params {
-		if param == nil {
-			params[key] = nil
+	for key, input := range role.Inputs {
+		if input == nil {
+			inputs[key] = nil
 			continue
 		}
 
-		params[key] = &core_itf.TemplateParams{
-			Description: param.Description,
-			Required:    param.Required,
-			Type:        param.Type,
-			Default:     param.Default,
-			Options:     param.Options,
+		inputs[key] = &core_itf.RoleInputs{
+			Description: input.Description,
+			Required:    input.Required,
+			Type:        input.Type,
+			Default:     input.Default,
+			Options:     input.Options,
 		}
 	}
 
-	saved, err := a.templates.Upsert(&core_itf.Template{
-		ID:                   id,
-		Name:                 template.Name,
-		Role:                 template.Role,
-		TaskLevel:            enums.TaskLevel(template.TaskLevel),
-		Retryable:            template.Retryable,
-		ManualAcceptRequired: template.ManualAcceptRequired,
-		Params:               params,
-		SystemPrompts:        template.SystemPrompts,
-		OutputStructure:      template.OutputStructure,
+	saved, err := a.roles.Upsert(&core_itf.Role{
+		ID:              id,
+		Name:            role.Name,
+		Description:     role.Description,
+		Effort:          enums.Effort(role.Effort),
+		Retryable:       role.Retryable,
+		PauseForReview:  role.PauseForReview,
+		Inputs:          inputs,
+		Instructions:    role.Instructions,
+		OutputStructure: role.OutputStructure,
 	})
 	if err != nil {
 		return "", err
@@ -357,72 +357,72 @@ func (a *API) UpsertTemplate(template *output_itf.TemplateInfo) (string, error) 
 	return saved.String(), nil
 }
 
-func (a *API) RemoveTemplate(id string) error {
-	return withID(idTemplate, id, a.templates.Remove)
+func (a *API) RemoveRole(id string) error {
+	return withID(idRole, id, a.roles.Remove)
 }
 
-func (a *API) ExportTemplates(ids []string, path string) (int, error) {
+func (a *API) ExportRoles(ids []string, path string) (int, error) {
 	parsed := make([]uuid.UUID, 0, len(ids))
 
 	for _, id := range ids {
-		templateID, err := parseID(idTemplate, id)
+		roleID, err := parseID(idRole, id)
 		if err != nil {
 			return 0, err
 		}
 
-		parsed = append(parsed, templateID)
+		parsed = append(parsed, roleID)
 	}
 
-	return a.templates.Export(parsed, path)
+	return a.roles.Export(parsed, path)
 }
 
-func (a *API) ImportTemplates(path string) (int, error) {
-	return a.templates.Import(path)
+func (a *API) ImportRoles(path string) (int, error) {
+	return a.roles.Import(path)
 }
 
-func templateInfo(template *core_itf.Template) *output_itf.TemplateInfo {
-	if template == nil {
+func roleInfo(role *core_itf.Role) *output_itf.RoleInfo {
+	if role == nil {
 		return nil
 	}
 
-	params := map[string]*output_itf.TemplateParamInfo{}
+	inputs := map[string]*output_itf.RoleInputInfo{}
 
-	for key, param := range template.Params {
-		params[key] = &output_itf.TemplateParamInfo{
-			Description: param.Description,
-			Required:    param.Required,
-			Type:        param.Type,
-			Default:     param.Default,
-			Options:     param.Options,
+	for key, input := range role.Inputs {
+		inputs[key] = &output_itf.RoleInputInfo{
+			Description: input.Description,
+			Required:    input.Required,
+			Type:        input.Type,
+			Default:     input.Default,
+			Options:     input.Options,
 		}
 	}
 
-	return &output_itf.TemplateInfo{
-		ID:                   template.ID.String(),
-		Name:                 template.Name,
-		Role:                 template.Role,
-		TaskLevel:            template.TaskLevel.String(),
-		Retryable:            template.Retryable,
-		ManualAcceptRequired: template.ManualAcceptRequired,
-		Params:               params,
-		SystemPrompts:        template.SystemPrompts,
-		OutputStructure:      template.OutputStructure,
+	return &output_itf.RoleInfo{
+		ID:              role.ID.String(),
+		Name:            role.Name,
+		Description:     role.Description,
+		Effort:          role.Effort.String(),
+		Retryable:       role.Retryable,
+		PauseForReview:  role.PauseForReview,
+		Inputs:          inputs,
+		Instructions:    role.Instructions,
+		OutputStructure: role.OutputStructure,
 	}
 }
 
-// TemplateHelperBlocked is empty when a template can be filled in, and otherwise
+// RoleHelperBlocked is empty when a role can be filled in, and otherwise
 // says why it cannot.
-func (a *API) TemplateHelperBlocked() string {
-	return a.templateHelp.Blocked()
+func (a *API) RoleHelperBlocked() string {
+	return a.roleHelp.Blocked()
 }
 
-func (a *API) RefineTemplate(req *core_itf.DraftRequest) (*output_itf.TemplateInfo, error) {
-	template, err := a.templateHelp.Draft(req)
+func (a *API) RefineRole(req *core_itf.DraftRequest) (*output_itf.RoleInfo, error) {
+	role, err := a.roleHelp.Draft(req)
 	if err != nil {
 		return nil, err
 	}
 
-	return templateInfo(template), nil
+	return roleInfo(role), nil
 }
 
 func (a *API) UninstallAgent(id string) error {
@@ -434,50 +434,49 @@ func (a *API) UninstallAgent(id string) error {
 	return h.Uninstall()
 }
 
-func (a *API) RunSession(spec *output_itf.RunSessionSpec) (*output_itf.RunSessionResult, error) {
-	if spec == nil || len(spec.Tasks) == 0 {
-		return nil, custom_error.Critical("run session spec has no tasks")
+func (a *API) RunWorkflow(spec *output_itf.RunWorkflowSpec) (*output_itf.RunWorkflowResult, error) {
+	if spec == nil || len(spec.Steps) == 0 {
+		return nil, custom_error.Critical("run workflow spec has no steps")
 	}
 
 	autostart := true
-	plan := &core_itf.ControlSessionSpec{
-		WorkingDirPath: spec.WorkingDirPath,
-		ContextDirPath: spec.ContextDirPath,
+	plan := &core_itf.ControlWorkflowSpec{
+		ProjectDirPath: spec.ProjectDirPath,
 		Autostart:      &autostart,
-		Tasks:          make([]*core_itf.ControlTaskSpec, 0, len(spec.Tasks)),
+		Steps:          make([]*core_itf.ControlStepSpec, 0, len(spec.Steps)),
 	}
 
-	for _, task := range spec.Tasks {
-		if task == nil {
-			return nil, custom_error.Critical("run session spec has an empty task")
+	for _, step := range spec.Steps {
+		if step == nil {
+			return nil, custom_error.Critical("run workflow spec has an empty step")
 		}
 
-		plan.Tasks = append(plan.Tasks, &core_itf.ControlTaskSpec{
-			ClientID:             task.ClientID,
-			Name:                 task.Name,
-			Prompt:               task.Prompt,
-			TaskLevel:            task.TaskLevel,
-			SystemPrompts:        task.SystemPrompts,
-			OutputStructure:      task.OutputStructure,
-			DependsOn:            task.DependsOn,
-			AutoRetry:            task.AutoRetry,
-			ManualAcceptRequired: task.ManualAcceptRequired,
+		plan.Steps = append(plan.Steps, &core_itf.ControlStepSpec{
+			ClientID:        step.ClientID,
+			Name:            step.Name,
+			Prompt:          step.Prompt,
+			Effort:          step.Effort,
+			Instructions:    step.Instructions,
+			OutputStructure: step.OutputStructure,
+			DependsOn:       step.DependsOn,
+			AutoRetry:       step.AutoRetry,
+			PauseForReview:  step.PauseForReview,
 		})
 	}
 
-	created, err := a.control.CreateSession(plan)
+	created, err := a.control.CreateWorkflow(plan)
 	if err != nil {
 		return nil, err
 	}
 
-	taskIDs := make(map[string]string, len(created.TaskIDs))
-	for clientID, taskID := range created.TaskIDs {
-		taskIDs[clientID] = taskID.String()
+	stepIDs := make(map[string]string, len(created.StepIDs))
+	for clientID, stepID := range created.StepIDs {
+		stepIDs[clientID] = stepID.String()
 	}
 
-	return &output_itf.RunSessionResult{
-		SessionID: created.SessionID.String(),
-		TaskIDs:   taskIDs,
+	return &output_itf.RunWorkflowResult{
+		WorkflowID: created.WorkflowID.String(),
+		StepIDs:    stepIDs,
 	}, nil
 }
 
@@ -504,21 +503,21 @@ func (a *API) ChooseSaveFile(title string, defaultName string, pattern string) (
 	})
 }
 
-func (a *API) ExportSession(path string, doc string) error {
-	return a.sessionArchive.Write(path, &input_itf.SessionExport{
+func (a *API) ExportWorkflow(path string, doc string) error {
+	return a.workflowArchive.Write(path, &input_itf.WorkflowExport{
 		Version:    input_itf.ArchiveVersion,
 		ExportedAt: helpers.NewUTC(),
-		Session:    json.RawMessage(doc),
+		Workflow:   json.RawMessage(doc),
 	})
 }
 
-func (a *API) ImportSession(path string) (string, error) {
-	read, err := a.sessionArchive.Read(path)
+func (a *API) ImportWorkflow(path string) (string, error) {
+	read, err := a.workflowArchive.Read(path)
 	if err != nil {
 		return "", err
 	}
 
-	return string(read.Session), nil
+	return string(read.Workflow), nil
 }
 
 func fileFilters(pattern string) []runtime.FileFilter {
@@ -537,14 +536,14 @@ func (a *API) AgentDefaults() ([]*output_itf.AgentDefaultInfo, error) {
 
 	infos := make([]*output_itf.AgentDefaultInfo, 0, len(stored))
 
-	for _, level := range enums.TaskLevels() {
+	for _, level := range enums.Efforts() {
 		agentDefault := stored[level]
 		if agentDefault == nil {
 			continue
 		}
 
 		infos = append(infos, &output_itf.AgentDefaultInfo{
-			TaskLevel:     level.String(),
+			Effort:        level.String(),
 			Model:         agentDefault.Model.String(),
 			ModelLabel:    agentDefault.Model.DisplayName(),
 			ThinkingLevel: agentDefault.ThinkingLevel.String(),
@@ -625,8 +624,8 @@ func (a *API) SetModelPrices(model string, input string, cachedInput string, out
 	})
 }
 
-func (a *API) SetAgentDefault(taskLevel string, model string, thinkingLevel string) error {
-	return a.userConfig.SetAgentDefault(enums.TaskLevel(taskLevel), &output_itf.AgentDefault{
+func (a *API) SetAgentDefault(effort string, model string, thinkingLevel string) error {
+	return a.userConfig.SetAgentDefault(enums.Effort(effort), &output_itf.AgentDefault{
 		Model:         enums.ModelName(model),
 		ThinkingLevel: enums.ThinkingLevel(thinkingLevel),
 	})
@@ -661,40 +660,40 @@ func (a *API) AgentDefaultOptions() (*output_itf.AgentDefaultOptionsInfo, error)
 	}
 
 	return &output_itf.AgentDefaultOptionsInfo{
-		TaskLevels:     helpers.Labels(enums.TaskLevels()),
+		Efforts:        helpers.Labels(enums.Efforts()),
 		Models:         models,
 		ThinkingLevels: helpers.Labels(enums.ThinkingLevels()),
 	}, nil
 }
 
-func (a *API) SessionStatus(sessionID string) (*output_itf.SessionStatusInfo, error) {
-	return fromID(idSession, sessionID, func(parsed uuid.UUID) (*output_itf.SessionStatusInfo, error) {
-		status, err := a.sessions.Status(parsed)
+func (a *API) WorkflowStatus(workflowID string) (*output_itf.WorkflowStatusInfo, error) {
+	return fromID(idWorkflow, workflowID, func(parsed uuid.UUID) (*output_itf.WorkflowStatusInfo, error) {
+		status, err := a.workflows.Status(parsed)
 		if err != nil {
 			return nil, err
 		}
 
-		return a.sessionStatusInfo(status), nil
+		return a.workflowStatusInfo(status), nil
 	})
 }
 
-func (a *API) ResumeSession(sessionID string) error {
-	return withID(idSession, sessionID, a.coordinator.Run)
+func (a *API) ResumeWorkflow(workflowID string) error {
+	return withID(idWorkflow, workflowID, a.coordinator.Run)
 }
 
-func (a *API) PauseSession(sessionID string) error {
-	return withID(idSession, sessionID, a.coordinator.Pause)
+func (a *API) PauseWorkflow(workflowID string) error {
+	return withID(idWorkflow, workflowID, a.coordinator.Pause)
 }
 
-func (a *API) CancelSession(sessionID string) error {
-	return withID(idSession, sessionID, a.coordinator.Cancel)
+func (a *API) CancelWorkflow(workflowID string) error {
+	return withID(idWorkflow, workflowID, a.coordinator.Cancel)
 }
 
-func (a *API) TaskDiff(sessionID, taskID string) ([]*output_itf.FileChangeInfo, error) {
+func (a *API) StepDiff(workflowID, stepID string) ([]*output_itf.FileChangeInfo, error) {
 	infos := []*output_itf.FileChangeInfo{}
 
-	err := withSessionTask(sessionID, taskID, func(session, task uuid.UUID) error {
-		changes, err := a.history.Diff(session, task)
+	err := withWorkflowStep(workflowID, stepID, func(workflow, step uuid.UUID) error {
+		changes, err := a.history.Diff(workflow, step)
 		if err != nil {
 			return err
 		}
@@ -710,8 +709,8 @@ func (a *API) TaskDiff(sessionID, taskID string) ([]*output_itf.FileChangeInfo, 
 	return infos, nil
 }
 
-func (a *API) RevertSessionTo(sessionID, taskID string) error {
-	return withSessionTask(sessionID, taskID, a.coordinator.RevertTo)
+func (a *API) RevertWorkflowTo(workflowID, stepID string) error {
+	return withWorkflowStep(workflowID, stepID, a.coordinator.RevertTo)
 }
 
 func fileChangeInfos(changes []*input_itf.FileChange) []*output_itf.FileChangeInfo {
@@ -731,26 +730,26 @@ func fileChangeInfos(changes []*input_itf.FileChange) []*output_itf.FileChangeIn
 	return infos
 }
 
-func (a *API) RetrySessionTask(taskID string) error {
-	return withID(idTask, taskID, a.sessions.RetryTask)
+func (a *API) RetryWorkflowStep(stepID string) error {
+	return withID(idStep, stepID, a.workflows.RetryStep)
 }
 
-func (a *API) AnswerTaskAcceptance(taskID string, accepted bool) error {
-	return withID(idTask, taskID, func(parsed uuid.UUID) error {
-		return a.sessions.AnswerAcceptance(parsed, accepted)
+func (a *API) AnswerStepReview(stepID string, accepted bool) error {
+	return withID(idStep, stepID, func(parsed uuid.UUID) error {
+		return a.workflows.AnswerReview(parsed, accepted)
 	})
 }
 
-func (a *API) SessionDrafts() ([]*output_itf.SessionDraftInfo, error) {
+func (a *API) WorkflowDrafts() ([]*output_itf.WorkflowDraftInfo, error) {
 	stored, err := a.drafts.List()
 	if err != nil {
 		return nil, err
 	}
 
-	infos := make([]*output_itf.SessionDraftInfo, 0, len(stored))
+	infos := make([]*output_itf.WorkflowDraftInfo, 0, len(stored))
 
 	for _, draft := range stored {
-		infos = append(infos, &output_itf.SessionDraftInfo{
+		infos = append(infos, &output_itf.WorkflowDraftInfo{
 			ID:        draft.ID.String(),
 			Doc:       draft.Doc,
 			UpdatedAt: draft.UpdatedAt.Format(time.RFC3339),
@@ -760,9 +759,9 @@ func (a *API) SessionDrafts() ([]*output_itf.SessionDraftInfo, error) {
 	return infos, nil
 }
 
-func (a *API) SaveSessionDraft(id string, doc string) error {
+func (a *API) SaveWorkflowDraft(id string, doc string) error {
 	return withID(idDraft, id, func(parsed uuid.UUID) error {
-		return a.drafts.Save(&input_itf.SessionDraftEntity{
+		return a.drafts.Save(&input_itf.WorkflowDraftEntity{
 			ID:        parsed,
 			Doc:       doc,
 			UpdatedAt: helpers.NewUTC(),
@@ -770,7 +769,7 @@ func (a *API) SaveSessionDraft(id string, doc string) error {
 	})
 }
 
-func (a *API) DeleteSessionDraft(id string) error {
+func (a *API) DeleteWorkflowDraft(id string) error {
 	return withID(idDraft, id, a.drafts.Delete)
 }
 
@@ -823,33 +822,33 @@ func momentInfo(at time.Time) string {
 	return at.Format(time.RFC3339)
 }
 
-func (a *API) sessionStatusInfo(status *core_itf.SessionStatus) *output_itf.SessionStatusInfo {
+func (a *API) workflowStatusInfo(status *core_itf.WorkflowStatus) *output_itf.WorkflowStatusInfo {
 	if status == nil {
 		return nil
 	}
 
-	tasks := make([]*output_itf.SessionTaskInfo, 0, len(status.Tasks))
+	steps := make([]*output_itf.WorkflowStepInfo, 0, len(status.Steps))
 	cost := 0.0
 	priced := true
 
-	for taskID, report := range status.Tasks {
-		task := a.sessionTaskInfo(taskID, report)
-		tasks = append(tasks, task)
+	for stepID, report := range status.Steps {
+		step := a.workflowStepInfo(stepID, report)
+		steps = append(steps, step)
 
 		switch {
-		case task.Priced:
-			cost += task.CostUSD
-		case spentAnything(task.Spent):
+		case step.Priced:
+			cost += step.CostUSD
+		case spentAnything(step.Spent):
 			priced = false
 		}
 	}
 
-	sort.Slice(tasks, func(i, j int) bool { return tasks[i].TaskID < tasks[j].TaskID })
+	sort.Slice(steps, func(i, j int) bool { return steps[i].StepID < steps[j].StepID })
 
-	return &output_itf.SessionStatusInfo{
-		SessionID:    status.ID.String(),
+	return &output_itf.WorkflowStatusInfo{
+		WorkflowID:   status.ID.String(),
 		Status:       string(status.Status),
-		Tasks:        tasks,
+		Steps:        steps,
 		TokensBilled: status.TokensBilled,
 		TokensInput:  status.TokensInput,
 		TokensCached: status.TokensCached,
@@ -864,7 +863,7 @@ func spentAnything(spent *input_itf.ContextUsage) bool {
 	return spent != nil && (spent.Input > 0 || spent.Cached > 0 || spent.Billed > 0)
 }
 
-func (a *API) taskCost(level enums.TaskLevel, spent *input_itf.ContextUsage) (float64, bool) {
+func (a *API) stepCost(level enums.Effort, spent *input_itf.ContextUsage) (float64, bool) {
 	if spent == nil {
 		return 0, false
 	}
@@ -887,11 +886,11 @@ func (a *API) taskCost(level enums.TaskLevel, spent *input_itf.ContextUsage) (fl
 	return rates.Cost(pricing.Tokens{Input: spent.Input, Cached: spent.Cached, Output: spent.Billed}), true
 }
 
-func (a *API) sessionTaskInfo(taskID uuid.UUID, report *core_itf.TaskReport) *output_itf.SessionTaskInfo {
-	info := &output_itf.SessionTaskInfo{
-		TaskID:       taskID.String(),
-		HandoverDocs: []*output_itf.HandoverDocInfo{},
-		Activity:     []*output_itf.TaskActivityInfo{},
+func (a *API) workflowStepInfo(stepID uuid.UUID, report *core_itf.StepResult) *output_itf.WorkflowStepInfo {
+	info := &output_itf.WorkflowStepInfo{
+		StepID:   stepID.String(),
+		Handoffs: []*output_itf.HandoffInfo{},
+		Activity: []*output_itf.StepActivityInfo{},
 	}
 
 	if report == nil {
@@ -900,20 +899,20 @@ func (a *API) sessionTaskInfo(taskID uuid.UUID, report *core_itf.TaskReport) *ou
 
 	info.Status = string(report.Status)
 	info.ContextUsage = report.ContextUsage
-	info.TaskLevel = report.TaskLevel.String()
+	info.Effort = report.Effort.String()
 	info.Spent = report.Spent
-	info.CostUSD, info.Priced = a.taskCost(report.TaskLevel, report.Spent)
+	info.CostUSD, info.Priced = a.stepCost(report.Effort, report.Spent)
 
 	if report.AgentID != uuid.Nil {
 		info.AgentID = report.AgentID.String()
 	}
 
-	for _, doc := range report.HandoverDocs {
-		info.HandoverDocs = append(info.HandoverDocs, handoverDocInfo(doc))
+	for _, doc := range report.Handoffs {
+		info.Handoffs = append(info.Handoffs, handoffInfo(doc))
 	}
 
 	for _, line := range report.Activity {
-		info.Activity = append(info.Activity, &output_itf.TaskActivityInfo{
+		info.Activity = append(info.Activity, &output_itf.StepActivityInfo{
 			Seq:  line.Seq,
 			At:   line.At.Format(time.RFC3339),
 			Text: line.Text,
@@ -923,13 +922,13 @@ func (a *API) sessionTaskInfo(taskID uuid.UUID, report *core_itf.TaskReport) *ou
 	return info
 }
 
-func handoverDocInfo(doc *core_itf.HandoverDoc) *output_itf.HandoverDocInfo {
+func handoffInfo(doc *core_itf.Handoff) *output_itf.HandoffInfo {
 	if doc == nil {
 		return nil
 	}
 
-	return &output_itf.HandoverDocInfo{
-		Task:              doc.Task,
+	return &output_itf.HandoffInfo{
+		Step:              doc.Step,
 		TLDR:              doc.TLDR,
 		Outcome:           doc.Outcome,
 		Blockers:          doc.Blockers,

@@ -2,17 +2,21 @@ import {Folder} from 'lucide-react'
 
 import {chooseDirectory} from '@/shared/api/dialogs'
 import {Button} from '@/shared/ui/button'
+import {HelpTip} from '@/shared/components/help-tip'
+import type {GlossaryTerm} from '@/shared/lib/glossary'
 import {reportError} from '@/shared/lib/error-bus'
 
 export function DirectoryField({
     label,
     hint,
+    term,
     title,
     value,
     onChange,
 }: {
     label: string
     hint: string
+    term?: GlossaryTerm
     title: string
     value: string
     onChange: (path: string) => void
@@ -28,7 +32,10 @@ export function DirectoryField({
 
     return (
         <div className="flex flex-col gap-2">
-            <span className="text-base font-medium">{label}</span>
+            <span className="flex items-center gap-2">
+                <span className="text-base font-medium">{label}</span>
+                {term && <HelpTip term={term} />}
+            </span>
 
             <div className="flex items-center gap-2">
                 <span

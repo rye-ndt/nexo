@@ -1,6 +1,6 @@
 /**
  * The queue the api seam answers from when there is no Wails runtime, standing
- * in for the Go broker. A simulated run raises a request to block a node and
+ * in for the Go broker. A simulated run raises a request to block a step and
  * polls mockApprovalAnswer to resume it — the same shape as an agent blocking
  * inside request_approval until the operator answers.
  */

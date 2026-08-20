@@ -19,8 +19,8 @@ type fixture struct {
 	t          *testing.T
 	history    input_itf.WorkspaceHistory
 	root       string
-	session    uuid.UUID
-	workingDir string
+	workflow   uuid.UUID
+	projectDir string
 	excludes   []string
 }
 
@@ -31,8 +31,8 @@ func newFixture(t *testing.T, excludes ...string) *fixture {
 		t.Skip("git is not installed")
 	}
 
-	root := filepath.Join(t.TempDir(), "sessions")
-	workingDir := t.TempDir()
+	root := filepath.Join(t.TempDir(), "workflows")
+	projectDir := t.TempDir()
 
 	history, err := InitV1(root)
 	if err != nil {
@@ -43,14 +43,14 @@ func newFixture(t *testing.T, excludes ...string) *fixture {
 		t:          t,
 		history:    history,
 		root:       root,
-		session:    uuid.New(),
-		workingDir: workingDir,
+		workflow:   uuid.New(),
+		projectDir: projectDir,
 		excludes:   excludes,
 	}
 }
 
 func (f *fixture) gitDir() string {
-	return filepath.Join(f.root, f.session.String()+".git")
+	return filepath.Join(f.root, f.workflow.String()+".git")
 }
 
 // shadow talks to the store the way an operator recovering by hand would: the package
@@ -59,7 +59,7 @@ func (f *fixture) gitDir() string {
 func (f *fixture) shadow(args ...string) string {
 	f.t.Helper()
 
-	full := append([]string{"--git-dir", f.gitDir(), "--work-tree", f.workingDir}, args...)
+	full := append([]string{"--git-dir", f.gitDir(), "--work-tree", f.projectDir}, args...)
 
 	out, err := exec.Command("git", full...).Output()
 	if err != nil {
@@ -69,12 +69,12 @@ func (f *fixture) shadow(args ...string) string {
 	return string(out)
 }
 
-func (f *fixture) resolvedWorkingDir() string {
+func (f *fixture) resolvedProjectDir() string {
 	f.t.Helper()
 
-	resolved, err := filepath.EvalSymlinks(f.workingDir)
+	resolved, err := filepath.EvalSymlinks(f.projectDir)
 	if err != nil {
-		f.t.Fatalf("resolve %s: %v", f.workingDir, err)
+		f.t.Fatalf("resolve %s: %v", f.projectDir, err)
 	}
 
 	return resolved
@@ -83,7 +83,7 @@ func (f *fixture) resolvedWorkingDir() string {
 func (f *fixture) writeBytes(name string, body []byte) {
 	f.t.Helper()
 
-	if err := os.WriteFile(filepath.Join(f.workingDir, name), body, 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(f.projectDir, name), body, 0o644); err != nil {
 		f.t.Fatalf("write %s: %v", name, err)
 	}
 }
@@ -91,7 +91,7 @@ func (f *fixture) writeBytes(name string, body []byte) {
 func (f *fixture) requireBytes(name string, want []byte) {
 	f.t.Helper()
 
-	body, err := os.ReadFile(filepath.Join(f.workingDir, name))
+	body, err := os.ReadFile(filepath.Join(f.projectDir, name))
 	if err != nil {
 		f.t.Fatalf("read %s: %v", name, err)
 	}
@@ -132,7 +132,7 @@ func requireCritical(t *testing.T, err error, what string) {
 func (f *fixture) write(name, body string) {
 	f.t.Helper()
 
-	path := filepath.Join(f.workingDir, name)
+	path := filepath.Join(f.projectDir, name)
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		f.t.Fatalf("mkdir for %s: %v", name, err)
 	}
@@ -144,33 +144,33 @@ func (f *fixture) write(name, body string) {
 func (f *fixture) remove(name string) {
 	f.t.Helper()
 
-	if err := os.Remove(filepath.Join(f.workingDir, name)); err != nil {
+	if err := os.Remove(filepath.Join(f.projectDir, name)); err != nil {
 		f.t.Fatalf("remove %s: %v", name, err)
 	}
 }
 
-func (f *fixture) commit(taskID uuid.UUID) {
+func (f *fixture) commit(stepID uuid.UUID) {
 	f.t.Helper()
 
-	if err := f.history.Commit(f.session, taskID, f.workingDir, f.excludes); err != nil {
-		f.t.Fatalf("commit %s: %v", taskID, err)
+	if err := f.history.Commit(f.workflow, stepID, f.projectDir, f.excludes); err != nil {
+		f.t.Fatalf("commit %s: %v", stepID, err)
 	}
 }
 
-func (f *fixture) restore(taskID uuid.UUID) {
+func (f *fixture) restore(stepID uuid.UUID) {
 	f.t.Helper()
 
-	if err := f.history.RestoreTo(f.session, taskID, f.workingDir); err != nil {
-		f.t.Fatalf("restore %s: %v", taskID, err)
+	if err := f.history.RestoreTo(f.workflow, stepID, f.projectDir); err != nil {
+		f.t.Fatalf("restore %s: %v", stepID, err)
 	}
 }
 
-func (f *fixture) diff(taskID uuid.UUID) []*input_itf.FileChange {
+func (f *fixture) diff(stepID uuid.UUID) []*input_itf.FileChange {
 	f.t.Helper()
 
-	changes, err := f.history.Diff(f.session, taskID)
+	changes, err := f.history.Diff(f.workflow, stepID)
 	if err != nil {
-		f.t.Fatalf("diff %s: %v", taskID, err)
+		f.t.Fatalf("diff %s: %v", stepID, err)
 	}
 
 	return changes
@@ -185,7 +185,7 @@ func (f *fixture) requireContent(name, want string) {
 func (f *fixture) requireMissing(name string) {
 	f.t.Helper()
 
-	if _, err := os.Stat(filepath.Join(f.workingDir, name)); !os.IsNotExist(err) {
+	if _, err := os.Stat(filepath.Join(f.projectDir, name)); !os.IsNotExist(err) {
 		f.t.Fatalf("%s still exists, want it gone", name)
 	}
 }
@@ -212,26 +212,26 @@ func paths(changes []*input_itf.FileChange) []string {
 	return out
 }
 
-func TestDiffShowsOnlyTheTasksOwnChanges(t *testing.T) {
+func TestDiffShowsOnlyTheStepsOwnChanges(t *testing.T) {
 	f := newFixture(t)
 
 	f.write("shared.txt", "baseline\n")
 	f.write("untouched.txt", "same\n")
 	f.commit(uuid.Nil)
 
-	taskA := uuid.New()
+	stepA := uuid.New()
 	f.write("shared.txt", "from a\n")
 	f.write("from-a.txt", "a\n")
-	f.commit(taskA)
+	f.commit(stepA)
 
-	taskB := uuid.New()
+	stepB := uuid.New()
 	f.write("shared.txt", "from b\n")
 	f.write("from-b.txt", "b\n")
-	f.commit(taskB)
+	f.commit(stepB)
 
-	changes := f.diff(taskB)
+	changes := f.diff(stepB)
 	if len(changes) != 2 {
-		t.Fatalf("task b changed %v, want shared.txt and from-b.txt", paths(changes))
+		t.Fatalf("step b changed %v, want shared.txt and from-b.txt", paths(changes))
 	}
 
 	shared := changeFor(t, changes, "shared.txt")
@@ -259,24 +259,24 @@ func TestDiffShowsOnlyTheTasksOwnChanges(t *testing.T) {
 	}
 }
 
-func TestRestoreToEarlierTaskRewindsCreatedModifiedAndDeletedFiles(t *testing.T) {
+func TestRestoreToEarlierStepRewindsCreatedModifiedAndDeletedFiles(t *testing.T) {
 	f := newFixture(t)
 
 	f.write("kept.txt", "baseline\n")
 	f.write("deleted-by-b.txt", "still here\n")
 	f.commit(uuid.Nil)
 
-	taskA := uuid.New()
+	stepA := uuid.New()
 	f.write("kept.txt", "from a\n")
-	f.commit(taskA)
+	f.commit(stepA)
 
-	taskB := uuid.New()
+	stepB := uuid.New()
 	f.write("kept.txt", "from b\n")
 	f.write("created-by-b.txt", "new\n")
 	f.remove("deleted-by-b.txt")
-	f.commit(taskB)
+	f.commit(stepB)
 
-	f.restore(taskA)
+	f.restore(stepA)
 
 	f.requireContent("kept.txt", "from a\n")
 	f.requireMissing("created-by-b.txt")
@@ -291,16 +291,16 @@ func TestExcludedPathsAreNeitherCommittedNorRestored(t *testing.T) {
 	f.write("code.txt", "baseline\n")
 	f.commit(uuid.Nil)
 
-	taskA := uuid.New()
+	stepA := uuid.New()
 	f.write("AGENTS.md", "knowledge v2\n")
 	f.write(".agent/notes.md", "notes v2\n")
 	f.write(".agent/learned.md", "learned later\n")
 	f.write("code.txt", "from a\n")
-	f.commit(taskA)
+	f.commit(stepA)
 
-	changes := f.diff(taskA)
+	changes := f.diff(stepA)
 	if len(changes) != 1 || changes[0].Path != "code.txt" {
-		t.Fatalf("task a changed %v, want only code.txt", paths(changes))
+		t.Fatalf("step a changed %v, want only code.txt", paths(changes))
 	}
 
 	f.restore(uuid.Nil)
@@ -311,7 +311,7 @@ func TestExcludedPathsAreNeitherCommittedNorRestored(t *testing.T) {
 	f.requireContent(".agent/learned.md", "learned later\n")
 }
 
-func TestTaskThatChangedNothingStillGetsARestorePoint(t *testing.T) {
+func TestStepThatChangedNothingStillGetsARestorePoint(t *testing.T) {
 	f := newFixture(t)
 
 	f.write("code.txt", "baseline\n")
@@ -321,7 +321,7 @@ func TestTaskThatChangedNothingStillGetsARestorePoint(t *testing.T) {
 	f.commit(quiet)
 
 	if changes := f.diff(quiet); len(changes) != 0 {
-		t.Fatalf("quiet task changed %v, want nothing", paths(changes))
+		t.Fatalf("quiet step changed %v, want nothing", paths(changes))
 	}
 
 	loud := uuid.New()
@@ -341,18 +341,18 @@ func TestRetryMovesTheTagAndDiffFollowsTheNewestAttempt(t *testing.T) {
 	f.write("code.txt", "baseline\n")
 	f.commit(uuid.Nil)
 
-	taskA := uuid.New()
+	stepA := uuid.New()
 	f.write("code.txt", "first attempt\n")
 	f.write("first-only.txt", "scratch\n")
-	f.commit(taskA)
+	f.commit(stepA)
 
 	f.write("code.txt", "second attempt\n")
 	f.remove("first-only.txt")
-	f.commit(taskA)
+	f.commit(stepA)
 
-	changes := f.diff(taskA)
+	changes := f.diff(stepA)
 	if len(changes) != 1 || changes[0].Path != "code.txt" {
-		t.Fatalf("retried task a changed %v, want only code.txt", paths(changes))
+		t.Fatalf("retried step a changed %v, want only code.txt", paths(changes))
 	}
 	if !contains(changes[0].UnifiedDiff, "+second attempt") {
 		t.Fatalf("retry patch does not show the newest attempt: %q", changes[0].UnifiedDiff)
@@ -361,43 +361,43 @@ func TestRetryMovesTheTagAndDiffFollowsTheNewestAttempt(t *testing.T) {
 		t.Fatalf("retry patch is not taken against the baseline: %q", changes[0].UnifiedDiff)
 	}
 
-	taskB := uuid.New()
+	stepB := uuid.New()
 	f.write("code.txt", "from b\n")
-	f.commit(taskB)
+	f.commit(stepB)
 
-	f.restore(taskA)
+	f.restore(stepA)
 	f.requireContent("code.txt", "second attempt\n")
 }
 
-func TestTaskRerunAfterRestoreDiffsAgainstTheRestoredTree(t *testing.T) {
+func TestStepRerunAfterRestoreDiffsAgainstTheRestoredTree(t *testing.T) {
 	f := newFixture(t)
 
 	f.write("code.txt", "baseline\n")
 	f.commit(uuid.Nil)
 
-	taskA := uuid.New()
+	stepA := uuid.New()
 	f.write("code.txt", "from a\n")
-	f.commit(taskA)
+	f.commit(stepA)
 
-	taskB := uuid.New()
+	stepB := uuid.New()
 	f.write("code.txt", "from b\n")
 	f.write("from-b.txt", "b\n")
-	f.commit(taskB)
+	f.commit(stepB)
 
-	f.restore(taskA)
+	f.restore(stepA)
 
 	f.write("code.txt", "from b again\n")
-	f.commit(taskB)
+	f.commit(stepB)
 
-	changes := f.diff(taskB)
+	changes := f.diff(stepB)
 	if len(changes) != 1 || changes[0].Path != "code.txt" {
-		t.Fatalf("re-run task b changed %v, want only code.txt", paths(changes))
+		t.Fatalf("re-run step b changed %v, want only code.txt", paths(changes))
 	}
 	if !contains(changes[0].UnifiedDiff, "-from a") || !contains(changes[0].UnifiedDiff, "+from b again") {
 		t.Fatalf("re-run patch is not taken against the restored tree: %q", changes[0].UnifiedDiff)
 	}
 
-	f.restore(taskA)
+	f.restore(stepA)
 	f.requireContent("code.txt", "from a\n")
 	f.requireMissing("from-b.txt")
 }
@@ -408,14 +408,14 @@ func TestRenameIsReportedWithItsOldPath(t *testing.T) {
 	f.write("old.txt", longBody())
 	f.commit(uuid.Nil)
 
-	taskA := uuid.New()
+	stepA := uuid.New()
 	f.write("new.txt", longBody())
 	f.remove("old.txt")
-	f.commit(taskA)
+	f.commit(stepA)
 
-	changes := f.diff(taskA)
+	changes := f.diff(stepA)
 	if len(changes) != 1 {
-		t.Fatalf("task a changed %v, want a single rename", paths(changes))
+		t.Fatalf("step a changed %v, want a single rename", paths(changes))
 	}
 	if changes[0].ChangeType != enums.FileRenamed {
 		t.Fatalf("type = %s, want %s", changes[0].ChangeType, enums.FileRenamed)
@@ -432,25 +432,25 @@ func TestBinaryChangeDoesNotBreakTheDiff(t *testing.T) {
 	for i := range binary {
 		binary[i] = byte(i)
 	}
-	if err := os.WriteFile(filepath.Join(f.workingDir, "blob.bin"), binary, 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(f.projectDir, "blob.bin"), binary, 0o644); err != nil {
 		t.Fatalf("write blob.bin: %v", err)
 	}
 	f.write("code.txt", "baseline\n")
 	f.commit(uuid.Nil)
 
-	taskA := uuid.New()
+	stepA := uuid.New()
 	for i := range binary {
 		binary[i] = byte(255 - i)
 	}
-	if err := os.WriteFile(filepath.Join(f.workingDir, "blob.bin"), binary, 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(f.projectDir, "blob.bin"), binary, 0o644); err != nil {
 		t.Fatalf("rewrite blob.bin: %v", err)
 	}
 	f.write("code.txt", "from a\n")
-	f.commit(taskA)
+	f.commit(stepA)
 
-	changes := f.diff(taskA)
+	changes := f.diff(stepA)
 	if len(changes) != 2 {
-		t.Fatalf("task a changed %v, want blob.bin and code.txt", paths(changes))
+		t.Fatalf("step a changed %v, want blob.bin and code.txt", paths(changes))
 	}
 
 	blob := changeFor(t, changes, "blob.bin")
@@ -470,18 +470,18 @@ func TestBinaryChangeDoesNotBreakTheDiff(t *testing.T) {
 func TestDiffAndRestoreRejectUnknownSnapshots(t *testing.T) {
 	f := newFixture(t)
 
-	if _, err := f.history.Diff(f.session, uuid.New()); err == nil {
-		t.Fatal("diff on a session with no history should fail")
+	if _, err := f.history.Diff(f.workflow, uuid.New()); err == nil {
+		t.Fatal("diff on a workflow with no history should fail")
 	}
 
 	f.write("code.txt", "baseline\n")
 	f.commit(uuid.Nil)
 
-	if _, err := f.history.Diff(f.session, uuid.New()); err == nil {
-		t.Fatal("diff on an unknown task should fail")
+	if _, err := f.history.Diff(f.workflow, uuid.New()); err == nil {
+		t.Fatal("diff on an unknown step should fail")
 	}
-	if err := f.history.RestoreTo(f.session, uuid.New(), f.workingDir); err == nil {
-		t.Fatal("restore to an unknown task should fail")
+	if err := f.history.RestoreTo(f.workflow, uuid.New(), f.projectDir); err == nil {
+		t.Fatal("restore to an unknown step should fail")
 	}
 }
 
@@ -514,13 +514,13 @@ func repoState(t *testing.T, dir string) string {
 	return repoRefs(t, dir) + userGit(t, dir, "status", "--porcelain")
 }
 
-func TestUserRepositoriesInTheWorkingDirAreNeverTouched(t *testing.T) {
+func TestUserRepositoriesInTheProjectDirAreNeverTouched(t *testing.T) {
 	f := newFixture(t)
 
 	run := func(args ...string) {
 		t.Helper()
 		cmd := exec.Command("git", args...)
-		cmd.Dir = f.workingDir
+		cmd.Dir = f.projectDir
 		if out, err := cmd.CombinedOutput(); err != nil {
 			t.Fatalf("git %v: %v: %s", args, err, out)
 		}
@@ -537,7 +537,7 @@ func TestUserRepositoriesInTheWorkingDirAreNeverTouched(t *testing.T) {
 	run("branch", "side")
 	run("tag", "v1")
 
-	nested := filepath.Join(f.workingDir, "vendor", "lib")
+	nested := filepath.Join(f.projectDir, "vendor", "lib")
 	if err := os.MkdirAll(nested, 0o755); err != nil {
 		t.Fatalf("create nested repo dir: %v", err)
 	}
@@ -549,19 +549,19 @@ func TestUserRepositoriesInTheWorkingDirAreNeverTouched(t *testing.T) {
 	userGit(t, nested, "add", "-A")
 	userGit(t, nested, "commit", "--quiet", "-m", "vendor commit")
 
-	outerBefore, nestedBefore := repoState(t, f.workingDir), repoRefs(t, nested)
+	outerBefore, nestedBefore := repoState(t, f.projectDir), repoRefs(t, nested)
 
 	f.commit(uuid.Nil)
 
-	taskA := uuid.New()
+	stepA := uuid.New()
 	f.write("code.txt", "from a\n")
 	f.write("ignored/blob.txt", "changed by a\n")
 	f.write("vendor/lib/lib.txt", "changed by a\n")
-	f.commit(taskA)
+	f.commit(stepA)
 
-	changes := f.diff(taskA)
+	changes := f.diff(stepA)
 	if len(changes) != 1 || changes[0].Path != "code.txt" {
-		t.Fatalf("task a changed %v, want only code.txt", paths(changes))
+		t.Fatalf("step a changed %v, want only code.txt", paths(changes))
 	}
 
 	f.restore(uuid.Nil)
@@ -569,7 +569,7 @@ func TestUserRepositoriesInTheWorkingDirAreNeverTouched(t *testing.T) {
 	f.requireContent("code.txt", "baseline\n")
 	f.requireContent("ignored/blob.txt", "changed by a\n")
 
-	if got := repoState(t, f.workingDir); got != outerBefore {
+	if got := repoState(t, f.projectDir); got != outerBefore {
 		t.Fatalf("the user repository moved:\n%s\nwant\n%s", got, outerBefore)
 	}
 
@@ -606,41 +606,41 @@ func TestMissingGitDegradesToBypass(t *testing.T) {
 		t.Fatalf("init workspace history without git: %v", err)
 	}
 
-	session := uuid.New()
-	if err := history.Commit(session, uuid.Nil, t.TempDir(), nil); err == nil {
+	workflow := uuid.New()
+	if err := history.Commit(workflow, uuid.Nil, t.TempDir(), nil); err == nil {
 		t.Fatal("commit without git should fail")
 	} else if severity, ok := err.(custom_error.Severity); !ok || severity.Critical() {
 		t.Fatalf("commit error = %v, want a bypass", err)
 	}
 
-	if _, err := history.Diff(session, uuid.Nil); err == nil {
+	if _, err := history.Diff(workflow, uuid.Nil); err == nil {
 		t.Fatal("diff without git should fail")
 	} else if severity, ok := err.(custom_error.Severity); !ok || severity.Critical() {
 		t.Fatalf("diff error = %v, want a bypass", err)
 	}
 
-	if err := history.RestoreTo(session, uuid.Nil, t.TempDir()); err == nil {
+	if err := history.RestoreTo(workflow, uuid.Nil, t.TempDir()); err == nil {
 		t.Fatal("restore without git should fail")
 	} else if severity, ok := err.(custom_error.Severity); !ok || severity.Critical() {
 		t.Fatalf("restore error = %v, want a bypass", err)
 	}
 }
 
-func TestBaselineIsWrittenOncePerSession(t *testing.T) {
+func TestBaselineIsWrittenOncePerWorkflow(t *testing.T) {
 	f := newFixture(t)
 
 	f.write("code.txt", "PRECIOUS ORIGINAL\n")
 	f.commit(uuid.Nil)
 
-	taskA := uuid.New()
+	stepA := uuid.New()
 	f.write("code.txt", "from a\n")
-	f.commit(taskA)
+	f.commit(stepA)
 
-	taskB := uuid.New()
+	stepB := uuid.New()
 	f.write("code.txt", "from b\n")
-	f.commit(taskB)
+	f.commit(stepB)
 
-	f.restore(taskB)
+	f.restore(stepB)
 
 	// Every Run re-commits the baseline; the second one must not move it on top of the
 	// work the agents already did.
@@ -649,9 +649,9 @@ func TestBaselineIsWrittenOncePerSession(t *testing.T) {
 	f.restore(uuid.Nil)
 	f.requireContent("code.txt", "PRECIOUS ORIGINAL\n")
 
-	changes := f.diff(taskA)
+	changes := f.diff(stepA)
 	if len(changes) != 1 || !contains(changes[0].UnifiedDiff, "-PRECIOUS ORIGINAL") {
-		t.Fatalf("task a no longer diffs against the original tree: %q", changes[0].UnifiedDiff)
+		t.Fatalf("step a no longer diffs against the original tree: %q", changes[0].UnifiedDiff)
 	}
 }
 
@@ -661,12 +661,12 @@ func TestRestoreKeepsUnsnapshottedWorkOnThePreRevertTag(t *testing.T) {
 	f.write("code.txt", "baseline\n")
 	f.commit(uuid.Nil)
 
-	taskA := uuid.New()
+	stepA := uuid.New()
 	f.write("code.txt", "from a\n")
-	f.commit(taskA)
+	f.commit(stepA)
 
 	f.write("code.txt", "hand written and never snapshotted\n")
-	f.write("half-done.txt", "the killed task got this far\n")
+	f.write("half-done.txt", "the killed step got this far\n")
 
 	f.restore(uuid.Nil)
 
@@ -679,7 +679,7 @@ func TestRestoreKeepsUnsnapshottedWorkOnThePreRevertTag(t *testing.T) {
 	f.shadow("reset", "--hard", preRevertTag)
 
 	f.requireContent("code.txt", "hand written and never snapshotted\n")
-	f.requireContent("half-done.txt", "the killed task got this far\n")
+	f.requireContent("half-done.txt", "the killed step got this far\n")
 }
 
 func TestRestoreIsByteIdenticalUnderWorkTreeAttributesAndGlobalFilters(t *testing.T) {
@@ -693,9 +693,9 @@ func TestRestoreIsByteIdenticalUnderWorkTreeAttributesAndGlobalFilters(t *testin
 	f.writeBytes("code.txt", original)
 	f.commit(uuid.Nil)
 
-	taskA := uuid.New()
+	stepA := uuid.New()
 	f.writeBytes("code.txt", []byte("REWRITTEN BY THE AGENT\n"))
-	f.commit(taskA)
+	f.commit(stepA)
 
 	f.restore(uuid.Nil)
 
@@ -711,14 +711,14 @@ func TestGlobalColorConfigDoesNotSwallowPatches(t *testing.T) {
 	f.write("second.txt", "second baseline\n")
 	f.commit(uuid.Nil)
 
-	taskA := uuid.New()
+	stepA := uuid.New()
 	f.write("first.txt", "first from a\n")
 	f.write("second.txt", "second from a\n")
-	f.commit(taskA)
+	f.commit(stepA)
 
-	changes := f.diff(taskA)
+	changes := f.diff(stepA)
 	if len(changes) != 2 {
-		t.Fatalf("task a changed %v, want both files", paths(changes))
+		t.Fatalf("step a changed %v, want both files", paths(changes))
 	}
 
 	for _, change := range changes {
@@ -734,10 +734,10 @@ func TestGlobalColorConfigDoesNotSwallowPatches(t *testing.T) {
 func TestGlobalHooksNeverRunAgainstTheShadowStore(t *testing.T) {
 	f := newFixture(t)
 
-	template := filepath.Join(t.TempDir(), "template")
-	hooks := filepath.Join(template, "hooks")
+	role := filepath.Join(t.TempDir(), "role")
+	hooks := filepath.Join(role, "hooks")
 	if err := os.MkdirAll(hooks, 0o755); err != nil {
-		t.Fatalf("create template hooks: %v", err)
+		t.Fatalf("create role hooks: %v", err)
 	}
 
 	marker := filepath.Join(t.TempDir(), "hook-ran")
@@ -748,21 +748,21 @@ func TestGlobalHooksNeverRunAgainstTheShadowStore(t *testing.T) {
 		}
 	}
 
-	globalConfig(t, "[init]\n\ttemplateDir = "+template+"\n[core]\n\thooksPath = "+hooks+"\n")
+	globalConfig(t, "[init]\n\troleDir = "+role+"\n[core]\n\thooksPath = "+hooks+"\n")
 
 	f.write("code.txt", "baseline\n")
 	f.commit(uuid.Nil)
 
-	taskA := uuid.New()
+	stepA := uuid.New()
 	f.write("code.txt", "from a\n")
-	f.commit(taskA)
+	f.commit(stepA)
 
 	if _, err := os.Stat(marker); !os.IsNotExist(err) {
 		t.Fatalf("a hook from the user's git config ran against the shadow store, stat err = %v", err)
 	}
 
 	if _, err := os.Stat(filepath.Join(f.gitDir(), "hooks", "post-commit")); !os.IsNotExist(err) {
-		t.Fatalf("the user's init template was copied into the shadow store, stat err = %v", err)
+		t.Fatalf("the user's init role was copied into the shadow store, stat err = %v", err)
 	}
 }
 
@@ -772,16 +772,16 @@ func TestVanishedStoreFailsInsteadOfSilentlyStartingOver(t *testing.T) {
 	f.write("code.txt", "baseline\n")
 	f.commit(uuid.Nil)
 
-	taskA := uuid.New()
+	stepA := uuid.New()
 	f.write("code.txt", "from a\n")
-	f.commit(taskA)
+	f.commit(stepA)
 
 	if err := os.RemoveAll(f.gitDir()); err != nil {
 		t.Fatalf("remove the store: %v", err)
 	}
 
 	f.write("code.txt", "from b\n")
-	requireCritical(t, f.history.Commit(f.session, uuid.New(), f.workingDir, f.excludes), "commit after the store was deleted")
+	requireCritical(t, f.history.Commit(f.workflow, uuid.New(), f.projectDir, f.excludes), "commit after the store was deleted")
 }
 
 func TestUnreadableStoreFailsInsteadOfSilentlyStartingOver(t *testing.T) {
@@ -794,34 +794,34 @@ func TestUnreadableStoreFailsInsteadOfSilentlyStartingOver(t *testing.T) {
 		t.Fatalf("break the store: %v", err)
 	}
 
-	// A restarted app has no memory of the session, so the damage has to be visible on
+	// A restarted app has no memory of the workflow, so the damage has to be visible on
 	// disk rather than only in this process.
 	restarted, err := InitV1(f.root)
 	if err != nil {
 		t.Fatalf("init workspace history: %v", err)
 	}
 
-	requireCritical(t, restarted.Commit(f.session, uuid.New(), f.workingDir, f.excludes), "commit against a broken store")
+	requireCritical(t, restarted.Commit(f.workflow, uuid.New(), f.projectDir, f.excludes), "commit against a broken store")
 }
 
-func TestSessionsSharingAWorkingDirDoNotWriteAtTheSameTime(t *testing.T) {
+func TestWorkflowsSharingAProjectDirDoNotWriteAtTheSameTime(t *testing.T) {
 	f := newFixture(t)
 
 	f.write("code.txt", "baseline\n")
 	f.commit(uuid.Nil)
 
 	history := f.history.(*v1)
-	release := history.lock(dirKey(f.resolvedWorkingDir()))
+	release := history.lock(dirKey(f.resolvedProjectDir()))
 
 	done := make(chan error, 1)
 	go func() {
-		done <- f.history.Commit(uuid.New(), uuid.Nil, f.workingDir, nil)
+		done <- f.history.Commit(uuid.New(), uuid.Nil, f.projectDir, nil)
 	}()
 
 	select {
 	case err := <-done:
 		release()
-		t.Fatalf("another session committed while this working dir was held: %v", err)
+		t.Fatalf("another workflow committed while this working dir was held: %v", err)
 	case <-time.After(250 * time.Millisecond):
 	}
 
@@ -830,14 +830,14 @@ func TestSessionsSharingAWorkingDirDoNotWriteAtTheSameTime(t *testing.T) {
 	select {
 	case err := <-done:
 		if err != nil {
-			t.Fatalf("commit of the second session: %v", err)
+			t.Fatalf("commit of the second workflow: %v", err)
 		}
 	case <-time.After(30 * time.Second):
-		t.Fatal("the second session never got the working dir")
+		t.Fatal("the second workflow never got the working dir")
 	}
 
-	if _, err := f.history.Diff(f.session, uuid.Nil); err != nil {
-		t.Fatalf("diff after both sessions: %v", err)
+	if _, err := f.history.Diff(f.workflow, uuid.Nil); err != nil {
+		t.Fatalf("diff after both workflows: %v", err)
 	}
 
 	history.mu.Lock()
@@ -849,19 +849,19 @@ func TestSessionsSharingAWorkingDirDoNotWriteAtTheSameTime(t *testing.T) {
 	}
 }
 
-func TestRelativeWorkingDirIsRejected(t *testing.T) {
+func TestRelativeProjectDirIsRejected(t *testing.T) {
 	f := newFixture(t)
 
 	f.write("nested/nested/inner.txt", "the wrong tree\n")
 	f.write("nested/outer.txt", "the tree that was meant\n")
 
-	t.Chdir(f.workingDir)
+	t.Chdir(f.projectDir)
 
-	requireCritical(t, f.history.Commit(f.session, uuid.Nil, "nested", nil), "commit with a relative working dir")
-	requireCritical(t, f.history.RestoreTo(f.session, uuid.Nil, "nested"), "restore with a relative working dir")
+	requireCritical(t, f.history.Commit(f.workflow, uuid.Nil, "nested", nil), "commit with a relative working dir")
+	requireCritical(t, f.history.RestoreTo(f.workflow, uuid.Nil, "nested"), "restore with a relative working dir")
 }
 
-func TestStoreRefusesAWorkingDirItDidNotSnapshot(t *testing.T) {
+func TestStoreRefusesAProjectDirItDidNotSnapshot(t *testing.T) {
 	f := newFixture(t)
 
 	f.write("code.txt", "baseline\n")
@@ -872,8 +872,8 @@ func TestStoreRefusesAWorkingDirItDidNotSnapshot(t *testing.T) {
 		t.Fatalf("write into the other dir: %v", err)
 	}
 
-	requireCritical(t, f.history.Commit(f.session, uuid.New(), other, nil), "commit against a different working dir")
-	requireCritical(t, f.history.RestoreTo(f.session, uuid.Nil, other), "restore into a different working dir")
+	requireCritical(t, f.history.Commit(f.workflow, uuid.New(), other, nil), "commit against a different working dir")
+	requireCritical(t, f.history.RestoreTo(f.workflow, uuid.Nil, other), "restore into a different working dir")
 
 	if _, err := os.Stat(filepath.Join(other, "someone-elses.txt")); err != nil {
 		t.Fatalf("the unrelated directory was rewritten: %v", err)

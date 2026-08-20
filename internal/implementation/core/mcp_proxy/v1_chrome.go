@@ -42,7 +42,7 @@ type chromeArgs struct {
 	TimeoutMS  int    `json:"timeout_ms"`
 }
 
-type chromeCall func(session *mcp_helpers.CDPSession, args *chromeArgs) *toolResult
+type chromeCall func(workflow *mcp_helpers.CDPSession, args *chromeArgs) *toolResult
 
 type chromeBrowserCall func(args *chromeArgs) *toolResult
 
@@ -172,13 +172,13 @@ func (s *v1) chromePageTool(name, description string, input map[string]any, call
 				return bad
 			}
 
-			session, err := mcp_helpers.DialCDP(target, s.cfg.Chrome.CallTimeout)
+			workflow, err := mcp_helpers.DialCDP(target, s.cfg.Chrome.CallTimeout)
 			if err != nil {
 				return errorResult("cannot attach to tab " + target.ID + ": " + err.Error())
 			}
-			defer session.Close()
+			defer workflow.Close()
 
-			return call(session, args)
+			return call(workflow, args)
 		},
 	}
 }
@@ -273,12 +273,12 @@ func (s *v1) chromeCloseTab(args *chromeArgs) *toolResult {
 	return textResult("closed tab " + args.TabID)
 }
 
-func (s *v1) chromeNavigate(session *mcp_helpers.CDPSession, args *chromeArgs) *toolResult {
+func (s *v1) chromeNavigate(workflow *mcp_helpers.CDPSession, args *chromeArgs) *toolResult {
 	if bad := required("url", args.URL); bad != nil {
 		return bad
 	}
 
-	if _, err := session.Call("Page.navigate", map[string]any{"url": args.URL}); err != nil {
+	if _, err := workflow.Call("Page.navigate", map[string]any{"url": args.URL}); err != nil {
 		return errorResult("cannot navigate to " + args.URL + ": " + err.Error())
 	}
 
@@ -289,7 +289,7 @@ func (s *v1) chromeNavigate(session *mcp_helpers.CDPSession, args *chromeArgs) *
 	}{}
 
 	loaded := pollFor(s.cfg.Chrome.CallTimeout, func() (bool, error) {
-		if err := evalInto(session, chromeNavigatedJS, &page); err != nil {
+		if err := evalInto(workflow, chromeNavigatedJS, &page); err != nil {
 			return false, err
 		}
 
@@ -303,8 +303,8 @@ func (s *v1) chromeNavigate(session *mcp_helpers.CDPSession, args *chromeArgs) *
 	})
 }
 
-func (s *v1) chromeReadPage(session *mcp_helpers.CDPSession, args *chromeArgs) *toolResult {
-	raw, err := session.Eval(fmt.Sprintf(chromeReadPageJS, s.cfg.Chrome.MaxPageChars, chromeMaxElements))
+func (s *v1) chromeReadPage(workflow *mcp_helpers.CDPSession, args *chromeArgs) *toolResult {
+	raw, err := workflow.Eval(fmt.Sprintf(chromeReadPageJS, s.cfg.Chrome.MaxPageChars, chromeMaxElements))
 	if err != nil {
 		return errorResult("cannot read the page: " + err.Error())
 	}
@@ -312,13 +312,13 @@ func (s *v1) chromeReadPage(session *mcp_helpers.CDPSession, args *chromeArgs) *
 	return textResult(string(raw))
 }
 
-func (s *v1) chromeClick(session *mcp_helpers.CDPSession, args *chromeArgs) *toolResult {
+func (s *v1) chromeClick(workflow *mcp_helpers.CDPSession, args *chromeArgs) *toolResult {
 	if bad := required("selector", args.Selector); bad != nil {
 		return bad
 	}
 
 	clicked := false
-	if err := evalInto(session, fmt.Sprintf(chromeClickJS, jsString(args.Selector)), &clicked); err != nil {
+	if err := evalInto(workflow, fmt.Sprintf(chromeClickJS, jsString(args.Selector)), &clicked); err != nil {
 		return errorResult("cannot click " + args.Selector + ": " + err.Error())
 	}
 
@@ -329,7 +329,7 @@ func (s *v1) chromeClick(session *mcp_helpers.CDPSession, args *chromeArgs) *too
 	return textResult("clicked " + args.Selector)
 }
 
-func (s *v1) chromeFill(session *mcp_helpers.CDPSession, args *chromeArgs) *toolResult {
+func (s *v1) chromeFill(workflow *mcp_helpers.CDPSession, args *chromeArgs) *toolResult {
 	if bad := required("selector", args.Selector); bad != nil {
 		return bad
 	}
@@ -337,7 +337,7 @@ func (s *v1) chromeFill(session *mcp_helpers.CDPSession, args *chromeArgs) *tool
 	filled := false
 	expression := fmt.Sprintf(chromeFillJS, jsString(args.Selector), jsString(args.Value))
 
-	if err := evalInto(session, expression, &filled); err != nil {
+	if err := evalInto(workflow, expression, &filled); err != nil {
 		return errorResult("cannot fill " + args.Selector + ": " + err.Error())
 	}
 
@@ -348,7 +348,7 @@ func (s *v1) chromeFill(session *mcp_helpers.CDPSession, args *chromeArgs) *tool
 	return textResult("filled " + args.Selector)
 }
 
-func (s *v1) chromePressKey(session *mcp_helpers.CDPSession, args *chromeArgs) *toolResult {
+func (s *v1) chromePressKey(workflow *mcp_helpers.CDPSession, args *chromeArgs) *toolResult {
 	if bad := required("key", args.Key); bad != nil {
 		return bad
 	}
@@ -364,7 +364,7 @@ func (s *v1) chromePressKey(session *mcp_helpers.CDPSession, args *chromeArgs) *
 			params[key] = value
 		}
 
-		if _, err := session.Call("Input.dispatchKeyEvent", params); err != nil {
+		if _, err := workflow.Call("Input.dispatchKeyEvent", params); err != nil {
 			return errorResult("cannot send " + args.Key + ": " + err.Error())
 		}
 	}
@@ -372,7 +372,7 @@ func (s *v1) chromePressKey(session *mcp_helpers.CDPSession, args *chromeArgs) *
 	return textResult("pressed " + args.Key)
 }
 
-func (s *v1) chromeWaitFor(session *mcp_helpers.CDPSession, args *chromeArgs) *toolResult {
+func (s *v1) chromeWaitFor(workflow *mcp_helpers.CDPSession, args *chromeArgs) *toolResult {
 	if bad := required("selector", args.Selector); bad != nil {
 		return bad
 	}
@@ -389,7 +389,7 @@ func (s *v1) chromeWaitFor(session *mcp_helpers.CDPSession, args *chromeArgs) *t
 
 	found := pollFor(timeout, func() (bool, error) {
 		present := false
-		err := evalInto(session, expression, &present)
+		err := evalInto(workflow, expression, &present)
 
 		return present, err
 	})
@@ -401,8 +401,8 @@ func (s *v1) chromeWaitFor(session *mcp_helpers.CDPSession, args *chromeArgs) *t
 	return textResult(args.Selector + " is present")
 }
 
-func (s *v1) chromeScreenshot(session *mcp_helpers.CDPSession, args *chromeArgs) *toolResult {
-	raw, err := session.Call("Page.captureScreenshot", map[string]any{"format": "png"})
+func (s *v1) chromeScreenshot(workflow *mcp_helpers.CDPSession, args *chromeArgs) *toolResult {
+	raw, err := workflow.Call("Page.captureScreenshot", map[string]any{"format": "png"})
 	if err != nil {
 		return errorResult("cannot capture the tab: " + err.Error())
 	}
@@ -418,12 +418,12 @@ func (s *v1) chromeScreenshot(session *mcp_helpers.CDPSession, args *chromeArgs)
 	return imageResult(shot.Data, "image/png")
 }
 
-func (s *v1) chromeEvaluate(session *mcp_helpers.CDPSession, args *chromeArgs) *toolResult {
+func (s *v1) chromeEvaluate(workflow *mcp_helpers.CDPSession, args *chromeArgs) *toolResult {
 	if bad := required("expression", args.Expression); bad != nil {
 		return bad
 	}
 
-	raw, err := session.Eval(args.Expression)
+	raw, err := workflow.Eval(args.Expression)
 	if err != nil {
 		return errorResult("cannot evaluate the expression: " + err.Error())
 	}
@@ -546,8 +546,8 @@ func pollFor(timeout time.Duration, check func() (bool, error)) bool {
 	}
 }
 
-func evalInto(session *mcp_helpers.CDPSession, expression string, value any) error {
-	raw, err := session.Eval(expression)
+func evalInto(workflow *mcp_helpers.CDPSession, expression string, value any) error {
+	raw, err := workflow.Eval(expression)
 	if err != nil {
 		return err
 	}

@@ -7,12 +7,12 @@
 [![Platform](https://img.shields.io/badge/platform-macOS-lightgrey)](#requirements)
 [![Stars](https://img.shields.io/github/stars/rye-ndt/nexo?style=social)](https://github.com/rye-ndt/nexo/stargazers)
 
-![Nexo running a graph of agents](docs/demo.gif)
+![Nexo running a graph of steps](docs/demo.gif)
 
-You draw the work as a graph. Each node is one scoped task: a role, a model, the
-files it's allowed to touch, plus whatever guidance it needs. Nexo runs agents
-through the graph, watches them, captures the diff, and feeds what each node
-learned into the next node's prompt.
+You draw the work as a graph. Each step is one scoped unit of work: a role, a
+model, the files it's allowed to touch, plus whatever guidance it needs. Nexo
+runs agents through the graph, watches them, captures the diff, and feeds what
+each step learned into the next step's prompt.
 
 ## Contents
 
@@ -27,11 +27,11 @@ learned into the next node's prompt.
 ## Why Nexo exists
 
 The limitation of LLMs on long, multi-step work isn't the model, it's the
-context. An agent that starts a task knowing only the task will improvise the
-rest. So Nexo makes the handover between steps the thing you engineer.
+context. An agent that starts a step knowing only that step will improvise the
+rest. So Nexo makes the handoff between steps the thing you engineer.
 
-Claude Code and OpenCode are great at one task, and Nexo runs on top of them
-anyway. But:
+Claude Code, OpenCode and Codex are great at one step, and Nexo runs on top of
+them anyway. But:
 
 - can you delegate a 10-step job, walk away, and trust it without reading every line?
 - can you make it follow _your_ procedure instead of improvising one?
@@ -40,16 +40,16 @@ anyway. But:
 
 Four things separate it from a wrapper:
 
-**Nodes are a DAG, not a queue.** Chaining is the entire point.
+**Steps are a DAG, not a queue.** Chaining is the entire point.
 
-**The handover doc is the product.** A finished node writes down what it did,
-what blocked it, what got approved, what got _rejected_, and what's still
-broken. That doc becomes the next node's context. Telling the next agent what
+**The handoff is the product.** A finished step writes down what it did, what
+blocked it, what got approved, what got _rejected_, and what's still broken.
+That handoff becomes the next step's context. Telling the next agent what
 **not** to do matters as much as telling it what happened.
 
-**It assumes agents fail.** Every task write commits to SQLite as it happens, so
+**It assumes agents fail.** Every step write commits to SQLite as it happens, so
 a crash costs you nothing already reported. Agents send heartbeats, and one that
-goes quiet drops its task back into the pool. Every file change is stored as a
+goes quiet drops its step back into the pool. Every file change is stored as a
 unified diff, so you can revert without depending on git.
 
 **Agents never see your secrets.** Nexo does the OAuth once, encrypts the token,
@@ -77,12 +77,12 @@ make dev
 
 Then, in the app:
 
-1. install and sign in to Claude Code / Open Code in settings
+1. install and sign in to your agents - Claude Code, OpenCode, Codex - in settings
 2. authorize any MCP servers you need
-3. start a session
-4. make templates, each one a kind of agent that does a kind of work
-5. drop nodes on the canvas and wire them together, mixing agent types freely
-6. finalize the session, run it
+3. start a workflow and point it at a project folder
+4. make roles, each one a kind of worker that does a kind of work
+5. drop steps on the canvas and wire them together, mixing agents freely
+6. lock the workflow, run it
 7. go play pickleball
 8. come back, review, revert what you don't like
 9. commit
@@ -111,22 +111,22 @@ composition root.
 | Layer | Path | Holds |
 | --- | --- | --- |
 | Ports | `internal/interface/` | `core_itf`, `input_itf`, `output_itf` |
-| Core | `internal/implementation/core/` | session manager, coordinator, agent manager, MCP proxy |
+| Core | `internal/implementation/core/` | workflow manager, coordinator, agent manager, MCP proxy, role manager |
 | Input | `internal/implementation/input/` | SQLite storage, agent harnesses, config, archives |
 | Output | `internal/implementation/output/` | frontend API, logger, message queue |
 | UI | `frontend/` | React, TypeScript, React Flow canvas |
 
 Four collaborators drive a run:
 
-- **SessionManager** owns graph state: tasks, dependencies, readiness, retries,
-  accept gates, heartbeat deadlines. It does not know how to start an agent.
-- **Coordinator** is the loop. It requests an agent per ready task, builds the
+- **WorkflowManager** owns graph state: steps, dependencies, readiness, retries,
+  reviews, heartbeat deadlines. It does not know how to start an agent.
+- **Coordinator** is the loop. It requests an agent per ready step, builds the
   prompt, and watches heartbeats. `buildPrompt` is where context engineering
-  happens: task guidance, write allowance, and every dependency's handover doc.
+  happens: step guidance, write allowance, and every dependency's handoffs.
 - **AgentManager** owns instances on top of one harness per vendor, the things
   that spawn a subprocess and stream output.
 - **MCPProxy** serves a local MCP server exposing `request_approval` and
-  `report_task`. An agent calling `report_task` is the only way a node completes.
+  `report_step`. An agent calling `report_step` is the only way a step completes.
 
 Working on it: `make dev`, `make build`, `make test`. In `frontend/`,
 `npm run dev` serves vite on 8888 with no Wails runtime. Regenerate bindings
@@ -146,8 +146,8 @@ claude mcp add nexo -- /full/path/to/nexo/build/bin/nexo-mcp
 ```
 
 Use the absolute path, since Claude Code does not resolve it against your
-project. Eight tools come across: list templates, create a session from one,
-start, pause, cancel, read status, list sessions, and answer an acceptance gate.
+project. Eight tools come across: list roles, create a workflow from them,
+start, pause, cancel, read status, list workflows, and answer a review.
 
 The catch: **none of it works while the Nexo app is closed.** The shim only
 forwards. Add `-launch` to have it open Nexo and wait, rather than failing the
@@ -156,7 +156,7 @@ call.
 ## Support
 
 Questions and bugs go to [GitHub Issues](https://github.com/rye-ndt/nexo/issues).
-Want help setting this up for your team, custom templates, or tuning it for your
+Want help setting this up for your team, custom roles, or tuning it for your
 company? Contact nduytung.1611@gmail.com.
 
 Not vibe-coded: I built the backend and the architecture by hand. Claude helped

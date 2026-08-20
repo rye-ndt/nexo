@@ -130,15 +130,60 @@ var migrations = []string{
 	`ALTER TABLE mcp_credentials DROP COLUMN encrypted_refresh_key`,
 	`ALTER TABLE agent_templates ADD COLUMN output_structure TEXT NOT NULL DEFAULT ''`,
 	`ALTER TABLE tasks ADD COLUMN task_level TEXT NOT NULL DEFAULT ''`,
+	`ALTER TABLE sessions RENAME TO workflows`,
+	`ALTER TABLE tasks RENAME TO steps`,
+	`ALTER TABLE task_reports RENAME TO step_results`,
+	`ALTER TABLE agent_templates RENAME TO roles`,
+	`ALTER TABLE session_drafts RENAME TO workflow_drafts`,
+	`ALTER TABLE workflows RENAME COLUMN total_task TO total_step`,
+	`ALTER TABLE workflows RENAME COLUMN working_dir_path TO project_dir_path`,
+	`ALTER TABLE steps RENAME COLUMN session_id TO workflow_id`,
+	`ALTER TABLE steps RENAME COLUMN depends_on_task_ids TO depends_on_step_ids`,
+	`ALTER TABLE steps RENAME COLUMN manual_accept_required TO pause_for_review`,
+	`ALTER TABLE steps RENAME COLUMN task_level TO effort`,
+	`ALTER TABLE step_results RENAME COLUMN task_id TO step_id`,
+	`ALTER TABLE step_results RENAME COLUMN handover_doc TO handoff`,
+	`ALTER TABLE roles RENAME COLUMN role TO description`,
+	`ALTER TABLE roles RENAME COLUMN task_level TO effort`,
+	`ALTER TABLE roles RENAME COLUMN manual_accept_required TO pause_for_review`,
+	`UPDATE steps SET effort = 'quick' WHERE effort = 'lightweight_task'`,
+	`UPDATE steps SET effort = 'standard' WHERE effort = 'daily_task'`,
+	`UPDATE steps SET effort = 'deep' WHERE effort = 'heavy_task'`,
+	`UPDATE steps SET effort = 'exhaustive' WHERE effort = 'maximum_effort_task'`,
+	`UPDATE roles SET effort = 'quick' WHERE effort = 'lightweight_task'`,
+	`UPDATE roles SET effort = 'standard' WHERE effort = 'daily_task'`,
+	`UPDATE roles SET effort = 'deep' WHERE effort = 'heavy_task'`,
+	`UPDATE roles SET effort = 'exhaustive' WHERE effort = 'maximum_effort_task'`,
+	`ALTER TABLE workflows DROP COLUMN context_dir_path`,
+	`ALTER TABLE roles RENAME COLUMN params TO inputs`,
+	`ALTER TABLE roles RENAME COLUMN system_prompts TO instructions`,
+	`ALTER TABLE steps RENAME COLUMN system_prompts TO instructions`,
+	`UPDATE steps SET status = 'awaiting_review' WHERE status = 'awaiting_accept'`,
+	`UPDATE step_results SET handoff = REPLACE(handoff, '"task_name"', '"step_name"')`,
+	`UPDATE workflow_drafts SET doc = REPLACE(doc, '"tasks"', '"steps"')`,
+	`UPDATE workflow_drafts SET doc = REPLACE(doc, '"finalized"', '"locked"')`,
+	`UPDATE workflow_drafts SET doc = REPLACE(doc, '"workingDir"', '"projectDir"')`,
+	`UPDATE workflow_drafts SET doc = REPLACE(doc, '"templateId"', '"roleId"')`,
+	`UPDATE workflow_drafts SET doc = REPLACE(doc, '"taskIds"', '"stepIds"')`,
+	`UPDATE workflow_drafts SET doc = REPLACE(doc, '"sessionId"', '"workflowId"')`,
+	`UPDATE workflow_drafts SET doc = REPLACE(doc, '"handoverDocs"', '"handoffs"')`,
+	`UPDATE workflow_drafts SET doc = REPLACE(doc, '"manualAcceptRequired"', '"pauseForReview"')`,
+	`UPDATE workflow_drafts SET doc = REPLACE(doc, '"systemPrompts"', '"instructions"')`,
+	`UPDATE workflow_drafts SET doc = REPLACE(doc, '"task":', '"step":')`,
+	`UPDATE workflow_drafts SET doc = REPLACE(doc, '"lightweight_task"', '"quick"')`,
+	`UPDATE workflow_drafts SET doc = REPLACE(doc, '"daily_task"', '"standard"')`,
+	`UPDATE workflow_drafts SET doc = REPLACE(doc, '"heavy_task"', '"deep"')`,
+	`UPDATE workflow_drafts SET doc = REPLACE(doc, '"maximum_effort_task"', '"exhaustive"')`,
+	`UPDATE workflow_drafts SET doc = REPLACE(doc, '"awaiting_accept"', '"awaiting_review"')`,
 }
 
-const templateColumns = `id, name, role, task_level, retryable, manual_accept_required, params, system_prompts, output_structure, created_at, updated_at`
+const roleColumns = `id, name, description, effort, retryable, pause_for_review, inputs, instructions, output_structure, created_at, updated_at`
 
 type litesql struct {
 	db *sql.DB
 }
 
-type taskStore struct {
+type stepStore struct {
 	db *sql.DB
 }
 
@@ -146,7 +191,7 @@ type mcpStore struct {
 	db *sql.DB
 }
 
-type templateStore struct {
+type roleStore struct {
 	db *sql.DB
 }
 
@@ -177,7 +222,7 @@ func New(path string) (input_itf.Storage, error) {
 }
 
 // dsn asks for WAL journalling and a busy timeout. database/sql hands out several
-// connections, and task writes now come from the coordinator, the heartbeat
+// connections, and step writes now come from the coordinator, the heartbeat
 // watcher and every MCP report at once; without these two pragmas the second
 // writer of any overlapping pair fails instantly with SQLITE_BUSY instead of
 // waiting its turn. The path is escaped because the macOS data dir has a space in it.
@@ -257,33 +302,33 @@ func (s *litesql) Find(name string) (*input_itf.HarnessEntity, error) {
 	return info, nil
 }
 
-func (s *litesql) TaskStore() input_itf.TaskStorage {
-	return &taskStore{db: s.db}
+func (s *litesql) StepStore() input_itf.StepStorage {
+	return &stepStore{db: s.db}
 }
 
 func (s *litesql) MCPStore() input_itf.StorageMCP {
 	return &mcpStore{db: s.db}
 }
 
-func (s *litesql) TemplateStore() input_itf.TemplateStorage {
-	return &templateStore{db: s.db}
+func (s *litesql) RoleStore() input_itf.RoleStorage {
+	return &roleStore{db: s.db}
 }
 
 func (s *litesql) DraftStore() input_itf.DraftStorage {
 	return &draftStore{db: s.db}
 }
 
-func (s *draftStore) List() ([]*input_itf.SessionDraftEntity, error) {
-	rows, err := s.db.Query(`SELECT id, doc, updated_at FROM session_drafts ORDER BY updated_at DESC`)
+func (s *draftStore) List() ([]*input_itf.WorkflowDraftEntity, error) {
+	rows, err := s.db.Query(`SELECT id, doc, updated_at FROM workflow_drafts ORDER BY updated_at DESC`)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	list := []*input_itf.SessionDraftEntity{}
+	list := []*input_itf.WorkflowDraftEntity{}
 
 	for rows.Next() {
-		d := &input_itf.SessionDraftEntity{}
+		d := &input_itf.WorkflowDraftEntity{}
 		var id, updatedAt string
 
 		if err := rows.Scan(&id, &d.Doc, &updatedAt); err != nil {
@@ -299,8 +344,8 @@ func (s *draftStore) List() ([]*input_itf.SessionDraftEntity, error) {
 	return list, rows.Err()
 }
 
-func (s *draftStore) Save(draft *input_itf.SessionDraftEntity) error {
-	_, err := s.db.Exec(`INSERT INTO session_drafts (id, doc, updated_at)
+func (s *draftStore) Save(draft *input_itf.WorkflowDraftEntity) error {
+	_, err := s.db.Exec(`INSERT INTO workflow_drafts (id, doc, updated_at)
 		VALUES (?, ?, ?)
 		ON CONFLICT(id) DO UPDATE SET
 			doc = excluded.doc,
@@ -313,23 +358,23 @@ func (s *draftStore) Save(draft *input_itf.SessionDraftEntity) error {
 }
 
 func (s *draftStore) Delete(id uuid.UUID) error {
-	_, err := s.db.Exec(`DELETE FROM session_drafts WHERE id = ?`, id.String())
+	_, err := s.db.Exec(`DELETE FROM workflow_drafts WHERE id = ?`, id.String())
 	return err
 }
 
-func (s *templateStore) Upsert(t *input_itf.TemplateEntity) error {
-	return upsertTemplate(s.db, t)
+func (s *roleStore) Upsert(t *input_itf.RoleEntity) error {
+	return upsertRole(s.db, t)
 }
 
-func (s *templateStore) UpsertMany(templates []*input_itf.TemplateEntity) error {
+func (s *roleStore) UpsertMany(roles []*input_itf.RoleEntity) error {
 	tx, err := s.db.Begin()
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
 
-	for _, t := range templates {
-		if err := upsertTemplate(tx, t); err != nil {
+	for _, t := range roles {
+		if err := upsertRole(tx, t); err != nil {
 			return err
 		}
 	}
@@ -337,37 +382,37 @@ func (s *templateStore) UpsertMany(templates []*input_itf.TemplateEntity) error 
 	return tx.Commit()
 }
 
-func upsertTemplate(db execer, t *input_itf.TemplateEntity) error {
-	params, err := json.Marshal(t.Params)
+func upsertRole(db execer, t *input_itf.RoleEntity) error {
+	inputs, err := json.Marshal(t.Inputs)
 	if err != nil {
 		return err
 	}
 
-	prompts, err := json.Marshal(t.SystemPrompts)
+	instructions, err := json.Marshal(t.Instructions)
 	if err != nil {
 		return err
 	}
 
-	_, err = db.Exec(`INSERT INTO agent_templates (`+templateColumns+`)
+	_, err = db.Exec(`INSERT INTO roles (`+roleColumns+`)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(id) DO UPDATE SET
 			name = excluded.name,
-			role = excluded.role,
-			task_level = excluded.task_level,
+			description = excluded.description,
+			effort = excluded.effort,
 			retryable = excluded.retryable,
-			manual_accept_required = excluded.manual_accept_required,
-			params = excluded.params,
-			system_prompts = excluded.system_prompts,
+			pause_for_review = excluded.pause_for_review,
+			inputs = excluded.inputs,
+			instructions = excluded.instructions,
 			output_structure = excluded.output_structure,
 			updated_at = excluded.updated_at`,
 		t.ID.String(),
 		t.Name,
-		t.Role,
-		t.TaskLevel.String(),
+		t.Description,
+		t.Effort.String(),
 		t.Retryable,
-		t.ManualAcceptRequired,
-		string(params),
-		string(prompts),
+		t.PauseForReview,
+		string(inputs),
+		string(instructions),
 		t.OutputStructure,
 		formatTime(t.CreatedAt),
 		formatTime(t.UpdatedAt),
@@ -375,17 +420,17 @@ func upsertTemplate(db execer, t *input_itf.TemplateEntity) error {
 	return err
 }
 
-func (s *templateStore) List() ([]*input_itf.TemplateEntity, error) {
-	rows, err := s.db.Query(`SELECT ` + templateColumns + ` FROM agent_templates ORDER BY name`)
+func (s *roleStore) List() ([]*input_itf.RoleEntity, error) {
+	rows, err := s.db.Query(`SELECT ` + roleColumns + ` FROM roles ORDER BY name`)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	list := []*input_itf.TemplateEntity{}
+	list := []*input_itf.RoleEntity{}
 
 	for rows.Next() {
-		t, err := scanTemplate(rows.Scan)
+		t, err := scanRole(rows.Scan)
 		if err != nil {
 			return nil, err
 		}
@@ -396,10 +441,10 @@ func (s *templateStore) List() ([]*input_itf.TemplateEntity, error) {
 	return list, rows.Err()
 }
 
-func (s *templateStore) Find(id uuid.UUID) (*input_itf.TemplateEntity, error) {
-	row := s.db.QueryRow(`SELECT `+templateColumns+` FROM agent_templates WHERE id = ?`, id.String())
+func (s *roleStore) Find(id uuid.UUID) (*input_itf.RoleEntity, error) {
+	row := s.db.QueryRow(`SELECT `+roleColumns+` FROM roles WHERE id = ?`, id.String())
 
-	t, err := scanTemplate(row.Scan)
+	t, err := scanRole(row.Scan)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
@@ -410,30 +455,30 @@ func (s *templateStore) Find(id uuid.UUID) (*input_itf.TemplateEntity, error) {
 	return t, nil
 }
 
-func (s *templateStore) Remove(id uuid.UUID) error {
-	_, err := s.db.Exec(`DELETE FROM agent_templates WHERE id = ?`, id.String())
+func (s *roleStore) Remove(id uuid.UUID) error {
+	_, err := s.db.Exec(`DELETE FROM roles WHERE id = ?`, id.String())
 	return err
 }
 
-func scanTemplate(scan func(dest ...any) error) (*input_itf.TemplateEntity, error) {
-	t := &input_itf.TemplateEntity{}
+func scanRole(scan func(dest ...any) error) (*input_itf.RoleEntity, error) {
+	t := &input_itf.RoleEntity{}
 
-	var id, taskLevel, params, prompts, createdAt, updatedAt string
+	var id, effort, inputs, instructions, createdAt, updatedAt string
 
-	if err := scan(&id, &t.Name, &t.Role, &taskLevel, &t.Retryable, &t.ManualAcceptRequired,
-		&params, &prompts, &t.OutputStructure, &createdAt, &updatedAt); err != nil {
+	if err := scan(&id, &t.Name, &t.Description, &effort, &t.Retryable, &t.PauseForReview,
+		&inputs, &instructions, &t.OutputStructure, &createdAt, &updatedAt); err != nil {
 		return nil, err
 	}
 
 	t.ID = parseUUID(id)
-	t.TaskLevel = enums.TaskLevel(taskLevel)
+	t.Effort = enums.Effort(effort)
 	t.CreatedAt = parseTime(createdAt)
 	t.UpdatedAt = parseTime(updatedAt)
 
-	if err := json.Unmarshal([]byte(params), &t.Params); err != nil {
+	if err := json.Unmarshal([]byte(inputs), &t.Inputs); err != nil {
 		return nil, err
 	}
-	if err := json.Unmarshal([]byte(prompts), &t.SystemPrompts); err != nil {
+	if err := json.Unmarshal([]byte(instructions), &t.Instructions); err != nil {
 		return nil, err
 	}
 
@@ -522,10 +567,10 @@ func (s *mcpStore) DeleteCredentials(name string) error {
 	return err
 }
 
-func (s *taskStore) SaveTaskHistory(
-	sessions []*input_itf.SessionEntity,
-	tasks []*input_itf.TaskEntity,
-	reports []*input_itf.TaskReportEntity,
+func (s *stepStore) SaveStepHistory(
+	workflows []*input_itf.WorkflowEntity,
+	steps []*input_itf.StepEntity,
+	reports []*input_itf.StepResultEntity,
 ) error {
 	tx, err := s.db.Begin()
 	if err != nil {
@@ -533,14 +578,14 @@ func (s *taskStore) SaveTaskHistory(
 	}
 	defer tx.Rollback()
 
-	for _, sess := range sessions {
-		if err := saveSession(tx, sess); err != nil {
+	for _, sess := range workflows {
+		if err := saveWorkflow(tx, sess); err != nil {
 			return err
 		}
 	}
 
-	for _, t := range tasks {
-		if err := saveTask(tx, t); err != nil {
+	for _, t := range steps {
+		if err := saveStep(tx, t); err != nil {
 			return err
 		}
 	}
@@ -554,45 +599,45 @@ func (s *taskStore) SaveTaskHistory(
 	return tx.Commit()
 }
 
-func (s *taskStore) LoadTaskHistory() ([]*input_itf.SessionSnapshot, error) {
-	sessions, err := loadAll(s.db, `SELECT id, working_dir_path, context_dir_path, started_at,
-		completed_at, total_task, total_retry, created_at, updated_at
-		FROM sessions ORDER BY created_at, id`, scanSession)
+func (s *stepStore) LoadStepHistory() ([]*input_itf.WorkflowSnapshot, error) {
+	workflows, err := loadAll(s.db, `SELECT id, project_dir_path, started_at,
+		completed_at, total_step, total_retry, created_at, updated_at
+		FROM workflows ORDER BY created_at, id`, scanWorkflow)
 	if err != nil {
 		return nil, err
 	}
 
-	tasks, err := loadAll(s.db, `SELECT id, session_id, name, task_level, preferred_model,
-		thinking_level, system_prompts, auto_retry, manual_accept_required, extra_guidance,
-		retry_count, status, depends_on_task_ids, last_report_id, created_at, updated_at
-		FROM tasks ORDER BY created_at, id`, scanTask)
+	steps, err := loadAll(s.db, `SELECT id, workflow_id, name, effort, preferred_model,
+		thinking_level, instructions, auto_retry, pause_for_review, extra_guidance,
+		retry_count, status, depends_on_step_ids, last_report_id, created_at, updated_at
+		FROM steps ORDER BY created_at, id`, scanStep)
 	if err != nil {
 		return nil, err
 	}
 
-	reports, err := loadAll(s.db, `SELECT id, task_id, agent_id, attempt_status, handover_doc,
+	reports, err := loadAll(s.db, `SELECT id, step_id, agent_id, attempt_status, handoff,
 		context_usage, started_at, completed_at, created_at, updated_at
-		FROM task_reports ORDER BY created_at, id`, scanReport)
+		FROM step_results ORDER BY created_at, id`, scanReport)
 	if err != nil {
 		return nil, err
 	}
 
-	tasksOf := map[uuid.UUID][]*input_itf.TaskEntity{}
-	for _, t := range tasks {
-		tasksOf[t.SessionID] = append(tasksOf[t.SessionID], t)
+	stepsOf := map[uuid.UUID][]*input_itf.StepEntity{}
+	for _, t := range steps {
+		stepsOf[t.WorkflowID] = append(stepsOf[t.WorkflowID], t)
 	}
 
-	reportsOf := map[uuid.UUID][]*input_itf.TaskReportEntity{}
+	reportsOf := map[uuid.UUID][]*input_itf.StepResultEntity{}
 	for _, r := range reports {
-		reportsOf[r.TaskID] = append(reportsOf[r.TaskID], r)
+		reportsOf[r.StepID] = append(reportsOf[r.StepID], r)
 	}
 
-	snapshots := make([]*input_itf.SessionSnapshot, 0, len(sessions))
+	snapshots := make([]*input_itf.WorkflowSnapshot, 0, len(workflows))
 
-	for _, sess := range sessions {
-		snapshot := &input_itf.SessionSnapshot{Session: sess, Tasks: tasksOf[sess.ID]}
+	for _, sess := range workflows {
+		snapshot := &input_itf.WorkflowSnapshot{Workflow: sess, Steps: stepsOf[sess.ID]}
 
-		for _, t := range snapshot.Tasks {
+		for _, t := range snapshot.Steps {
 			snapshot.Reports = append(snapshot.Reports, reportsOf[t.ID]...)
 		}
 
@@ -623,13 +668,13 @@ func loadAll[T any](db *sql.DB, query string, scan func(*sql.Rows) (*T, error)) 
 	return list, rows.Err()
 }
 
-func scanSession(rows *sql.Rows) (*input_itf.SessionEntity, error) {
-	sess := &input_itf.SessionEntity{}
+func scanWorkflow(rows *sql.Rows) (*input_itf.WorkflowEntity, error) {
+	sess := &input_itf.WorkflowEntity{}
 
 	var id, startedAt, completedAt, createdAt, updatedAt string
 
-	if err := rows.Scan(&id, &sess.WorkingDirPath, &sess.ContextDirPath, &startedAt, &completedAt,
-		&sess.TotalTask, &sess.TotalRetry, &createdAt, &updatedAt); err != nil {
+	if err := rows.Scan(&id, &sess.ProjectDirPath, &startedAt, &completedAt,
+		&sess.TotalStep, &sess.TotalRetry, &createdAt, &updatedAt); err != nil {
 		return nil, err
 	}
 
@@ -642,57 +687,57 @@ func scanSession(rows *sql.Rows) (*input_itf.SessionEntity, error) {
 	return sess, nil
 }
 
-func scanTask(rows *sql.Rows) (*input_itf.TaskEntity, error) {
-	t := &input_itf.TaskEntity{}
+func scanStep(rows *sql.Rows) (*input_itf.StepEntity, error) {
+	t := &input_itf.StepEntity{}
 
-	var id, sessionID, taskLevel, preferredModel, thinkingLevel, systemPrompts string
-	var status, dependsOnTaskIDs, lastReportID, createdAt, updatedAt string
+	var id, workflowID, effort, preferredModel, thinkingLevel, instructions string
+	var status, dependsOnStepIDs, lastReportID, createdAt, updatedAt string
 
-	if err := rows.Scan(&id, &sessionID, &t.Name, &taskLevel, &preferredModel, &thinkingLevel,
-		&systemPrompts, &t.AutoRetry, &t.ManualAcceptRequired, &t.ExtraGuidance,
-		&t.RetryCount, &status, &dependsOnTaskIDs, &lastReportID,
+	if err := rows.Scan(&id, &workflowID, &t.Name, &effort, &preferredModel, &thinkingLevel,
+		&instructions, &t.AutoRetry, &t.PauseForReview, &t.ExtraGuidance,
+		&t.RetryCount, &status, &dependsOnStepIDs, &lastReportID,
 		&createdAt, &updatedAt); err != nil {
 		return nil, err
 	}
 
 	t.ID = parseUUID(id)
-	t.SessionID = parseUUID(sessionID)
-	t.TaskLevel = enums.TaskLevel(taskLevel)
+	t.WorkflowID = parseUUID(workflowID)
+	t.Effort = enums.Effort(effort)
 	t.PreferredModel = enums.ModelName(preferredModel)
 	t.ThinkingLevel = enums.ThinkingLevel(thinkingLevel)
-	t.Status = enums.TaskStatus(status)
+	t.Status = enums.StepStatus(status)
 	t.LastReportID = parseUUID(lastReportID)
 	t.CreatedAt = parseTime(createdAt)
 	t.UpdatedAt = parseTime(updatedAt)
 
-	if err := json.Unmarshal([]byte(systemPrompts), &t.SystemPrompts); err != nil {
+	if err := json.Unmarshal([]byte(instructions), &t.Instructions); err != nil {
 		return nil, err
 	}
 
-	return t, json.Unmarshal([]byte(dependsOnTaskIDs), &t.DependsOnTaskIDs)
+	return t, json.Unmarshal([]byte(dependsOnStepIDs), &t.DependsOnStepIDs)
 }
 
-func scanReport(rows *sql.Rows) (*input_itf.TaskReportEntity, error) {
-	r := &input_itf.TaskReportEntity{}
+func scanReport(rows *sql.Rows) (*input_itf.StepResultEntity, error) {
+	r := &input_itf.StepResultEntity{}
 
-	var id, taskID, agentID, attemptStatus, handoverDoc, contextUsage string
+	var id, stepID, agentID, attemptStatus, handoff, contextUsage string
 	var startedAt, completedAt, createdAt, updatedAt string
 
-	if err := rows.Scan(&id, &taskID, &agentID, &attemptStatus, &handoverDoc, &contextUsage,
+	if err := rows.Scan(&id, &stepID, &agentID, &attemptStatus, &handoff, &contextUsage,
 		&startedAt, &completedAt, &createdAt, &updatedAt); err != nil {
 		return nil, err
 	}
 
 	r.ID = parseUUID(id)
-	r.TaskID = parseUUID(taskID)
+	r.StepID = parseUUID(stepID)
 	r.AgentID = parseUUID(agentID)
-	r.AttemptStatus = enums.TaskStatus(attemptStatus)
+	r.AttemptStatus = enums.StepStatus(attemptStatus)
 	r.StartedAt = parseTime(startedAt)
 	r.CompletedAt = parseTime(completedAt)
 	r.CreatedAt = parseTime(createdAt)
 	r.UpdatedAt = parseTime(updatedAt)
 
-	if err := json.Unmarshal([]byte(handoverDoc), &r.HandoverDocs); err != nil {
+	if err := json.Unmarshal([]byte(handoff), &r.Handoffs); err != nil {
 		return nil, err
 	}
 
@@ -710,17 +755,16 @@ func scanReport(rows *sql.Rows) (*input_itf.TaskReportEntity, error) {
 	return r, nil
 }
 
-func saveSession(e execer, sess *input_itf.SessionEntity) error {
-	_, err := e.Exec(`INSERT OR REPLACE INTO sessions
-		(id, working_dir_path, context_dir_path, started_at, completed_at,
-		total_task, total_retry, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+func saveWorkflow(e execer, sess *input_itf.WorkflowEntity) error {
+	_, err := e.Exec(`INSERT OR REPLACE INTO workflows
+		(id, project_dir_path, started_at, completed_at,
+		total_step, total_retry, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
 		sess.ID.String(),
-		sess.WorkingDirPath,
-		sess.ContextDirPath,
+		sess.ProjectDirPath,
 		formatTime(sess.StartedAt),
 		formatTime(sess.CompletedAt),
-		sess.TotalTask,
+		sess.TotalStep,
 		sess.TotalRetry,
 		formatTime(sess.CreatedAt),
 		formatTime(sess.UpdatedAt),
@@ -728,32 +772,32 @@ func saveSession(e execer, sess *input_itf.SessionEntity) error {
 	return err
 }
 
-func saveTask(e execer, t *input_itf.TaskEntity) error {
-	systemPrompts, err := json.Marshal(t.SystemPrompts)
+func saveStep(e execer, t *input_itf.StepEntity) error {
+	instructions, err := json.Marshal(t.Instructions)
 	if err != nil {
 		return err
 	}
 
-	dependsOnIDs, err := json.Marshal(t.DependsOnTaskIDs)
+	dependsOnIDs, err := json.Marshal(t.DependsOnStepIDs)
 	if err != nil {
 		return err
 	}
 
-	_, err = e.Exec(`INSERT OR REPLACE INTO tasks
-		(id, session_id, name, task_level, preferred_model, thinking_level, system_prompts,
-		auto_retry, manual_accept_required,
-		extra_guidance, retry_count, status, depends_on_task_ids,
+	_, err = e.Exec(`INSERT OR REPLACE INTO steps
+		(id, workflow_id, name, effort, preferred_model, thinking_level, instructions,
+		auto_retry, pause_for_review,
+		extra_guidance, retry_count, status, depends_on_step_ids,
 		last_report_id, created_at, updated_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		t.ID.String(),
-		t.SessionID.String(),
+		t.WorkflowID.String(),
 		t.Name,
-		string(t.TaskLevel),
+		string(t.Effort),
 		string(t.PreferredModel),
 		string(t.ThinkingLevel),
-		string(systemPrompts),
+		string(instructions),
 		t.AutoRetry,
-		t.ManualAcceptRequired,
+		t.PauseForReview,
 		t.ExtraGuidance,
 		t.RetryCount,
 		string(t.Status),
@@ -765,8 +809,8 @@ func saveTask(e execer, t *input_itf.TaskEntity) error {
 	return err
 }
 
-func saveReport(e execer, r *input_itf.TaskReportEntity) error {
-	doc, err := json.Marshal(r.HandoverDocs)
+func saveReport(e execer, r *input_itf.StepResultEntity) error {
+	doc, err := json.Marshal(r.Handoffs)
 	if err != nil {
 		return err
 	}
@@ -782,12 +826,12 @@ func saveReport(e execer, r *input_itf.TaskReportEntity) error {
 		usage = string(encoded)
 	}
 
-	_, err = e.Exec(`INSERT OR REPLACE INTO task_reports
-		(id, task_id, agent_id, attempt_status, handover_doc, context_usage,
+	_, err = e.Exec(`INSERT OR REPLACE INTO step_results
+		(id, step_id, agent_id, attempt_status, handoff, context_usage,
 		started_at, completed_at, created_at, updated_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		r.ID.String(),
-		r.TaskID.String(),
+		r.StepID.String(),
 		r.AgentID.String(),
 		string(r.AttemptStatus),
 		string(doc),

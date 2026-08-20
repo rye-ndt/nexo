@@ -273,14 +273,14 @@ func TestADroppedAnswerIsNotReplayedAgainstTheSameApp(t *testing.T) {
 
 	out := &bytes.Buffer{}
 
-	create := `{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"create_session"}}`
+	create := `{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"create_workflow"}}`
 
 	if err := run(strings.NewReader(create+"\n"), out, path, testOptions()); err != nil {
 		t.Fatalf("run: %v", err)
 	}
 
 	if calls != 1 {
-		t.Fatalf("the app was called %d times, want 1: create_session must not be replayed", calls)
+		t.Fatalf("the app was called %d times, want 1: create_workflow must not be replayed", calls)
 	}
 
 	if !strings.Contains(out.String(), "refused the call") {

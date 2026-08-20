@@ -1,5 +1,6 @@
 import {AgentActionButton} from '@/features/agents/components/agent-action-button'
 import {AgentLogin} from '@/features/agents/components/agent-login'
+import {HelpTip} from '@/shared/components/help-tip'
 import {StatusChip} from '@/shared/components/status-chip'
 import {AgentAction} from '@/shared/lib/enums'
 import {useAgents} from '@/features/agents/use-agents'
@@ -17,9 +18,12 @@ export function AgentsPanel() {
     return (
         <section className="flex flex-col">
             <div className="flex flex-col gap-1 px-4 pt-4 pb-3">
-                <h3 className="text-lg font-medium">Harnesses that run your nodes</h3>
+                <div className="flex items-center gap-2">
+                    <h3 className="text-lg font-medium">Agents that run your steps</h3>
+                    <HelpTip term="agent" />
+                </div>
                 <p className="text-sm text-muted-foreground">
-                    A harness has to be installed and logged in before a session can assign work to
+                    An agent has to be installed and logged in before a workflow can assign work to
                     it.
                 </p>
             </div>

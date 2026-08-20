@@ -1,0 +1,152 @@
+# Naming
+
+One word per concept, the same word in Go, in SQL, in TypeScript, and on screen.
+If you are adding a concept, add it here first. If you are renaming one, this
+file is the only place that decides what it becomes.
+
+## The model, in one sentence
+
+A **workflow** is **steps**; each step has a **role**, runs on an **agent**, and
+leaves a **handoff** for the next step.
+
+## Vocabulary
+
+| Term | Is | Not |
+| --- | --- | --- |
+| **Workflow** | The graph you author, lock, and run. Bound to one project folder. | Not "session", not "run", not "job". |
+| **Step** | One scoped unit of work in the graph. What the canvas draws as a box. | Not "node" (graph jargon), not "task" (was the internal name). |
+| **Role** | A reusable definition of a kind of worker: what it does, its inputs, its effort, its report format. A step starts from one. | Not "template", not "preset". |
+| **Agent** | The vendor CLI that executes a step — Claude Code, OpenCode, Codex. Installed and logged in under Settings › Agents. | Never the step, never the role. This is the only meaning of "agent". |
+| **Handoff** | What a finished step writes down for the steps after it. The product of a step. | Not "handover doc", not "report". |
+| **Result** | Everything a finished step produced: its status, its handoffs, its context usage, its activity. Contains handoffs. | Not "report". |
+| **Lock** | Freezing a workflow's graph and folder so it can run. Reversible only by duplicating. | Not "finalize". |
+| **Approval** | The agent stopped mid-step to ask you something it should not decide alone. | Not "question", not "gate". Kept as-is: once the accept gate became *review*, nothing collides with it. |
+| **Review** | A step finished and is holding everything downstream until you accept or reject it. | Not "accept gate", not "manual acceptance". |
+| **Effort** | How hard a role tries: Quick, Standard, Deep, Exhaustive. | Not "task level". "Daily" is gone; it described frequency, not effort. |
+| **Input** | A named value a step fills in before it runs. Declared by the role. | Not "param". The kind of value is an `InputType`. |
+| **Knowledge base** | The folder agents share across every workflow on a project — `AGENTS.md`, the glossary, the gotchas. Derived from the project folder by `helpers.KnowledgeDir`. | Not a handoff. Handoffs never land here; they travel in the prompt. |
+| **Instructions** | The role's named prompt blocks, composed into what the agent receives. | Not "system prompts". The step's own free text stays **Prompt**. |
+| **Project folder** | The checkout agents read and change. | Not "working directory". |
+| **Duplicate** | Copy a workflow, new ids, run history cleared. | Not "clone". Both words existed; only this one survives. |
+
+## Removed concepts
+
+These are gone from the product, not renamed. Do not reintroduce them.
+
+- **Context directory.** Always derived from the project folder. One function
+  owns the path; nothing asks the user for it and nothing stores it.
+- **Finalize as a distinct idea.** It is locking, and it is called locking.
+- **Handover doc *and* report as separate nouns on screen.** A step produces a
+  result; the part that travels is its handoffs.
+- **The "Daily" effort level.** It named a cadence in a scale about effort.
+
+## Rename map
+
+Applied across Go, SQL, and TypeScript. Left column must return zero hits.
+
+### Types and identifiers
+
+| Was | Is |
+| --- | --- |
+| `Session`, `SessionEntity`, `SessionInfo`, … | `Workflow`, `WorkflowEntity`, `WorkflowInfo`, … |
+| `Task`, `TaskEntity`, `TaskSpec`, `TaskStatus`, … | `Step`, `StepEntity`, `StepSpec`, `StepStatus`, … |
+| `TaskReport` | `StepResult` |
+| `TaskLevel` | `Effort` |
+| `Template`, `TemplateEntity`, `AgentTemplateManager`, … | `Role`, `RoleEntity`, `RoleManager`, … |
+| `TemplateParam` | `RoleInput` |
+| `HandoverDoc` | `Handoff` |
+| `ManualAcceptRequired` | `PauseForReview` |
+| `WorkingDirPath` | `ProjectDirPath` |
+| `ContextDirPath` | *derived, no field* |
+| `Clone…` | `Duplicate…` |
+| `ParamType`, `TextParam`, … | `InputType`, `TextInput`, … |
+| `SystemPrompts` | `Instructions` |
+| `Params` | `Inputs` |
+
+### Effort values
+
+| Was | Is |
+| --- | --- |
+| `lightweight_task` | `quick` |
+| `daily_task` | `standard` |
+| `heavy_task` | `deep` |
+| `maximum_effort_task` | `exhaustive` |
+
+### Packages and paths
+
+| Was | Is |
+| --- | --- |
+| `core/session_manager` | `core/workflow_manager` |
+| `core/session_control` | `core/workflow_control` |
+| `core/template_manager` | `core/role_manager` |
+| `input/session_archive` | `input/workflow_archive` |
+| `input/template_archive` | `input/role_archive` |
+| `features/sessions/` | `features/workflows/` |
+| `features/templates/` | `features/roles/` |
+
+### SQL tables
+
+Renamed by appended migrations, never by editing an existing one.
+
+| Was | Is |
+| --- | --- |
+| `sessions` | `workflows` |
+| `tasks` | `steps` |
+| `task_reports` | `step_results` |
+| `agent_templates` | `roles` |
+| `session_drafts` | `workflow_drafts` |
+
+### MCP tools
+
+Every tool the app serves, on both servers. Verified against
+`mcp_proxy/v1_local.go` and `mcp_proxy/v1_control.go` — if you change a tool
+name, change it here in the same commit.
+
+| Was | Is |
+| --- | --- |
+| `report_task` | `report_step` |
+| `report_template` | `report_role` |
+| `list_templates` | `list_roles` |
+| `create_session` | `create_workflow` |
+| `start_session` | `start_workflow` |
+| `pause_session` | `pause_workflow` |
+| `cancel_session` | `cancel_workflow` |
+| `session_status` | `workflow_status` |
+| `list_sessions` | `list_workflows` |
+| `answer_acceptance` | `answer_review` |
+
+`request_approval` is the only tool whose name did not change.
+
+`create_workflow` used to take a `context_dir_path`. It is derived now, and the
+argument is ignored rather than refused, so a caller written against the old
+schema keeps working.
+
+## Where the old words are still correct
+
+Two places keep the old vocabulary on purpose. Both are load-bearing; a future
+sweep that "finishes the job" here would break the app.
+
+**`internal/implementation/input/harness/**`** — every `session` in the harness
+packages is the *vendor's* session, not ours: OpenCode's REST `/session`
+endpoint and the id it returns, Claude Code's login session, the `role` field on
+a chat message. These packages never touch our own types, so they were exempted
+from the rename wholesale.
+
+**`params` in wire protocols we do not own** — JSON-RPC's `params` member
+(`mcp_proxy/v1_rpc.go`), Chrome DevTools Protocol's `params` (`helpers/cdp.go`),
+and `urn:ietf:params:oauth:grant-type:device_code`. A grep for `params` can
+never come back empty, and should not.
+
+**External flags and APIs that merely contain one of our words** — `git init
+--template=`, `init.templateDir`, `slices.Clone`, `structuredClone`, React's
+`ReactNode`, and every `@xyflow/react` identifier (`Node`, `NodeProps`,
+`NodeChange`, `nodeTypes`, `onNodesChange`, the `react-flow__*` CSS classes).
+React Flow's word for a graph vertex stays React Flow's word; ours is *step*.
+
+## Terms that had to stay
+
+Some words cannot be reduced to something a newcomer already knows. Those get a
+`HelpTip` next to them on screen rather than a rename, and every one of them has
+an entry in `frontend/src/shared/lib/glossary.ts`. Adding such a term to the UI
+without a glossary entry is a bug: `HelpTip` is keyed by term, so a missing
+entry will not typecheck.

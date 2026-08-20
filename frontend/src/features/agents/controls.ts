@@ -1,6 +1,6 @@
 import type {AgentAction} from '@/shared/lib/enums'
 
-/** What the settings roster and the new-session preflight both drive an agent through. */
+/** What the settings roster and the new-workflow preflight both drive an agent through. */
 export type AgentControls = {
     busy: boolean
     actionOf: (agentId: string) => AgentAction | null

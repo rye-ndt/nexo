@@ -4,7 +4,7 @@
  * the same stages the real harness emits. Three dev-URL flags drive the paths a
  * fresh machine cannot otherwise reach: ?installed=1 starts with both agents
  * present so the welcome modal stays closed, ?loggedIn=1 starts them
- * authorized so the session gate opens, and ?installFail=open_code fails that
+ * authorized so the workflow gate opens, and ?installFail=open_code fails that
  * agent's first attempt so the retry path is reachable.
  */
 

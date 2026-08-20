@@ -1,4 +1,4 @@
-import type {MCPAuthKind, TaskLevel, ThinkingLevel} from '@/shared/lib/enums'
+import type {MCPAuthKind, Effort, ThinkingLevel} from '@/shared/lib/enums'
 
 export type MCPServer = {
     id: string
@@ -29,7 +29,7 @@ export type ModelPrice = {
 }
 
 export type AgentDefault = {
-    taskLevel: TaskLevel
+    effort: Effort
     model: string
     modelLabel: string
     thinkingLevel: ThinkingLevel
@@ -43,7 +43,7 @@ export type ModelOption = {
 }
 
 export type AgentDefaultOptions = {
-    taskLevels: TaskLevel[]
+    efforts: Effort[]
     models: ModelOption[]
     thinkingLevels: ThinkingLevel[]
 }

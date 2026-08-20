@@ -21,16 +21,16 @@ import (
 const scheduleInterval = 15 * time.Second
 
 type v1 struct {
-	locker   sync.Mutex
-	cfg      *input_itf.SessionConfig
-	sessions core_itf.SessionManager
-	agents   core_itf.AgentManager
-	history  input_itf.WorkspaceHistory
-	logger   output_itf.Logger
-	running  map[uuid.UUID]chan struct{}
-	watchers map[uuid.UUID]chan struct{}
-	stop     chan struct{}
-	stopOnce sync.Once
+	locker    sync.Mutex
+	cfg       *input_itf.WorkflowConfig
+	workflows core_itf.WorkflowManager
+	agents    core_itf.AgentManager
+	history   input_itf.WorkspaceHistory
+	logger    output_itf.Logger
+	running   map[uuid.UUID]chan struct{}
+	watchers  map[uuid.UUID]chan struct{}
+	stop      chan struct{}
+	stopOnce  sync.Once
 }
 
 type workspace struct {
@@ -39,8 +39,8 @@ type workspace struct {
 }
 
 func InitV1(
-	cfg *input_itf.SessionConfig,
-	sessions core_itf.SessionManager,
+	cfg *input_itf.WorkflowConfig,
+	workflows core_itf.WorkflowManager,
 	agents core_itf.AgentManager,
 	history input_itf.WorkspaceHistory,
 	logger output_itf.Logger,
@@ -50,46 +50,46 @@ func InitV1(
 	}
 
 	return &v1{
-		cfg:      cfg,
-		sessions: sessions,
-		agents:   agents,
-		history:  history,
-		logger:   logger,
-		running:  map[uuid.UUID]chan struct{}{},
-		watchers: map[uuid.UUID]chan struct{}{},
-		stop:     make(chan struct{}),
+		cfg:       cfg,
+		workflows: workflows,
+		agents:    agents,
+		history:   history,
+		logger:    logger,
+		running:   map[uuid.UUID]chan struct{}{},
+		watchers:  map[uuid.UUID]chan struct{}{},
+		stop:      make(chan struct{}),
 	}, nil
 }
 
-func (c *v1) Run(session uuid.UUID) error {
-	halt, err := c.startRunning(session)
+func (c *v1) Run(workflow uuid.UUID) error {
+	halt, err := c.startRunning(workflow)
 	if err != nil {
 		return err
 	}
 
-	progress, err := c.sessions.Execute(session)
+	progress, err := c.workflows.Execute(workflow)
 	if err != nil {
-		c.forget(session, halt)
+		c.forget(workflow, halt)
 		return err
 	}
 
-	go c.runSession(session, halt, progress)
+	go c.runWorkflow(workflow, halt, progress)
 
 	return nil
 }
 
-func (c *v1) Cancel(session uuid.UUID) error {
-	return c.stopRun(session, c.sessions.Cancel)
+func (c *v1) Cancel(workflow uuid.UUID) error {
+	return c.stopRun(workflow, c.workflows.Cancel)
 }
 
-func (c *v1) Pause(session uuid.UUID) error {
-	return c.stopRun(session, c.sessions.Pause)
+func (c *v1) Pause(workflow uuid.UUID) error {
+	return c.stopRun(workflow, c.workflows.Pause)
 }
 
-func (c *v1) stopRun(session uuid.UUID, halt func(uuid.UUID) ([]uuid.UUID, error)) error {
-	c.halt(session)
+func (c *v1) stopRun(workflow uuid.UUID, halt func(uuid.UUID) ([]uuid.UUID, error)) error {
+	c.halt(workflow)
 
-	agentIDs, err := halt(session)
+	agentIDs, err := halt(workflow)
 
 	for _, agentID := range agentIDs {
 		c.releaseAgent(agentID)
@@ -98,45 +98,45 @@ func (c *v1) stopRun(session uuid.UUID, halt func(uuid.UUID) ([]uuid.UUID, error
 	return err
 }
 
-func (c *v1) RevertTo(session, taskID uuid.UUID) error {
-	status, err := c.sessions.Status(session)
+func (c *v1) RevertTo(workflow, stepID uuid.UUID) error {
+	status, err := c.workflows.Status(workflow)
 	if err != nil {
 		return err
 	}
 
-	if err := c.Cancel(session); err != nil {
+	if err := c.Cancel(workflow); err != nil {
 		return err
 	}
 
-	if err := c.history.RestoreTo(session, taskID, status.WorkingDirPath); err != nil {
+	if err := c.history.RestoreTo(workflow, stepID, status.ProjectDirPath); err != nil {
 		return err
 	}
 
-	return c.sessions.RewindTo(taskID)
+	return c.workflows.RewindTo(stepID)
 }
 
 func (c *v1) Stop() {
 	c.stopOnce.Do(func() { close(c.stop) })
 }
 
-func (c *v1) startRunning(session uuid.UUID) (chan struct{}, error) {
+func (c *v1) startRunning(workflow uuid.UUID) (chan struct{}, error) {
 	c.locker.Lock()
 	defer c.locker.Unlock()
 
-	if _, found := c.running[session]; found {
-		return nil, custom_error.Critical("session %v is already running", session)
+	if _, found := c.running[workflow]; found {
+		return nil, custom_error.Critical("workflow %v is already running", workflow)
 	}
 
 	halt := make(chan struct{})
-	c.running[session] = halt
+	c.running[workflow] = halt
 
 	return halt, nil
 }
 
-func (c *v1) halt(session uuid.UUID) {
+func (c *v1) halt(workflow uuid.UUID) {
 	c.locker.Lock()
-	running := c.running[session]
-	delete(c.running, session)
+	running := c.running[workflow]
+	delete(c.running, workflow)
 	c.locker.Unlock()
 
 	if running != nil {
@@ -144,44 +144,44 @@ func (c *v1) halt(session uuid.UUID) {
 	}
 }
 
-// Only forgets the run the caller started: a relaunched session must not be dropped
+// Only forgets the run the caller started: a relaunched workflow must not be dropped
 // by the loop it replaced.
-func (c *v1) forget(session uuid.UUID, halt <-chan struct{}) {
+func (c *v1) forget(workflow uuid.UUID, halt <-chan struct{}) {
 	c.locker.Lock()
 	defer c.locker.Unlock()
 
-	if c.running[session] == halt {
-		delete(c.running, session)
+	if c.running[workflow] == halt {
+		delete(c.running, workflow)
 	}
 }
 
-func (c *v1) baseline(session uuid.UUID) *workspace {
-	status, err := c.sessions.Status(session)
+func (c *v1) baseline(workflow uuid.UUID) *workspace {
+	status, err := c.workflows.Status(workflow)
 	if err != nil {
-		c.logger.Error("workspace snapshot", "session", session, "err", err)
+		c.logger.Error("workspace snapshot", "workflow", workflow, "err", err)
 
 		return nil
 	}
 
-	space := &workspace{dir: status.WorkingDirPath, excludes: contextExcludes(status)}
-	c.snapshot(session, uuid.Nil, space)
+	space := &workspace{dir: status.ProjectDirPath, excludes: contextExcludes(status.ProjectDirPath)}
+	c.snapshot(workflow, uuid.Nil, space)
 
 	return space
 }
 
-func (c *v1) snapshot(session, taskID uuid.UUID, space *workspace) {
+func (c *v1) snapshot(workflow, stepID uuid.UUID, space *workspace) {
 	if space == nil {
 		return
 	}
 
-	if err := c.history.Commit(session, taskID, space.dir, space.excludes); err != nil {
-		c.logger.Error("workspace snapshot", "session", session, "task", taskID, "err", err)
+	if err := c.history.Commit(workflow, stepID, space.dir, space.excludes); err != nil {
+		c.logger.Error("workspace snapshot", "workflow", workflow, "step", stepID, "err", err)
 	}
 }
 
-func contextExcludes(status *core_itf.SessionStatus) []string {
-	base, err := filepath.Rel(status.WorkingDirPath, status.ContextDirPath)
-	if err != nil || base == ".." || strings.HasPrefix(base, ".."+string(filepath.Separator)) {
+func contextExcludes(projectDir string) []string {
+	base, err := filepath.Rel(projectDir, helpers.KnowledgeDir(projectDir))
+	if err != nil {
 		return nil
 	}
 
@@ -209,19 +209,19 @@ func contextExcludes(status *core_itf.SessionStatus) []string {
 	return patterns
 }
 
-func (c *v1) runSession(
-	session uuid.UUID,
+func (c *v1) runWorkflow(
+	workflow uuid.UUID,
 	halt <-chan struct{},
-	progress <-chan *core_itf.SessionProgress,
+	progress <-chan *core_itf.WorkflowProgress,
 ) {
-	defer c.forget(session, halt)
+	defer c.forget(workflow, halt)
 
-	space := c.baseline(session)
+	space := c.baseline(workflow)
 
 	ticker := time.NewTicker(scheduleInterval)
 	defer ticker.Stop()
 
-	c.schedule(session)
+	c.schedule(workflow)
 
 	for {
 		select {
@@ -230,30 +230,30 @@ func (c *v1) runSession(
 		case <-halt:
 			return
 		case <-ticker.C:
-			c.schedule(session)
+			c.schedule(workflow)
 		case event, open := <-progress:
 			if !open {
 				return
 			}
 
 			switch event.Event {
-			case enums.SessionTaskReported, enums.SessionTaskDropped:
+			case enums.WorkflowStepResulted, enums.WorkflowStepDropped:
 				c.releaseAgent(event.AgentID)
-				c.snapshot(session, event.TaskID, space)
+				c.snapshot(workflow, event.StepID, space)
 			}
 
-			c.schedule(session)
+			c.schedule(workflow)
 		}
 	}
 }
 
-func (c *v1) schedule(session uuid.UUID) {
-	specs, err := c.sessions.ReadyTasks(session)
+func (c *v1) schedule(workflow uuid.UUID) {
+	specs, err := c.workflows.ReadySteps(workflow)
 	if err != nil || len(specs) == 0 {
 		return
 	}
 
-	status, err := c.sessions.Status(session)
+	status, err := c.workflows.Status(workflow)
 	if err != nil {
 		return
 	}
@@ -269,18 +269,18 @@ func (c *v1) schedule(session uuid.UUID) {
 	}
 }
 
-func (c *v1) start(spec *core_itf.TaskSpec, status *core_itf.SessionStatus) (outOfCapacity bool) {
+func (c *v1) start(spec *core_itf.StepSpec, status *core_itf.WorkflowStatus) (outOfCapacity bool) {
 	agent, err := c.agents.RequestInstance(&core_itf.AgentRequest{
 		Name:          spec.AgentSpecs.Name,
 		ThinkingLevel: spec.AgentSpecs.ThinkingLevel,
-		SystemPrompts: spec.AgentSpecs.SystemPrompts,
-		WorkingDir:    status.WorkingDirPath,
+		Instructions:  spec.AgentSpecs.Instructions,
+		ProjectDir:    status.ProjectDirPath,
 	})
 	if err != nil {
 		return true
 	}
 
-	if err := c.sessions.Assign(spec.TaskID, agent.ID); err != nil {
+	if err := c.workflows.Assign(spec.StepID, agent.ID); err != nil {
 		_ = c.agents.Kill(agent.ID)
 		return false
 	}
@@ -313,7 +313,7 @@ func (c *v1) watch(agentID uuid.UUID) {
 			case <-watcher:
 				return
 			case <-ticker.C:
-				_ = c.sessions.HeartBeat(agentID)
+				_ = c.workflows.HeartBeat(agentID)
 
 				if err := c.agents.HeartBeat(agentID); err != nil {
 					c.forgetWatcher(agentID)
@@ -327,7 +327,7 @@ func (c *v1) watch(agentID uuid.UUID) {
 }
 
 func (c *v1) reportDeath(agentID uuid.UUID, tldr string, cause error) {
-	_ = c.sessions.Report(agentID, enums.TaskFailed, []*core_itf.HandoverDoc{{
+	_ = c.workflows.Report(agentID, enums.StepFailed, []*core_itf.Handoff{{
 		TLDR:    tldr,
 		Outcome: "agent died before reporting: " + cause.Error(),
 	}})

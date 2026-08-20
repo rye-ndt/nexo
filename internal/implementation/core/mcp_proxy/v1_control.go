@@ -18,91 +18,90 @@ import (
 )
 
 const (
-	listTemplatesTool    = "list_templates"
-	createSessionTool    = "create_session"
-	startSessionTool     = "start_session"
-	pauseSessionTool     = "pause_session"
-	cancelSessionTool    = "cancel_session"
-	sessionStatusTool    = "session_status"
-	listSessionsTool     = "list_sessions"
-	answerAcceptanceTool = "answer_acceptance"
+	listRolesTool        = "list_roles"
+	createWorkflowTool   = "create_workflow"
+	startWorkflowTool    = "start_workflow"
+	pauseWorkflowTool    = "pause_workflow"
+	cancelWorkflowTool   = "cancel_workflow"
+	workflowStatusTool   = "workflow_status"
+	listWorkflowsTool    = "list_workflows"
+	answerAcceptanceTool = "answer_review"
 )
 
 const controlUnavailable = "this app is not ready to take control calls yet"
 
-const listTemplatesToolDescription = `List the task templates this app already has.
-A template fixes what an agent does: its role, how much effort a node built from it deserves, whether a
-human must read the report before anything downstream runs, and the params a node fills in before it runs.
-Read this before create_session: giving a task a template_id and its params is better than writing the
-whole role out again in a raw prompt.`
+const listRolesToolDescription = `List the roles this app already has.
+A role fixes what an agent does: its description, how much effort a step built from it deserves, whether
+a human must review the result before anything downstream runs, and the inputs a step fills in before it runs.
+Read this before create_workflow: giving a step a role_id and its inputs is better than writing the
+whole job out again in a raw prompt.`
 
-const createSessionToolDescription = `Create a session: a graph of scoped agent tasks over one working directory.
-Every task is one node with its own prompt; a node runs once every node it depends on has finished, and what a
-finished node learned is carried into its dependents' prompts.
-You name each task with your own client_id, and depends_on refers to those client_ids from this same call —
-they are local to the call, not ids the app already knows. The answer maps every client_id to the real task id.
-With autostart false the graph is only staged and nothing runs until start_session; leave autostart out to let
+const createWorkflowToolDescription = `Create a workflow: a graph of scoped agent steps over one project folder.
+Every step has its own prompt; a step runs once every step it depends on has finished, and what a
+finished step learned is carried into its dependents' prompts.
+You name each step with your own client_id, and depends_on refers to those client_ids from this same call —
+they are local to the call, not ids the app already knows. The answer maps every client_id to the real step id.
+With autostart false the graph is only staged and nothing runs until start_workflow; leave autostart out to let
 the app's own setting decide.`
 
-const startSessionToolDescription = `Start running a session's graph, and the way to resume one too:
-a session that was paused, or that was interrupted when the app closed, picks up from the tasks that never
+const startWorkflowToolDescription = `Start running a workflow's graph, and the way to resume one too:
+a workflow that was paused, or that was interrupted when the app closed, picks up from the steps that never
 finished rather than rerunning the ones that did.
-The call returns as soon as the run is under way, so poll session_status to follow it.`
+The call returns as soon as the run is under way, so poll workflow_status to follow it.`
 
-const pauseSessionToolDescription = `Pause a running session. The tasks in flight are stopped and no further task is
-handed out, while everything already finished is kept. Call start_session to pick the run back up where it stopped.`
+const pauseWorkflowToolDescription = `Pause a running workflow. The steps in flight are stopped and no further step is
+handed out, while everything already finished is kept. Call start_workflow to pick the run back up where it stopped.`
 
-const cancelSessionToolDescription = `Cancel a session for good. Running tasks are killed and nothing else is handed
-out; unlike pause, this cannot be resumed. Whatever the agents already wrote into the working directory stays on disk.`
+const cancelWorkflowToolDescription = `Cancel a workflow for good. Running steps are killed and nothing else is handed
+out; unlike pause, this cannot be resumed. Whatever the agents already wrote into the project folder stays on disk.`
 
-const sessionStatusToolDescription = `Read where a session stands: its own status, every task with its status and the
+const workflowStatusToolDescription = `Read where a workflow stands: its own status, every step with its status and the
 one-sentence tldr its agent left, the tokens billed so far, and when it started and finished.
-This is how you follow a run — poll it rather than treating a start_session call as the work being done.
-A task sitting in awaiting_accept is waiting for you to call answer_acceptance.`
+This is how you follow a run — poll it rather than treating a start_workflow call as the work being done.
+A step sitting in awaiting_review is waiting for you to call answer_review.`
 
-const listSessionsToolDescription = `List the most recent sessions, newest first, with their status and working
-directory. Use it to find the session id the other tools need. limit caps how many come back; leave it out for the
+const listWorkflowsToolDescription = `List the most recent workflows, newest first, with their status and project
+folder. Use it to find the workflow id the other tools need. limit caps how many come back; leave it out for the
 app's default.`
 
-const answerAcceptanceToolDescription = `Answer the accept gate on a task that finished and is waiting on a human.
-Accepting marks the task completed and releases everything downstream of it; rejecting marks it failed, so its
-dependents stay blocked. Only a task whose status is awaiting_accept has a gate to answer.`
+const answerAcceptanceToolDescription = `Answer the review on a step that finished and is waiting on a human.
+Accepting marks the step completed and releases everything downstream of it; rejecting marks it failed, so its
+dependents stay blocked. Only a step whose status is awaiting_review is waiting to be reviewed.`
 
-type controlSessionArgs struct {
-	SessionID string `json:"session_id"`
+type controlWorkflowArgs struct {
+	WorkflowID string `json:"workflow_id"`
 }
 
-type listSessionsArgs struct {
+type listWorkflowsArgs struct {
 	Limit int `json:"limit"`
 }
 
-type answerAcceptanceArgs struct {
-	TaskID   string `json:"task_id"`
+type answerReviewArgs struct {
+	StepID   string `json:"step_id"`
 	Accepted bool   `json:"accepted"`
 }
 
-type controlTaskArgs struct {
-	ClientID             string            `json:"client_id"`
-	Name                 string            `json:"name"`
-	Prompt               string            `json:"prompt"`
-	TemplateID           string            `json:"template_id"`
-	Params               map[string]string `json:"params"`
-	TaskLevel            string            `json:"task_level"`
-	SystemPrompts        []string          `json:"system_prompts"`
-	OutputStructure      string            `json:"output_structure"`
-	DependsOn            []string          `json:"depends_on"`
-	AutoRetry            bool              `json:"auto_retry"`
-	ManualAcceptRequired bool              `json:"manual_accept_required"`
+type controlStepArgs struct {
+	ClientID        string            `json:"client_id"`
+	Name            string            `json:"name"`
+	Prompt          string            `json:"prompt"`
+	RoleID          string            `json:"role_id"`
+	Inputs          map[string]string `json:"inputs"`
+	Effort          string            `json:"effort"`
+	Instructions    []string          `json:"instructions"`
+	OutputStructure string            `json:"output_structure"`
+	DependsOn       []string          `json:"depends_on"`
+	AutoRetry       bool              `json:"auto_retry"`
+	PauseForReview  bool              `json:"pause_for_review"`
 }
 
-type createSessionArgs struct {
-	WorkingDirPath string             `json:"working_dir_path"`
-	ContextDirPath string             `json:"context_dir_path"`
+type createWorkflowArgs struct {
+	ProjectDirPath string             `json:"project_dir_path"`
 	Autostart      *bool              `json:"autostart"`
-	Tasks          []*controlTaskArgs `json:"tasks"`
+	Steps          []*controlStepArgs `json:"steps"`
 }
 
-type templateParamPayload struct {
+type roleInputPayload struct {
 	Key         string   `json:"key"`
 	Description string   `json:"description,omitempty"`
 	Type        string   `json:"type,omitempty"`
@@ -111,36 +110,35 @@ type templateParamPayload struct {
 	Options     []string `json:"options,omitempty"`
 }
 
-type templatePayload struct {
-	ID                   string                  `json:"id"`
-	Name                 string                  `json:"name"`
-	Role                 string                  `json:"role"`
-	TaskLevel            string                  `json:"task_level"`
-	ManualAcceptRequired bool                    `json:"manual_accept_required"`
-	Params               []*templateParamPayload `json:"params"`
+type rolePayload struct {
+	ID             string              `json:"id"`
+	Name           string              `json:"name"`
+	Description    string              `json:"description"`
+	Effort         string              `json:"effort"`
+	PauseForReview bool                `json:"pause_for_review"`
+	Inputs         []*roleInputPayload `json:"inputs"`
 }
 
-type sessionRefPayload struct {
-	SessionID string            `json:"session_id"`
-	TaskIDs   map[string]string `json:"task_ids"`
-	Started   bool              `json:"started"`
+type workflowRefPayload struct {
+	WorkflowID string            `json:"workflow_id"`
+	StepIDs    map[string]string `json:"step_ids"`
+	Started    bool              `json:"started"`
 }
 
-type taskStatePayload struct {
-	TaskID    string `json:"task_id"`
-	Name      string `json:"name"`
-	Status    string `json:"status"`
-	TaskLevel string `json:"task_level,omitempty"`
-	TLDR      string `json:"tldr,omitempty"`
-	Outcome   string `json:"outcome,omitempty"`
+type stepStatePayload struct {
+	StepID  string `json:"step_id"`
+	Name    string `json:"name"`
+	Status  string `json:"status"`
+	Effort  string `json:"effort,omitempty"`
+	TLDR    string `json:"tldr,omitempty"`
+	Outcome string `json:"outcome,omitempty"`
 }
 
-type sessionStatePayload struct {
-	SessionID      string              `json:"session_id"`
+type workflowStatePayload struct {
+	WorkflowID     string              `json:"workflow_id"`
 	Status         string              `json:"status"`
-	WorkingDirPath string              `json:"working_dir_path"`
-	ContextDirPath string              `json:"context_dir_path,omitempty"`
-	Tasks          []*taskStatePayload `json:"tasks"`
+	ProjectDirPath string              `json:"project_dir_path"`
+	Steps          []*stepStatePayload `json:"steps"`
 	TokensBilled   int                 `json:"tokens_billed"`
 	TokensInput    int                 `json:"tokens_input"`
 	TokensCached   int                 `json:"tokens_cached"`
@@ -148,160 +146,159 @@ type sessionStatePayload struct {
 	CompletedAt    string              `json:"completed_at,omitempty"`
 }
 
-type sessionSummaryPayload struct {
-	SessionID      string `json:"session_id"`
+type workflowSummaryPayload struct {
+	WorkflowID     string `json:"workflow_id"`
 	Status         string `json:"status"`
-	WorkingDirPath string `json:"working_dir_path"`
-	TotalTask      int    `json:"total_task"`
+	ProjectDirPath string `json:"project_dir_path"`
+	TotalStep      int    `json:"total_step"`
 	StartedAt      string `json:"started_at,omitempty"`
 	CompletedAt    string `json:"completed_at,omitempty"`
 }
 
-type sessionAckPayload struct {
-	SessionID string `json:"session_id"`
-	Result    string `json:"result"`
+type workflowAckPayload struct {
+	WorkflowID string `json:"workflow_id"`
+	Result     string `json:"result"`
 }
 
 type acceptanceAckPayload struct {
-	TaskID   string `json:"task_id"`
+	StepID   string `json:"step_id"`
 	Accepted bool   `json:"accepted"`
 	Result   string `json:"result"`
 }
 
-func (s *v1) TrackSessionControl(control core_itf.SessionControl) {
+func (s *v1) TrackWorkflowControl(control core_itf.WorkflowControl) {
 	s.locker.Lock()
 	defer s.locker.Unlock()
 
-	s.sessionControl = control
+	s.workflowControl = control
 }
 
-func (s *v1) control() core_itf.SessionControl {
+func (s *v1) control() core_itf.WorkflowControl {
 	s.locker.RLock()
 	defer s.locker.RUnlock()
 
-	return s.sessionControl
+	return s.workflowControl
 }
 
 func (s *v1) serveControl(w http.ResponseWriter, r *http.Request) {
 	serveRPC(w, r, constances.ControlLocalServer, s.controlTools())
 }
 
-var listTemplatesToolSchema = objectSchema(map[string]any{})
+var listRolesToolSchema = objectSchema(map[string]any{})
 
-var createSessionToolSchema = objectSchema(map[string]any{
-	"working_dir_path": stringProp("Absolute path to the directory the agents work in. Every node in the session shares it."),
-	"context_dir_path": stringProp("Optional absolute path holding read-only material the agents may consult."),
+var createWorkflowToolSchema = objectSchema(map[string]any{
+	"project_dir_path": stringProp("Absolute path to the project folder the agents work in. Every step in the workflow shares it."),
 	"autostart": map[string]any{
 		"type":        "boolean",
-		"description": "True to run the graph immediately, false to only stage it and wait for start_session. Leave it out to follow the app's own setting.",
+		"description": "True to run the graph immediately, false to only stage it and wait for start_workflow. Leave it out to follow the app's own setting.",
 	},
-	"tasks": map[string]any{
+	"steps": map[string]any{
 		"type":        "array",
 		"minItems":    1,
-		"description": "The nodes of the graph, each one a task scoped tightly enough that a single agent can finish it.",
+		"description": "The steps of the graph, each one scoped tightly enough that a single agent can finish it.",
 		"items": objectSchema(map[string]any{
-			"client_id": stringProp("Your own short name for this node, unique within this call. depends_on refers to it."),
-			"name":      stringProp("Two or three words naming what this node does, read by a person."),
-			"prompt":    stringProp("What this node's agent must do. Say the goal and what done looks like, not the steps."),
-			"template_id": stringProp("Optional id from list_templates. The template supplies the role, effort and " +
-				"output structure, and the prompt narrows them to this node."),
-			"params": map[string]any{
+			"client_id": stringProp("Your own short name for this step, unique within this call. depends_on refers to it."),
+			"name":      stringProp("Two or three words naming what this step does, read by a person."),
+			"prompt":    stringProp("What this step's agent must do. Say the goal and what done looks like, not how to get there."),
+			"role_id": stringProp("Optional id from list_roles. The role supplies the instructions, effort and " +
+				"output structure, and the prompt narrows them to this step."),
+			"inputs": map[string]any{
 				"type":                 "object",
 				"additionalProperties": map[string]any{"type": "string"},
-				"description":          "Values for the template's params, keyed by the param key.",
+				"description":          "Values for the role's inputs, keyed by the input key.",
 			},
-			"task_level": map[string]any{
+			"effort": map[string]any{
 				"type":        "string",
-				"enum":        helpers.Labels(enums.TaskLevels()),
-				"description": "How much effort this node deserves. Leave it out to keep the template's level.",
+				"enum":        helpers.Labels(enums.Efforts()),
+				"description": "How much effort this step deserves. Leave it out to keep the role's effort.",
 			},
-			"system_prompts": map[string]any{
+			"instructions": map[string]any{
 				"type":        "array",
 				"items":       map[string]any{"type": "string"},
-				"description": "Extra prompt sections for this node, on top of whatever the template already says.",
+				"description": "Extra instruction sections for this step, on top of whatever the role already says.",
 			},
-			"output_structure": stringProp("The fields this node must report, one per line as `name: what it holds`. " +
-				"Leave it empty to report in its own words or to keep the template's structure."),
+			"output_structure": stringProp("The fields this step must report, one per line as `name: what it holds`. " +
+				"Leave it empty to report in its own words or to keep the role's structure."),
 			"depends_on": map[string]any{
 				"type":        "array",
 				"items":       map[string]any{"type": "string"},
-				"description": "The client_ids of the nodes that must finish first. Their handover docs become this node's context.",
+				"description": "The client_ids of the steps that must finish first. Their handoffs become this step's context.",
 			},
 			"auto_retry": map[string]any{
 				"type":        "boolean",
-				"description": "Whether a failed run of this node is retried automatically. Keep it false when a retry could repeat a side effect.",
+				"description": "Whether a failed run of this step is retried automatically. Keep it false when a retry could repeat a side effect.",
 			},
-			"manual_accept_required": map[string]any{
+			"pause_for_review": map[string]any{
 				"type":        "boolean",
-				"description": "Whether a human must accept this node's report before anything downstream runs.",
+				"description": "Whether a human must review this step's result before anything downstream runs.",
 			},
 		}, "client_id", "name", "prompt"),
 	},
-}, "working_dir_path", "tasks")
+}, "project_dir_path", "steps")
 
-var sessionIDToolSchema = objectSchema(map[string]any{
-	"session_id": stringProp("The id returned by create_session or listed by list_sessions."),
-}, "session_id")
+var workflowIDToolSchema = objectSchema(map[string]any{
+	"workflow_id": stringProp("The id returned by create_workflow or listed by list_workflows."),
+}, "workflow_id")
 
-var listSessionsToolSchema = objectSchema(map[string]any{
+var listWorkflowsToolSchema = objectSchema(map[string]any{
 	"limit": map[string]any{
 		"type":        "integer",
 		"minimum":     1,
-		"description": "How many sessions to return, newest first. Leave it out for the app's default.",
+		"description": "How many workflows to return, newest first. Leave it out for the app's default.",
 	},
 })
 
 var answerAcceptanceToolSchema = objectSchema(map[string]any{
-	"task_id": stringProp("The id of the task waiting in awaiting_accept, as reported by session_status."),
+	"step_id": stringProp("The id of the step waiting in awaiting_review, as reported by workflow_status."),
 	"accepted": map[string]any{
 		"type":        "boolean",
-		"description": "True to accept the report and release the nodes downstream, false to mark the task failed.",
+		"description": "True to accept the result and release the steps downstream, false to mark the step failed.",
 	},
-}, "task_id", "accepted")
+}, "step_id", "accepted")
 
 func (s *v1) controlTools() []*rpcTool {
 	return []*rpcTool{
 		{
-			name:        listTemplatesTool,
-			description: listTemplatesToolDescription,
-			input:       listTemplatesToolSchema,
-			call:        s.callListTemplates,
+			name:        listRolesTool,
+			description: listRolesToolDescription,
+			input:       listRolesToolSchema,
+			call:        s.callListRoles,
 		},
 		{
-			name:        createSessionTool,
-			description: createSessionToolDescription,
-			input:       createSessionToolSchema,
-			call:        s.callCreateSession,
+			name:        createWorkflowTool,
+			description: createWorkflowToolDescription,
+			input:       createWorkflowToolSchema,
+			call:        s.callCreateWorkflow,
 		},
 		{
-			name:        startSessionTool,
-			description: startSessionToolDescription,
-			input:       sessionIDToolSchema,
-			call:        s.callStartSession,
+			name:        startWorkflowTool,
+			description: startWorkflowToolDescription,
+			input:       workflowIDToolSchema,
+			call:        s.callStartWorkflow,
 		},
 		{
-			name:        pauseSessionTool,
-			description: pauseSessionToolDescription,
-			input:       sessionIDToolSchema,
-			call:        s.callPauseSession,
+			name:        pauseWorkflowTool,
+			description: pauseWorkflowToolDescription,
+			input:       workflowIDToolSchema,
+			call:        s.callPauseWorkflow,
 		},
 		{
-			name:        cancelSessionTool,
-			description: cancelSessionToolDescription,
-			input:       sessionIDToolSchema,
-			call:        s.callCancelSession,
+			name:        cancelWorkflowTool,
+			description: cancelWorkflowToolDescription,
+			input:       workflowIDToolSchema,
+			call:        s.callCancelWorkflow,
 		},
 		{
-			name:        sessionStatusTool,
-			description: sessionStatusToolDescription,
-			input:       sessionIDToolSchema,
-			call:        s.callSessionStatus,
+			name:        workflowStatusTool,
+			description: workflowStatusToolDescription,
+			input:       workflowIDToolSchema,
+			call:        s.callWorkflowStatus,
 		},
 		{
-			name:        listSessionsTool,
-			description: listSessionsToolDescription,
-			input:       listSessionsToolSchema,
-			call:        s.callListSessions,
+			name:        listWorkflowsTool,
+			description: listWorkflowsToolDescription,
+			input:       listWorkflowsToolSchema,
+			call:        s.callListWorkflows,
 		},
 		{
 			name:        answerAcceptanceTool,
@@ -312,46 +309,46 @@ func (s *v1) controlTools() []*rpcTool {
 	}
 }
 
-func (s *v1) callListTemplates(_ json.RawMessage, _ uuid.UUID) *toolResult {
+func (s *v1) callListRoles(_ json.RawMessage, _ uuid.UUID) *toolResult {
 	control := s.control()
 	if control == nil {
 		return errorResult(controlUnavailable)
 	}
 
-	templates, err := control.ListTemplates()
+	roles, err := control.ListRoles()
 	if err != nil {
 		return errorResult(err.Error())
 	}
 
-	payload := make([]*templatePayload, 0, len(templates))
+	payload := make([]*rolePayload, 0, len(roles))
 
-	for _, template := range templates {
-		if template == nil {
+	for _, role := range roles {
+		if role == nil {
 			continue
 		}
 
-		item := &templatePayload{
-			ID:                   template.ID.String(),
-			Name:                 template.Name,
-			Role:                 template.Role,
-			TaskLevel:            template.TaskLevel.String(),
-			ManualAcceptRequired: template.ManualAcceptRequired,
-			Params:               make([]*templateParamPayload, 0, len(template.Params)),
+		item := &rolePayload{
+			ID:             role.ID.String(),
+			Name:           role.Name,
+			Description:    role.Description,
+			Effort:         role.Effort.String(),
+			PauseForReview: role.PauseForReview,
+			Inputs:         make([]*roleInputPayload, 0, len(role.Inputs)),
 		}
 
-		for _, key := range slices.Sorted(maps.Keys(template.Params)) {
-			param := template.Params[key]
-			if param == nil {
+		for _, key := range slices.Sorted(maps.Keys(role.Inputs)) {
+			input := role.Inputs[key]
+			if input == nil {
 				continue
 			}
 
-			item.Params = append(item.Params, &templateParamPayload{
+			item.Inputs = append(item.Inputs, &roleInputPayload{
 				Key:         key,
-				Description: param.Description,
-				Type:        param.Type,
-				Default:     param.Default,
-				Required:    param.Required,
-				Options:     param.Options,
+				Description: input.Description,
+				Type:        input.Type,
+				Default:     input.Default,
+				Required:    input.Required,
+				Options:     input.Options,
 			})
 		}
 
@@ -361,137 +358,135 @@ func (s *v1) callListTemplates(_ json.RawMessage, _ uuid.UUID) *toolResult {
 	return controlResult(payload)
 }
 
-func (s *v1) callCreateSession(arguments json.RawMessage, _ uuid.UUID) *toolResult {
+func (s *v1) callCreateWorkflow(arguments json.RawMessage, _ uuid.UUID) *toolResult {
 	control := s.control()
 	if control == nil {
 		return errorResult(controlUnavailable)
 	}
 
-	args := createSessionArgs{}
+	args := createWorkflowArgs{}
 	if err := parseControlArgs(arguments, &args); err != nil {
 		return errorResult("cannot parse tool arguments: " + err.Error())
 	}
 
-	spec := &core_itf.ControlSessionSpec{
-		WorkingDirPath: args.WorkingDirPath,
-		ContextDirPath: args.ContextDirPath,
+	spec := &core_itf.ControlWorkflowSpec{
+		ProjectDirPath: args.ProjectDirPath,
 		Autostart:      args.Autostart,
-		Tasks:          make([]*core_itf.ControlTaskSpec, 0, len(args.Tasks)),
+		Steps:          make([]*core_itf.ControlStepSpec, 0, len(args.Steps)),
 	}
 
-	for _, task := range args.Tasks {
-		if task == nil {
-			return errorResult("one of the tasks is empty")
+	for _, step := range args.Steps {
+		if step == nil {
+			return errorResult("one of the steps is empty")
 		}
 
-		templateID := uuid.Nil
-		if task.TemplateID != "" {
-			parsed, err := parseControlID("template", task.TemplateID)
+		roleID := uuid.Nil
+		if step.RoleID != "" {
+			parsed, err := parseControlID("role", step.RoleID)
 			if err != nil {
 				return errorResult(err.Error())
 			}
-			templateID = parsed
+			roleID = parsed
 		}
 
-		spec.Tasks = append(spec.Tasks, &core_itf.ControlTaskSpec{
-			ClientID:             task.ClientID,
-			Name:                 task.Name,
-			Prompt:               task.Prompt,
-			TemplateID:           templateID,
-			Params:               task.Params,
-			TaskLevel:            task.TaskLevel,
-			SystemPrompts:        task.SystemPrompts,
-			OutputStructure:      task.OutputStructure,
-			DependsOn:            task.DependsOn,
-			AutoRetry:            task.AutoRetry,
-			ManualAcceptRequired: task.ManualAcceptRequired,
+		spec.Steps = append(spec.Steps, &core_itf.ControlStepSpec{
+			ClientID:        step.ClientID,
+			Name:            step.Name,
+			Prompt:          step.Prompt,
+			RoleID:          roleID,
+			Inputs:          step.Inputs,
+			Effort:          step.Effort,
+			Instructions:    step.Instructions,
+			OutputStructure: step.OutputStructure,
+			DependsOn:       step.DependsOn,
+			AutoRetry:       step.AutoRetry,
+			PauseForReview:  step.PauseForReview,
 		})
 	}
 
-	ref, err := control.CreateSession(spec)
+	ref, err := control.CreateWorkflow(spec)
 	if err != nil {
 		return errorResult(err.Error())
 	}
 
-	return controlResult(&sessionRefPayload{
-		SessionID: ref.SessionID.String(),
-		TaskIDs:   stringIDs(ref.TaskIDs),
-		Started:   ref.Started,
+	return controlResult(&workflowRefPayload{
+		WorkflowID: ref.WorkflowID.String(),
+		StepIDs:    stringIDs(ref.StepIDs),
+		Started:    ref.Started,
 	})
 }
 
-func (s *v1) callStartSession(arguments json.RawMessage, _ uuid.UUID) *toolResult {
-	return s.callSessionAction(arguments, "started", func(control core_itf.SessionControl, sessionID uuid.UUID) error {
-		return control.StartSession(sessionID)
+func (s *v1) callStartWorkflow(arguments json.RawMessage, _ uuid.UUID) *toolResult {
+	return s.callWorkflowAction(arguments, "started", func(control core_itf.WorkflowControl, workflowID uuid.UUID) error {
+		return control.StartWorkflow(workflowID)
 	})
 }
 
-func (s *v1) callPauseSession(arguments json.RawMessage, _ uuid.UUID) *toolResult {
-	return s.callSessionAction(arguments, "paused", func(control core_itf.SessionControl, sessionID uuid.UUID) error {
-		return control.PauseSession(sessionID)
+func (s *v1) callPauseWorkflow(arguments json.RawMessage, _ uuid.UUID) *toolResult {
+	return s.callWorkflowAction(arguments, "paused", func(control core_itf.WorkflowControl, workflowID uuid.UUID) error {
+		return control.PauseWorkflow(workflowID)
 	})
 }
 
-func (s *v1) callCancelSession(arguments json.RawMessage, _ uuid.UUID) *toolResult {
-	return s.callSessionAction(arguments, "cancelled", func(control core_itf.SessionControl, sessionID uuid.UUID) error {
-		return control.CancelSession(sessionID)
+func (s *v1) callCancelWorkflow(arguments json.RawMessage, _ uuid.UUID) *toolResult {
+	return s.callWorkflowAction(arguments, "cancelled", func(control core_itf.WorkflowControl, workflowID uuid.UUID) error {
+		return control.CancelWorkflow(workflowID)
 	})
 }
 
-func (s *v1) callSessionAction(
+func (s *v1) callWorkflowAction(
 	arguments json.RawMessage,
 	result string,
-	action func(control core_itf.SessionControl, sessionID uuid.UUID) error,
+	action func(control core_itf.WorkflowControl, workflowID uuid.UUID) error,
 ) *toolResult {
 	control := s.control()
 	if control == nil {
 		return errorResult(controlUnavailable)
 	}
 
-	args := controlSessionArgs{}
+	args := controlWorkflowArgs{}
 	if err := parseControlArgs(arguments, &args); err != nil {
 		return errorResult("cannot parse tool arguments: " + err.Error())
 	}
 
-	sessionID, err := parseControlID("session", args.SessionID)
+	workflowID, err := parseControlID("workflow", args.WorkflowID)
 	if err != nil {
 		return errorResult(err.Error())
 	}
 
-	if err := action(control, sessionID); err != nil {
+	if err := action(control, workflowID); err != nil {
 		return errorResult(err.Error())
 	}
 
-	return controlResult(&sessionAckPayload{SessionID: args.SessionID, Result: result})
+	return controlResult(&workflowAckPayload{WorkflowID: args.WorkflowID, Result: result})
 }
 
-func (s *v1) callSessionStatus(arguments json.RawMessage, _ uuid.UUID) *toolResult {
+func (s *v1) callWorkflowStatus(arguments json.RawMessage, _ uuid.UUID) *toolResult {
 	control := s.control()
 	if control == nil {
 		return errorResult(controlUnavailable)
 	}
 
-	args := controlSessionArgs{}
+	args := controlWorkflowArgs{}
 	if err := parseControlArgs(arguments, &args); err != nil {
 		return errorResult("cannot parse tool arguments: " + err.Error())
 	}
 
-	sessionID, err := parseControlID("session", args.SessionID)
+	workflowID, err := parseControlID("workflow", args.WorkflowID)
 	if err != nil {
 		return errorResult(err.Error())
 	}
 
-	state, err := control.SessionState(sessionID)
+	state, err := control.WorkflowState(workflowID)
 	if err != nil {
 		return errorResult(err.Error())
 	}
 
-	payload := &sessionStatePayload{
-		SessionID:      state.ID.String(),
+	payload := &workflowStatePayload{
+		WorkflowID:     state.ID.String(),
 		Status:         string(state.Status),
-		WorkingDirPath: state.WorkingDirPath,
-		ContextDirPath: state.ContextDirPath,
-		Tasks:          make([]*taskStatePayload, 0, len(state.Tasks)),
+		ProjectDirPath: state.ProjectDirPath,
+		Steps:          make([]*stepStatePayload, 0, len(state.Steps)),
 		TokensBilled:   state.TokensBilled,
 		TokensInput:    state.TokensInput,
 		TokensCached:   state.TokensCached,
@@ -499,44 +494,44 @@ func (s *v1) callSessionStatus(arguments json.RawMessage, _ uuid.UUID) *toolResu
 		CompletedAt:    momentText(state.CompletedAt),
 	}
 
-	for taskID, report := range state.Tasks {
-		payload.Tasks = append(payload.Tasks, taskState(taskID, report))
+	for stepID, report := range state.Steps {
+		payload.Steps = append(payload.Steps, stepState(stepID, report))
 	}
-	sort.Slice(payload.Tasks, func(i, j int) bool { return payload.Tasks[i].TaskID < payload.Tasks[j].TaskID })
+	sort.Slice(payload.Steps, func(i, j int) bool { return payload.Steps[i].StepID < payload.Steps[j].StepID })
 
 	return controlResult(payload)
 }
 
-func (s *v1) callListSessions(arguments json.RawMessage, _ uuid.UUID) *toolResult {
+func (s *v1) callListWorkflows(arguments json.RawMessage, _ uuid.UUID) *toolResult {
 	control := s.control()
 	if control == nil {
 		return errorResult(controlUnavailable)
 	}
 
-	args := listSessionsArgs{}
+	args := listWorkflowsArgs{}
 	if err := parseControlArgs(arguments, &args); err != nil {
 		return errorResult("cannot parse tool arguments: " + err.Error())
 	}
 
-	sessions, err := control.ListSessions(args.Limit)
+	workflows, err := control.ListWorkflows(args.Limit)
 	if err != nil {
 		return errorResult(err.Error())
 	}
 
-	payload := make([]*sessionSummaryPayload, 0, len(sessions))
+	payload := make([]*workflowSummaryPayload, 0, len(workflows))
 
-	for _, session := range sessions {
-		if session == nil {
+	for _, workflow := range workflows {
+		if workflow == nil {
 			continue
 		}
 
-		payload = append(payload, &sessionSummaryPayload{
-			SessionID:      session.ID.String(),
-			Status:         string(session.Status),
-			WorkingDirPath: session.WorkingDirPath,
-			TotalTask:      len(session.Tasks),
-			StartedAt:      momentText(session.StartedAt),
-			CompletedAt:    momentText(session.CompletedAt),
+		payload = append(payload, &workflowSummaryPayload{
+			WorkflowID:     workflow.ID.String(),
+			Status:         string(workflow.Status),
+			ProjectDirPath: workflow.ProjectDirPath,
+			TotalStep:      len(workflow.Steps),
+			StartedAt:      momentText(workflow.StartedAt),
+			CompletedAt:    momentText(workflow.CompletedAt),
 		})
 	}
 
@@ -549,17 +544,17 @@ func (s *v1) callAnswerAcceptance(arguments json.RawMessage, _ uuid.UUID) *toolR
 		return errorResult(controlUnavailable)
 	}
 
-	args := answerAcceptanceArgs{}
+	args := answerReviewArgs{}
 	if err := parseControlArgs(arguments, &args); err != nil {
 		return errorResult("cannot parse tool arguments: " + err.Error())
 	}
 
-	taskID, err := parseControlID("task", args.TaskID)
+	stepID, err := parseControlID("step", args.StepID)
 	if err != nil {
 		return errorResult(err.Error())
 	}
 
-	if err := control.AnswerAcceptance(taskID, args.Accepted); err != nil {
+	if err := control.AnswerReview(stepID, args.Accepted); err != nil {
 		return errorResult(err.Error())
 	}
 
@@ -569,7 +564,7 @@ func (s *v1) callAnswerAcceptance(arguments json.RawMessage, _ uuid.UUID) *toolR
 	}
 
 	return controlResult(&acceptanceAckPayload{
-		TaskID:   args.TaskID,
+		StepID:   args.StepID,
 		Accepted: args.Accepted,
 		Result:   result,
 	})
@@ -593,19 +588,19 @@ func stringIDs(ids map[string]uuid.UUID) map[string]string {
 	return result
 }
 
-func taskState(taskID uuid.UUID, report *core_itf.TaskReport) *taskStatePayload {
-	payload := &taskStatePayload{TaskID: taskID.String()}
+func stepState(stepID uuid.UUID, report *core_itf.StepResult) *stepStatePayload {
+	payload := &stepStatePayload{StepID: stepID.String()}
 	if report == nil {
 		return payload
 	}
 
 	payload.Name = report.Name
 	payload.Status = string(report.Status)
-	payload.TaskLevel = report.TaskLevel.String()
+	payload.Effort = report.Effort.String()
 
-	if last := len(report.HandoverDocs) - 1; last >= 0 && report.HandoverDocs[last] != nil {
-		payload.TLDR = report.HandoverDocs[last].TLDR
-		payload.Outcome = report.HandoverDocs[last].Outcome
+	if last := len(report.Handoffs) - 1; last >= 0 && report.Handoffs[last] != nil {
+		payload.TLDR = report.Handoffs[last].TLDR
+		payload.Outcome = report.Handoffs[last].Outcome
 	}
 
 	return payload

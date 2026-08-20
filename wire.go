@@ -14,17 +14,17 @@ import (
 	"hexago/internal/implementation/core/helper_agent"
 	"hexago/internal/implementation/core/manual_approval_broker"
 	"hexago/internal/implementation/core/mcp_proxy"
-	"hexago/internal/implementation/core/session_control"
-	"hexago/internal/implementation/core/session_manager"
-	"hexago/internal/implementation/core/template_manager"
+	"hexago/internal/implementation/core/role_manager"
+	"hexago/internal/implementation/core/workflow_control"
+	"hexago/internal/implementation/core/workflow_manager"
 	"hexago/internal/implementation/input/config"
 	"hexago/internal/implementation/input/harness/claude_code"
 	"hexago/internal/implementation/input/harness/codex"
 	"hexago/internal/implementation/input/harness/open_code"
 	"hexago/internal/implementation/input/http_cli"
-	"hexago/internal/implementation/input/session_archive"
+	"hexago/internal/implementation/input/role_archive"
 	"hexago/internal/implementation/input/storage"
-	"hexago/internal/implementation/input/template_archive"
+	"hexago/internal/implementation/input/workflow_archive"
 	"hexago/internal/implementation/input/workspace_history"
 	"hexago/internal/implementation/output/app_builder"
 	wails_api "hexago/internal/implementation/output/fe_api"
@@ -81,7 +81,7 @@ func wire(assets fs.FS) (*App, error) {
 		return nil, err
 	}
 
-	history, err := workspace_history.InitV1(filepath.Join(dataDir, "sessions"))
+	history, err := workspace_history.InitV1(filepath.Join(dataDir, "workflows"))
 	if err != nil {
 		return nil, err
 	}
@@ -91,7 +91,7 @@ func wire(assets fs.FS) (*App, error) {
 		return nil, err
 	}
 
-	sessionManager, err := session_manager.InitV1(cfg.Read().Session, store.TaskStore(), message_queue.InitV1())
+	workflowManager, err := workflow_manager.InitV1(cfg.Read().Workflow, store.StepStore(), message_queue.InitV1())
 	if err != nil {
 		return nil, err
 	}
@@ -107,7 +107,7 @@ func wire(assets fs.FS) (*App, error) {
 		store.MCPStore(),
 		httpCli,
 		approvalBroker,
-		sessionManager,
+		workflowManager,
 	)
 	if err != nil {
 		return nil, err
@@ -136,56 +136,56 @@ func wire(assets fs.FS) (*App, error) {
 		return nil, err
 	}
 
-	sessionManager.TrackLiveAgents(agentManager)
+	workflowManager.TrackLiveAgents(agentManager)
 
-	if err := sessionManager.Restore(); err != nil {
+	if err := workflowManager.Restore(); err != nil {
 		return nil, err
 	}
 
-	sessionCoordinator, err := coordinator.InitV1(cfg.Read().Session, sessionManager, agentManager, history, appLogger)
+	workflowCoordinator, err := coordinator.InitV1(cfg.Read().Workflow, workflowManager, agentManager, history, appLogger)
 	if err != nil {
 		return nil, err
 	}
 
-	templateManager, err := template_manager.InitV1(store.TemplateStore(), template_archive.InitV1())
+	roleManager, err := role_manager.InitV1(store.RoleStore(), role_archive.InitV1())
 	if err != nil {
 		return nil, err
 	}
 
-	templateHelper, err := helper_agent.InitV1(agentManager, templateManager, userCfg, appLogger)
+	roleHelper, err := helper_agent.InitV1(agentManager, roleManager, userCfg, appLogger)
 	if err != nil {
 		return nil, err
 	}
 
-	mcpProxy.TrackTemplateHelper(templateHelper)
+	mcpProxy.TrackRoleHelper(roleHelper)
 
-	sessionControl, err := session_control.InitV1(
+	workflowControl, err := workflow_control.InitV1(
 		cfg.Read().MCPServers.Control,
-		sessionManager,
-		sessionCoordinator,
-		templateManager,
+		workflowManager,
+		workflowCoordinator,
+		roleManager,
 		userCfg,
-		store.TaskStore(),
+		store.StepStore(),
 	)
 	if err != nil {
 		return nil, err
 	}
 
-	mcpProxy.TrackSessionControl(sessionControl)
+	mcpProxy.TrackWorkflowControl(workflowControl)
 
 	feAPI := wails_api.New(&wails_api.Deps{
-		AgentManager:   agentManager,
-		MCPProxy:       mcpProxy,
-		Approvals:      approvalBroker,
-		Templates:      templateManager,
-		Sessions:       sessionManager,
-		Control:        sessionControl,
-		Coordinator:    sessionCoordinator,
-		History:        history,
-		UserConfig:     userCfg,
-		Drafts:         store.DraftStore(),
-		SessionArchive: session_archive.InitV1(),
-		TemplateHelper: templateHelper,
+		AgentManager:    agentManager,
+		MCPProxy:        mcpProxy,
+		Approvals:       approvalBroker,
+		Roles:           roleManager,
+		Workflows:       workflowManager,
+		Control:         workflowControl,
+		Coordinator:     workflowCoordinator,
+		History:         history,
+		UserConfig:      userCfg,
+		Drafts:          store.DraftStore(),
+		WorkflowArchive: workflow_archive.InitV1(),
+		RoleHelper:      roleHelper,
 	})
 
 	wired = true

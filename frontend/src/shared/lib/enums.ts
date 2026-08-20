@@ -1,30 +1,30 @@
-export const TaskState = {
+export const StepState = {
     Idle: 'idle',
     Blocked: 'blocked',
     Queued: 'queued',
     Running: 'running',
     AwaitingApproval: 'awaiting_approval',
-    AwaitingAccept: 'awaiting_accept',
+    AwaitingReview: 'awaiting_review',
     Done: 'done',
     Failed: 'failed',
     Cancelled: 'cancelled',
 } as const
 
-export type TaskState = (typeof TaskState)[keyof typeof TaskState]
+export type StepState = (typeof StepState)[keyof typeof StepState]
 
-export const TASK_STATE_LABELS: Record<TaskState, string> = {
-    [TaskState.Idle]: 'Idle',
-    [TaskState.Blocked]: 'Blocked',
-    [TaskState.Queued]: 'Ready',
-    [TaskState.Running]: 'Running',
-    [TaskState.AwaitingApproval]: 'Needs you',
-    [TaskState.AwaitingAccept]: 'Needs review',
-    [TaskState.Done]: 'Done',
-    [TaskState.Failed]: 'Failed',
-    [TaskState.Cancelled]: 'Cancelled',
+export const STEP_STATE_LABELS: Record<StepState, string> = {
+    [StepState.Idle]: 'Idle',
+    [StepState.Blocked]: 'Blocked',
+    [StepState.Queued]: 'Ready',
+    [StepState.Running]: 'Running',
+    [StepState.AwaitingApproval]: 'Needs approval',
+    [StepState.AwaitingReview]: 'Needs review',
+    [StepState.Done]: 'Done',
+    [StepState.Failed]: 'Failed',
+    [StepState.Cancelled]: 'Cancelled',
 }
 
-export const SessionStatus = {
+export const WorkflowStatus = {
     Empty: 'empty',
     Draft: 'draft',
     Ready: 'ready',
@@ -35,17 +35,17 @@ export const SessionStatus = {
     Cancelled: 'cancelled',
 } as const
 
-export type SessionStatus = (typeof SessionStatus)[keyof typeof SessionStatus]
+export type WorkflowStatus = (typeof WorkflowStatus)[keyof typeof WorkflowStatus]
 
-export const SESSION_STATUS_LABELS: Record<SessionStatus, string> = {
-    [SessionStatus.Empty]: 'Empty',
-    [SessionStatus.Draft]: 'Draft',
-    [SessionStatus.Ready]: 'Ready to run',
-    [SessionStatus.Running]: 'Running',
-    [SessionStatus.Paused]: 'Paused',
-    [SessionStatus.Done]: 'Done',
-    [SessionStatus.Failed]: 'Failed',
-    [SessionStatus.Cancelled]: 'Cancelled',
+export const WORKFLOW_STATUS_LABELS: Record<WorkflowStatus, string> = {
+    [WorkflowStatus.Empty]: 'Empty',
+    [WorkflowStatus.Draft]: 'Draft',
+    [WorkflowStatus.Ready]: 'Ready to run',
+    [WorkflowStatus.Running]: 'Running',
+    [WorkflowStatus.Paused]: 'Paused',
+    [WorkflowStatus.Done]: 'Done',
+    [WorkflowStatus.Failed]: 'Failed',
+    [WorkflowStatus.Cancelled]: 'Cancelled',
 }
 
 export const FileChangeType = {
@@ -57,27 +57,22 @@ export const FileChangeType = {
 
 export type FileChangeType = (typeof FileChangeType)[keyof typeof FileChangeType]
 
-export const TaskLevel = {
-    Lightweight: 'lightweight_task',
-    Daily: 'daily_task',
-    Heavy: 'heavy_task',
-    MaximumEffort: 'maximum_effort_task',
+export const Effort = {
+    Quick: 'quick',
+    Standard: 'standard',
+    Deep: 'deep',
+    Exhaustive: 'exhaustive',
 } as const
 
-export type TaskLevel = (typeof TaskLevel)[keyof typeof TaskLevel]
+export type Effort = (typeof Effort)[keyof typeof Effort]
 
-export const TASK_LEVELS: TaskLevel[] = [
-    TaskLevel.Lightweight,
-    TaskLevel.Daily,
-    TaskLevel.Heavy,
-    TaskLevel.MaximumEffort,
-]
+export const EFFORTS: Effort[] = [Effort.Quick, Effort.Standard, Effort.Deep, Effort.Exhaustive]
 
-export const TASK_LEVEL_LABELS: Record<TaskLevel, string> = {
-    [TaskLevel.Lightweight]: 'Lightweight',
-    [TaskLevel.Daily]: 'Daily',
-    [TaskLevel.Heavy]: 'Heavy',
-    [TaskLevel.MaximumEffort]: 'Maximum effort',
+export const EFFORT_LABELS: Record<Effort, string> = {
+    [Effort.Quick]: 'Quick',
+    [Effort.Standard]: 'Standard',
+    [Effort.Deep]: 'Deep',
+    [Effort.Exhaustive]: 'Exhaustive',
 }
 
 export const ThinkingLevel = {
@@ -171,7 +166,7 @@ export const AGENT_ACTION_FAILURES: Record<AgentAction, string> = {
     [AgentAction.Verify]: 'Could not verify that code for',
 }
 
-export const ParamType = {
+export const InputType = {
     Text: 'text',
     Textarea: 'textarea',
     Number: 'number',
@@ -181,24 +176,24 @@ export const ParamType = {
     File: 'file',
 } as const
 
-export type ParamType = (typeof ParamType)[keyof typeof ParamType]
+export type InputType = (typeof InputType)[keyof typeof InputType]
 
-export const PARAM_TYPES: ParamType[] = [
-    ParamType.Text,
-    ParamType.Textarea,
-    ParamType.Number,
-    ParamType.Boolean,
-    ParamType.Select,
-    ParamType.MultiSelect,
-    ParamType.File,
+export const INPUT_TYPES: InputType[] = [
+    InputType.Text,
+    InputType.Textarea,
+    InputType.Number,
+    InputType.Boolean,
+    InputType.Select,
+    InputType.MultiSelect,
+    InputType.File,
 ]
 
-export const PARAM_TYPE_LABELS: Record<ParamType, string> = {
-    [ParamType.Text]: 'Text',
-    [ParamType.Textarea]: 'Long text',
-    [ParamType.Number]: 'Number',
-    [ParamType.Boolean]: 'Boolean',
-    [ParamType.Select]: 'Choice',
-    [ParamType.MultiSelect]: 'Multiple choices',
-    [ParamType.File]: 'File',
+export const INPUT_TYPE_LABELS: Record<InputType, string> = {
+    [InputType.Text]: 'Text',
+    [InputType.Textarea]: 'Long text',
+    [InputType.Number]: 'Number',
+    [InputType.Boolean]: 'Boolean',
+    [InputType.Select]: 'Choice',
+    [InputType.MultiSelect]: 'Multiple choices',
+    [InputType.File]: 'File',
 }

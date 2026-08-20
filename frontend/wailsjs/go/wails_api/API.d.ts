@@ -12,7 +12,7 @@ export function AgentStatuses():Promise<Array<output_itf.AgentInfo>>;
 
 export function AnswerApproval(arg1:string,arg2:boolean,arg3:Array<string>,arg4:string):Promise<void>;
 
-export function AnswerTaskAcceptance(arg1:string,arg2:boolean):Promise<void>;
+export function AnswerStepReview(arg1:string,arg2:boolean):Promise<void>;
 
 export function AuthAgent(arg1:string):Promise<string>;
 
@@ -20,7 +20,7 @@ export function AuthorizeMCPServer(arg1:string):Promise<void>;
 
 export function Autopilot():Promise<boolean>;
 
-export function CancelSession(arg1:string):Promise<void>;
+export function CancelWorkflow(arg1:string):Promise<void>;
 
 export function ChooseDirectory(arg1:string):Promise<string>;
 
@@ -30,15 +30,15 @@ export function ChooseSaveFile(arg1:string,arg2:string,arg3:string):Promise<stri
 
 export function CompleteOnboarding():Promise<void>;
 
-export function DeleteSessionDraft(arg1:string):Promise<void>;
+export function DeleteWorkflowDraft(arg1:string):Promise<void>;
 
-export function ExportSession(arg1:string,arg2:string):Promise<void>;
+export function ExportRoles(arg1:Array<string>,arg2:string):Promise<number>;
 
-export function ExportTemplates(arg1:Array<string>,arg2:string):Promise<number>;
+export function ExportWorkflow(arg1:string,arg2:string):Promise<void>;
 
-export function ImportSession(arg1:string):Promise<string>;
+export function ImportRoles(arg1:string):Promise<number>;
 
-export function ImportTemplates(arg1:string):Promise<number>;
+export function ImportWorkflow(arg1:string):Promise<string>;
 
 export function InstallAgent(arg1:string):Promise<void>;
 
@@ -48,29 +48,31 @@ export function ModelPrices():Promise<Array<output_itf.ModelPriceInfo>>;
 
 export function Onboarded():Promise<boolean>;
 
-export function PauseSession(arg1:string):Promise<void>;
+export function PauseWorkflow(arg1:string):Promise<void>;
 
 export function PendingApprovals():Promise<Array<output_itf.ApprovalInfo>>;
 
-export function RefineTemplate(arg1:core_itf.DraftRequest):Promise<output_itf.TemplateInfo>;
+export function RefineRole(arg1:core_itf.DraftRequest):Promise<output_itf.RoleInfo>;
 
-export function RemoveTemplate(arg1:string):Promise<void>;
+export function RemoveRole(arg1:string):Promise<void>;
 
-export function ResumeSession(arg1:string):Promise<void>;
+export function ResumeWorkflow(arg1:string):Promise<void>;
 
-export function RetrySessionTask(arg1:string):Promise<void>;
+export function RetryWorkflowStep(arg1:string):Promise<void>;
 
-export function RevertSessionTo(arg1:string,arg2:string):Promise<void>;
+export function RevertWorkflowTo(arg1:string,arg2:string):Promise<void>;
 
 export function RevokeMCPServer(arg1:string):Promise<void>;
 
-export function RunSession(arg1:output_itf.RunSessionSpec):Promise<output_itf.RunSessionResult>;
+export function Role(arg1:string):Promise<output_itf.RoleInfo>;
 
-export function SaveSessionDraft(arg1:string,arg2:string):Promise<void>;
+export function RoleHelperBlocked():Promise<string>;
 
-export function SessionDrafts():Promise<Array<output_itf.SessionDraftInfo>>;
+export function Roles():Promise<Array<output_itf.RoleInfo>>;
 
-export function SessionStatus(arg1:string):Promise<output_itf.SessionStatusInfo>;
+export function RunWorkflow(arg1:output_itf.RunWorkflowSpec):Promise<output_itf.RunWorkflowResult>;
+
+export function SaveWorkflowDraft(arg1:string,arg2:string):Promise<void>;
 
 export function SetAgentDefault(arg1:string,arg2:string,arg3:string):Promise<void>;
 
@@ -84,16 +86,14 @@ export function Shutdown(arg1:context.Context):Promise<void>;
 
 export function Startup(arg1:context.Context):Promise<void>;
 
+export function StepDiff(arg1:string,arg2:string):Promise<Array<output_itf.FileChangeInfo>>;
+
 export function SubmitAuthCode(arg1:string,arg2:string):Promise<void>;
-
-export function TaskDiff(arg1:string,arg2:string):Promise<Array<output_itf.FileChangeInfo>>;
-
-export function Template(arg1:string):Promise<output_itf.TemplateInfo>;
-
-export function TemplateHelperBlocked():Promise<string>;
-
-export function Templates():Promise<Array<output_itf.TemplateInfo>>;
 
 export function UninstallAgent(arg1:string):Promise<void>;
 
-export function UpsertTemplate(arg1:output_itf.TemplateInfo):Promise<string>;
+export function UpsertRole(arg1:output_itf.RoleInfo):Promise<string>;
+
+export function WorkflowDrafts():Promise<Array<output_itf.WorkflowDraftInfo>>;
+
+export function WorkflowStatus(arg1:string):Promise<output_itf.WorkflowStatusInfo>;

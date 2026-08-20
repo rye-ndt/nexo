@@ -16,39 +16,39 @@ import (
 const (
 	draftTimeout    = 10 * time.Minute
 	livenessCheck   = 15 * time.Second
-	maxParams       = 12
+	maxInputs       = 12
 	maxPromptLength = 20000
 )
 
 type v1 struct {
-	locker    sync.Mutex
-	agents    core_itf.AgentManager
-	templates core_itf.AgentTemplateManager
-	userCfg   output_itf.UserConfig
-	logger    output_itf.Logger
+	locker  sync.Mutex
+	agents  core_itf.AgentManager
+	roles   core_itf.RoleManager
+	userCfg output_itf.UserConfig
+	logger  output_itf.Logger
 
 	// One draft at a time, so an abandoned dialog cannot hold a harness slot for
 	// the whole of draftTimeout.
 	drafting uuid.UUID
-	inbox    chan *core_itf.Template
+	inbox    chan *core_itf.Role
 }
 
 func InitV1(
 	agents core_itf.AgentManager,
-	templates core_itf.AgentTemplateManager,
+	roles core_itf.RoleManager,
 	userCfg output_itf.UserConfig,
 	logger output_itf.Logger,
-) (core_itf.TemplateHelper, error) {
-	if agents == nil || templates == nil || userCfg == nil || logger == nil {
+) (core_itf.RoleHelper, error) {
+	if agents == nil || roles == nil || userCfg == nil || logger == nil {
 		return nil, custom_error.Critical(
-			"template helper needs an agent manager, a template manager, a user config and a logger",
+			"role helper needs an agent manager, a role manager, a user config and a logger",
 		)
 	}
 
-	return &v1{agents: agents, templates: templates, userCfg: userCfg, logger: logger}, nil
+	return &v1{agents: agents, roles: roles, userCfg: userCfg, logger: logger}, nil
 }
 
-// Drafting a template is heavy work, so it borrows the heavy task level's model
+// Drafting a role is heavy work, so it borrows the heavy step level's model
 // rather than introducing a setting of its own.
 func (s *v1) Blocked() string {
 	_, reason := s.heavyAgent()
@@ -57,16 +57,16 @@ func (s *v1) Blocked() string {
 }
 
 func (s *v1) heavyAgent() (*output_itf.AgentDefault, string) {
-	agentDefault, err := s.userCfg.AgentDefault(enums.HeavyTask)
+	agentDefault, err := s.userCfg.AgentDefault(enums.EffortDeep)
 	if err != nil || agentDefault == nil {
-		return nil, "No model is set for heavy tasks yet. Pick one in Settings."
+		return nil, "No model is set for heavy steps yet. Pick one in Settings."
 	}
 
 	harness := agentDefault.Model.HarnessTool()
 
 	admin, err := s.agents.Admin(harness)
 	if err != nil {
-		return nil, "Heavy tasks run on a tool this build does not have."
+		return nil, "Heavy steps run on a tool this build does not have."
 	}
 
 	installed, err := admin.Status()
@@ -84,9 +84,9 @@ func (s *v1) heavyAgent() (*output_itf.AgentDefault, string) {
 	}
 }
 
-func (s *v1) Draft(req *core_itf.DraftRequest) (*core_itf.Template, error) {
+func (s *v1) Draft(req *core_itf.DraftRequest) (*core_itf.Role, error) {
 	if req == nil || strings.TrimSpace(req.Name) == "" {
-		return nil, custom_error.Critical("a template needs a name before it can be filled in")
+		return nil, custom_error.Critical("a role needs a name before it can be filled in")
 	}
 
 	agentDefault, reason := s.heavyAgent()
@@ -99,8 +99,8 @@ func (s *v1) Draft(req *core_itf.DraftRequest) (*core_itf.Template, error) {
 	agent, err := s.agents.RequestInstance(&core_itf.AgentRequest{
 		Name:          agentDefault.Model,
 		ThinkingLevel: agentDefault.ThinkingLevel,
-		SystemPrompts: []string{systemPrompt},
-		WorkingDir:    req.WorkingDir,
+		Instructions:  []string{systemPrompt},
+		ProjectDir:    req.ProjectDir,
 	})
 	if err != nil {
 		return nil, err
@@ -118,21 +118,21 @@ func (s *v1) Draft(req *core_itf.DraftRequest) (*core_itf.Template, error) {
 	return s.wait(agent.ID, delivered)
 }
 
-func (s *v1) library() []*core_itf.Template {
-	templates, err := s.templates.List()
+func (s *v1) library() []*core_itf.Role {
+	roles, err := s.roles.List()
 	if err != nil {
-		s.logger.Warn("template helper library", "err", err)
+		s.logger.Warn("role helper library", "err", err)
 
 		return nil
 	}
 
-	return templates
+	return roles
 }
 
 func (s *v1) wait(
 	agentID uuid.UUID,
-	delivered <-chan *core_itf.Template,
-) (*core_itf.Template, error) {
+	delivered <-chan *core_itf.Role,
+) (*core_itf.Role, error) {
 	deadline := time.NewTimer(draftTimeout)
 	defer deadline.Stop()
 
@@ -141,8 +141,8 @@ func (s *v1) wait(
 
 	for {
 		select {
-		case template := <-delivered:
-			return template, nil
+		case role := <-delivered:
+			return role, nil
 		case <-deadline.C:
 			return nil, custom_error.Critical(
 				"the assistant took too long to fill this in, so nothing was changed",
@@ -164,16 +164,16 @@ func (s *v1) Drafting(agentID uuid.UUID) bool {
 	return agentID != uuid.Nil && s.drafting == agentID
 }
 
-// Deliver is what the report_template MCP tool calls. A template that does not pass
+// Deliver is what the report_role MCP tool calls. A role that does not pass
 // validateDraft is refused, and the refusal travels back to the agent as a tool
 // error naming what is wrong, so it gets to correct itself rather than handing the
 // user something half-written.
-func (s *v1) Deliver(agentID uuid.UUID, template *core_itf.Template) error {
-	if template == nil {
-		return custom_error.Critical("the template is empty")
+func (s *v1) Deliver(agentID uuid.UUID, role *core_itf.Role) error {
+	if role == nil {
+		return custom_error.Critical("the role is empty")
 	}
 
-	if err := validateDraft(template); err != nil {
+	if err := validateDraft(role); err != nil {
 		return err
 	}
 
@@ -181,19 +181,19 @@ func (s *v1) Deliver(agentID uuid.UUID, template *core_itf.Template) error {
 	defer s.locker.Unlock()
 
 	if agentID == uuid.Nil || s.drafting != agentID {
-		return custom_error.Critical("nobody is waiting for a template from this agent")
+		return custom_error.Critical("nobody is waiting for a role from this agent")
 	}
 
 	select {
-	case s.inbox <- template:
+	case s.inbox <- role:
 		return nil
 	default:
-		return custom_error.Critical("a template was already submitted for this request")
+		return custom_error.Critical("a role was already submitted for this request")
 	}
 }
 
-func (s *v1) await(agentID uuid.UUID) <-chan *core_itf.Template {
-	inbox := make(chan *core_itf.Template, 1)
+func (s *v1) await(agentID uuid.UUID) <-chan *core_itf.Role {
+	inbox := make(chan *core_itf.Role, 1)
 
 	s.locker.Lock()
 	previous := s.drafting
@@ -215,6 +215,6 @@ func (s *v1) kill(agentID uuid.UUID) {
 	s.locker.Unlock()
 
 	if err := s.agents.Kill(agentID); err != nil {
-		s.logger.Warn("template helper cleanup", "agent", agentID, "err", err)
+		s.logger.Warn("role helper cleanup", "agent", agentID, "err", err)
 	}
 }

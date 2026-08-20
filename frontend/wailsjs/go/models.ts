@@ -16,31 +16,30 @@ export namespace core_itf {
 	        this.description = source["description"];
 	    }
 	}
-	export class DraftGraphNode {
+	export class DraftGraphStep {
 	    id: string;
 	    title: string;
-	    template_id: string;
+	    role_id: string;
 	    depends_on: string[];
 	
 	    static createFrom(source: any = {}) {
-	        return new DraftGraphNode(source);
+	        return new DraftGraphStep(source);
 	    }
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
 	        this.title = source["title"];
-	        this.template_id = source["template_id"];
+	        this.role_id = source["role_id"];
 	        this.depends_on = source["depends_on"];
 	    }
 	}
 	export class DraftRequest {
 	    name: string;
-	    role: string;
-	    session_name: string;
-	    working_dir: string;
-	    context_dir: string;
-	    nodes: DraftGraphNode[];
+	    description: string;
+	    workflow_name: string;
+	    project_dir: string;
+	    steps: DraftGraphStep[];
 	
 	    static createFrom(source: any = {}) {
 	        return new DraftRequest(source);
@@ -49,11 +48,10 @@ export namespace core_itf {
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.name = source["name"];
-	        this.role = source["role"];
-	        this.session_name = source["session_name"];
-	        this.working_dir = source["working_dir"];
-	        this.context_dir = source["context_dir"];
-	        this.nodes = this.convertValues(source["nodes"], DraftGraphNode);
+	        this.description = source["description"];
+	        this.workflow_name = source["workflow_name"];
+	        this.project_dir = source["project_dir"];
+	        this.steps = this.convertValues(source["steps"], DraftGraphStep);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -125,7 +123,7 @@ export namespace input_itf {
 export namespace output_itf {
 	
 	export class AgentDefaultInfo {
-	    task_level: string;
+	    effort: string;
 	    model: string;
 	    model_label: string;
 	    thinking_level: string;
@@ -136,7 +134,7 @@ export namespace output_itf {
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.task_level = source["task_level"];
+	        this.effort = source["effort"];
 	        this.model = source["model"];
 	        this.model_label = source["model_label"];
 	        this.thinking_level = source["thinking_level"];
@@ -159,7 +157,7 @@ export namespace output_itf {
 	    }
 	}
 	export class AgentDefaultOptionsInfo {
-	    task_levels: string[];
+	    efforts: string[];
 	    models: ModelOptionInfo[];
 	    thinking_levels: string[];
 	
@@ -169,7 +167,7 @@ export namespace output_itf {
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.task_levels = source["task_levels"];
+	        this.efforts = source["efforts"];
 	        this.models = this.convertValues(source["models"], ModelOptionInfo);
 	        this.thinking_levels = source["thinking_levels"];
 	    }
@@ -227,7 +225,7 @@ export namespace output_itf {
 	export class ApprovalInfo {
 	    id: string;
 	    agent_id: string;
-	    task_id: string;
+	    step_id: string;
 	    kind: string;
 	    question: string;
 	    detail: string;
@@ -243,7 +241,7 @@ export namespace output_itf {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
 	        this.agent_id = source["agent_id"];
-	        this.task_id = source["task_id"];
+	        this.step_id = source["step_id"];
 	        this.kind = source["kind"];
 	        this.question = source["question"];
 	        this.detail = source["detail"];
@@ -292,8 +290,8 @@ export namespace output_itf {
 	        this.unified_diff = source["unified_diff"];
 	    }
 	}
-	export class HandoverDocInfo {
-	    task: string;
+	export class HandoffInfo {
+	    step: string;
 	    tldr: string;
 	    outcome: string;
 	    blockers: Record<string, string>;
@@ -306,12 +304,12 @@ export namespace output_itf {
 	    known_gaps: Record<string, string>;
 	
 	    static createFrom(source: any = {}) {
-	        return new HandoverDocInfo(source);
+	        return new HandoffInfo(source);
 	    }
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.task = source["task"];
+	        this.step = source["step"];
 	        this.tldr = source["tldr"];
 	        this.outcome = source["outcome"];
 	        this.blockers = source["blockers"];
@@ -367,214 +365,7 @@ export namespace output_itf {
 	        this.output_price = source["output_price"];
 	    }
 	}
-	export class RunSessionResult {
-	    session_id: string;
-	    task_ids: Record<string, string>;
-	
-	    static createFrom(source: any = {}) {
-	        return new RunSessionResult(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.session_id = source["session_id"];
-	        this.task_ids = source["task_ids"];
-	    }
-	}
-	export class RunTaskSpec {
-	    client_id: string;
-	    name: string;
-	    prompt: string;
-	    task_level: string;
-	    system_prompts: string[];
-	    output_structure: string;
-	    depends_on: string[];
-	    auto_retry: boolean;
-	    manual_accept_required: boolean;
-	
-	    static createFrom(source: any = {}) {
-	        return new RunTaskSpec(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.client_id = source["client_id"];
-	        this.name = source["name"];
-	        this.prompt = source["prompt"];
-	        this.task_level = source["task_level"];
-	        this.system_prompts = source["system_prompts"];
-	        this.output_structure = source["output_structure"];
-	        this.depends_on = source["depends_on"];
-	        this.auto_retry = source["auto_retry"];
-	        this.manual_accept_required = source["manual_accept_required"];
-	    }
-	}
-	export class RunSessionSpec {
-	    working_dir_path: string;
-	    context_dir_path: string;
-	    tasks: RunTaskSpec[];
-	
-	    static createFrom(source: any = {}) {
-	        return new RunSessionSpec(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.working_dir_path = source["working_dir_path"];
-	        this.context_dir_path = source["context_dir_path"];
-	        this.tasks = this.convertValues(source["tasks"], RunTaskSpec);
-	    }
-	
-		convertValues(a: any, classs: any, asMap: boolean = false): any {
-		    if (!a) {
-		        return a;
-		    }
-		    if (a.slice && a.map) {
-		        return (a as any[]).map(elem => this.convertValues(elem, classs));
-		    } else if ("object" === typeof a) {
-		        if (asMap) {
-		            for (const key of Object.keys(a)) {
-		                a[key] = new classs(a[key]);
-		            }
-		            return a;
-		        }
-		        return new classs(a);
-		    }
-		    return a;
-		}
-	}
-	
-	export class SessionDraftInfo {
-	    id: string;
-	    doc: string;
-	    updated_at: string;
-	
-	    static createFrom(source: any = {}) {
-	        return new SessionDraftInfo(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.id = source["id"];
-	        this.doc = source["doc"];
-	        this.updated_at = source["updated_at"];
-	    }
-	}
-	export class TaskActivityInfo {
-	    seq: number;
-	    at: string;
-	    text: string;
-	
-	    static createFrom(source: any = {}) {
-	        return new TaskActivityInfo(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.seq = source["seq"];
-	        this.at = source["at"];
-	        this.text = source["text"];
-	    }
-	}
-	export class SessionTaskInfo {
-	    task_id: string;
-	    agent_id: string;
-	    task_level: string;
-	    status: string;
-	    handover_docs: HandoverDocInfo[];
-	    context_usage?: input_itf.ContextUsage;
-	    spent?: input_itf.ContextUsage;
-	    cost_usd: number;
-	    priced: boolean;
-	    activity: TaskActivityInfo[];
-	
-	    static createFrom(source: any = {}) {
-	        return new SessionTaskInfo(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.task_id = source["task_id"];
-	        this.agent_id = source["agent_id"];
-	        this.task_level = source["task_level"];
-	        this.status = source["status"];
-	        this.handover_docs = this.convertValues(source["handover_docs"], HandoverDocInfo);
-	        this.context_usage = this.convertValues(source["context_usage"], input_itf.ContextUsage);
-	        this.spent = this.convertValues(source["spent"], input_itf.ContextUsage);
-	        this.cost_usd = source["cost_usd"];
-	        this.priced = source["priced"];
-	        this.activity = this.convertValues(source["activity"], TaskActivityInfo);
-	    }
-	
-		convertValues(a: any, classs: any, asMap: boolean = false): any {
-		    if (!a) {
-		        return a;
-		    }
-		    if (a.slice && a.map) {
-		        return (a as any[]).map(elem => this.convertValues(elem, classs));
-		    } else if ("object" === typeof a) {
-		        if (asMap) {
-		            for (const key of Object.keys(a)) {
-		                a[key] = new classs(a[key]);
-		            }
-		            return a;
-		        }
-		        return new classs(a);
-		    }
-		    return a;
-		}
-	}
-	export class SessionStatusInfo {
-	    session_id: string;
-	    status: string;
-	    tasks: SessionTaskInfo[];
-	    tokens_billed: number;
-	    tokens_input: number;
-	    tokens_cached: number;
-	    cost_usd: number;
-	    priced: boolean;
-	    started_at: string;
-	    completed_at: string;
-	
-	    static createFrom(source: any = {}) {
-	        return new SessionStatusInfo(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.session_id = source["session_id"];
-	        this.status = source["status"];
-	        this.tasks = this.convertValues(source["tasks"], SessionTaskInfo);
-	        this.tokens_billed = source["tokens_billed"];
-	        this.tokens_input = source["tokens_input"];
-	        this.tokens_cached = source["tokens_cached"];
-	        this.cost_usd = source["cost_usd"];
-	        this.priced = source["priced"];
-	        this.started_at = source["started_at"];
-	        this.completed_at = source["completed_at"];
-	    }
-	
-		convertValues(a: any, classs: any, asMap: boolean = false): any {
-		    if (!a) {
-		        return a;
-		    }
-		    if (a.slice && a.map) {
-		        return (a as any[]).map(elem => this.convertValues(elem, classs));
-		    } else if ("object" === typeof a) {
-		        if (asMap) {
-		            for (const key of Object.keys(a)) {
-		                a[key] = new classs(a[key]);
-		            }
-		            return a;
-		        }
-		        return new classs(a);
-		    }
-		    return a;
-		}
-	}
-	
-	
-	export class TemplateParamInfo {
+	export class RoleInputInfo {
 	    description: string;
 	    required: boolean;
 	    type: string;
@@ -582,7 +373,7 @@ export namespace output_itf {
 	    options: string[];
 	
 	    static createFrom(source: any = {}) {
-	        return new TemplateParamInfo(source);
+	        return new RoleInputInfo(source);
 	    }
 	
 	    constructor(source: any = {}) {
@@ -594,32 +385,235 @@ export namespace output_itf {
 	        this.options = source["options"];
 	    }
 	}
-	export class TemplateInfo {
+	export class RoleInfo {
 	    id: string;
 	    name: string;
-	    role: string;
-	    task_level: string;
+	    description: string;
+	    effort: string;
 	    retryable: boolean;
-	    manual_accept_required: boolean;
-	    params: Record<string, TemplateParamInfo>;
-	    system_prompts: Record<string, string>;
+	    pause_for_review: boolean;
+	    inputs: Record<string, RoleInputInfo>;
+	    instructions: Record<string, string>;
 	    output_structure: string;
 	
 	    static createFrom(source: any = {}) {
-	        return new TemplateInfo(source);
+	        return new RoleInfo(source);
 	    }
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
 	        this.name = source["name"];
-	        this.role = source["role"];
-	        this.task_level = source["task_level"];
+	        this.description = source["description"];
+	        this.effort = source["effort"];
 	        this.retryable = source["retryable"];
-	        this.manual_accept_required = source["manual_accept_required"];
-	        this.params = this.convertValues(source["params"], TemplateParamInfo, true);
-	        this.system_prompts = source["system_prompts"];
+	        this.pause_for_review = source["pause_for_review"];
+	        this.inputs = this.convertValues(source["inputs"], RoleInputInfo, true);
+	        this.instructions = source["instructions"];
 	        this.output_structure = source["output_structure"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
+	export class RunStepSpec {
+	    client_id: string;
+	    name: string;
+	    prompt: string;
+	    effort: string;
+	    instructions: string[];
+	    output_structure: string;
+	    depends_on: string[];
+	    auto_retry: boolean;
+	    pause_for_review: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new RunStepSpec(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.client_id = source["client_id"];
+	        this.name = source["name"];
+	        this.prompt = source["prompt"];
+	        this.effort = source["effort"];
+	        this.instructions = source["instructions"];
+	        this.output_structure = source["output_structure"];
+	        this.depends_on = source["depends_on"];
+	        this.auto_retry = source["auto_retry"];
+	        this.pause_for_review = source["pause_for_review"];
+	    }
+	}
+	export class RunWorkflowResult {
+	    workflow_id: string;
+	    step_ids: Record<string, string>;
+	
+	    static createFrom(source: any = {}) {
+	        return new RunWorkflowResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.workflow_id = source["workflow_id"];
+	        this.step_ids = source["step_ids"];
+	    }
+	}
+	export class RunWorkflowSpec {
+	    project_dir_path: string;
+	    steps: RunStepSpec[];
+	
+	    static createFrom(source: any = {}) {
+	        return new RunWorkflowSpec(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.project_dir_path = source["project_dir_path"];
+	        this.steps = this.convertValues(source["steps"], RunStepSpec);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class StepActivityInfo {
+	    seq: number;
+	    at: string;
+	    text: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new StepActivityInfo(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.seq = source["seq"];
+	        this.at = source["at"];
+	        this.text = source["text"];
+	    }
+	}
+	export class WorkflowDraftInfo {
+	    id: string;
+	    doc: string;
+	    updated_at: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new WorkflowDraftInfo(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.doc = source["doc"];
+	        this.updated_at = source["updated_at"];
+	    }
+	}
+	export class WorkflowStepInfo {
+	    step_id: string;
+	    agent_id: string;
+	    effort: string;
+	    status: string;
+	    handoffs: HandoffInfo[];
+	    context_usage?: input_itf.ContextUsage;
+	    spent?: input_itf.ContextUsage;
+	    cost_usd: number;
+	    priced: boolean;
+	    activity: StepActivityInfo[];
+	
+	    static createFrom(source: any = {}) {
+	        return new WorkflowStepInfo(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.step_id = source["step_id"];
+	        this.agent_id = source["agent_id"];
+	        this.effort = source["effort"];
+	        this.status = source["status"];
+	        this.handoffs = this.convertValues(source["handoffs"], HandoffInfo);
+	        this.context_usage = this.convertValues(source["context_usage"], input_itf.ContextUsage);
+	        this.spent = this.convertValues(source["spent"], input_itf.ContextUsage);
+	        this.cost_usd = source["cost_usd"];
+	        this.priced = source["priced"];
+	        this.activity = this.convertValues(source["activity"], StepActivityInfo);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class WorkflowStatusInfo {
+	    workflow_id: string;
+	    status: string;
+	    steps: WorkflowStepInfo[];
+	    tokens_billed: number;
+	    tokens_input: number;
+	    tokens_cached: number;
+	    cost_usd: number;
+	    priced: boolean;
+	    started_at: string;
+	    completed_at: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new WorkflowStatusInfo(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.workflow_id = source["workflow_id"];
+	        this.status = source["status"];
+	        this.steps = this.convertValues(source["steps"], WorkflowStepInfo);
+	        this.tokens_billed = source["tokens_billed"];
+	        this.tokens_input = source["tokens_input"];
+	        this.tokens_cached = source["tokens_cached"];
+	        this.cost_usd = source["cost_usd"];
+	        this.priced = source["priced"];
+	        this.started_at = source["started_at"];
+	        this.completed_at = source["completed_at"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

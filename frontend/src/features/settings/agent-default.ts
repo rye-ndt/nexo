@@ -1,18 +1,18 @@
-import {TASK_LEVELS, type TaskLevel} from '@/shared/lib/enums'
+import {EFFORTS, type Effort} from '@/shared/lib/enums'
 import type {AgentDefault, ModelOption} from '@/features/settings/types'
 
 /**
- * A node never stores a model. The Go side resolves one from the task level
- * when the session runs, so the frontend resolves the same way when it draws.
+ * A step never stores a model. The Go side resolves one from the step level
+ * when the workflow runs, so the frontend resolves the same way when it draws.
  */
-export function agentDefaultFor(defaults: AgentDefault[], taskLevel: TaskLevel | undefined) {
-    if (!taskLevel) return undefined
-    return defaults.find((agentDefault) => agentDefault.taskLevel === taskLevel)
+export function agentDefaultFor(defaults: AgentDefault[], effort: Effort | undefined) {
+    if (!effort) return undefined
+    return defaults.find((agentDefault) => agentDefault.effort === effort)
 }
 
 /** Where a level sits on the ladder, 1 for the lightest. */
-export function taskLevelWeight(taskLevel: TaskLevel) {
-    return TASK_LEVELS.indexOf(taskLevel) + 1
+export function effortWeight(effort: Effort) {
+    return EFFORTS.indexOf(effort) + 1
 }
 
 type HarnessDemand = {
@@ -22,8 +22,8 @@ type HarnessDemand = {
 
 /**
  * Which harnesses the current preferences commit the user to, and the models
- * that pull each one in. A session cannot start until every one of these is
- * installed and logged in, because any task level may be used once nodes exist.
+ * that pull each one in. A workflow cannot start until every one of these is
+ * installed and logged in, because any step level may be used once steps exist.
  */
 export function requiredHarnesses(
     defaults: AgentDefault[],

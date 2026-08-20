@@ -9,7 +9,7 @@ import (
 
 	"hexago/internal/helpers/enums"
 	"hexago/internal/implementation/core/coordinator"
-	"hexago/internal/implementation/core/session_manager"
+	"hexago/internal/implementation/core/workflow_manager"
 	"hexago/internal/implementation/input/storage"
 	"hexago/internal/implementation/input/workspace_history"
 	"hexago/internal/implementation/output/message_queue"
@@ -39,7 +39,7 @@ func (a *recordingAgents) Send(_ uuid.UUID, message string) error {
 	defer a.mu.Unlock()
 
 	name, _, _ := strings.Cut(message, "\n")
-	a.prompts[strings.TrimSpace(strings.TrimPrefix(name, "# Task:"))] = message
+	a.prompts[strings.TrimSpace(strings.TrimPrefix(name, "# Step:"))] = message
 
 	return nil
 }
@@ -63,23 +63,23 @@ func (a *recordingAgents) Kill(uuid.UUID) error { return nil }
 
 func (a *recordingAgents) HeartBeat(uuid.UUID) error { return nil }
 
-func restartConfig() *input_itf.SessionConfig {
-	return &input_itf.SessionConfig{
+func restartConfig() *input_itf.WorkflowConfig {
+	return &input_itf.WorkflowConfig{
 		HeartbeatTimeout:       time.Hour,
 		HeartbeatScanInterval:  time.Hour,
 		AgentHeartbeatInterval: time.Hour,
 	}
 }
 
-func managerOn(t *testing.T, store input_itf.Storage) core_itf.SessionManager {
+func managerOn(t *testing.T, store input_itf.Storage) core_itf.WorkflowManager {
 	t.Helper()
 
-	sessions, err := session_manager.InitV1(restartConfig(), store.TaskStore(), message_queue.InitV1())
+	workflows, err := workflow_manager.InitV1(restartConfig(), store.StepStore(), message_queue.InitV1())
 	if err != nil {
-		t.Fatalf("init session manager: %v", err)
+		t.Fatalf("init workflow manager: %v", err)
 	}
 
-	return sessions
+	return workflows
 }
 
 func waitFor(t *testing.T, what string, done func() bool) {
@@ -110,46 +110,46 @@ func TestAnInterruptedRunComesBackPausedAndFinishesOnResume(t *testing.T) {
 
 	before := managerOn(t, store)
 
-	sessionID, err := before.NewSession(&core_itf.InitSession{WorkingDirPath: t.TempDir()})
+	workflowID, err := before.NewWorkflow(&core_itf.InitWorkflow{ProjectDirPath: t.TempDir()})
 	if err != nil {
-		t.Fatalf("new session: %v", err)
+		t.Fatalf("new workflow: %v", err)
 	}
 
-	first, err := before.AddTask(sessionID, &core_itf.AddTask{
+	first, err := before.AddStep(workflowID, &core_itf.AddStep{
 		Name:       "map the ports",
 		AgentSpecs: &core_itf.AgentRequest{Name: enums.Sonnet},
 	})
 	if err != nil {
-		t.Fatalf("add first task: %v", err)
+		t.Fatalf("add first step: %v", err)
 	}
 
-	second, err := before.AddTask(sessionID, &core_itf.AddTask{
+	second, err := before.AddStep(workflowID, &core_itf.AddStep{
 		Name:       "wire it up",
 		DependsOn:  []uuid.UUID{first},
 		AgentSpecs: &core_itf.AgentRequest{Name: enums.Sonnet},
 	})
 	if err != nil {
-		t.Fatalf("add second task: %v", err)
+		t.Fatalf("add second step: %v", err)
 	}
 
 	finished := uuid.New()
 	if err := before.Assign(first, finished); err != nil {
-		t.Fatalf("assign first task: %v", err)
+		t.Fatalf("assign first step: %v", err)
 	}
 
-	err = before.Report(finished, enums.TaskCompleted, []*core_itf.HandoverDoc{{
+	err = before.Report(finished, enums.StepCompleted, []*core_itf.Handoff{{
 		TLDR:     "listed the ports the coordinator calls",
 		Outcome:  "seven ports, each with the call that reaches it",
 		Nuances:  map[string]string{"scope": "stayed inside interface/core"},
 		Blockers: map[string]string{},
 	}})
 	if err != nil {
-		t.Fatalf("report first task: %v", err)
+		t.Fatalf("report first step: %v", err)
 	}
 
 	interrupted := uuid.New()
 	if err := before.Assign(second, interrupted); err != nil {
-		t.Fatalf("assign second task: %v", err)
+		t.Fatalf("assign second step: %v", err)
 	}
 
 	before.Stop()
@@ -161,38 +161,38 @@ func TestAnInterruptedRunComesBackPausedAndFinishesOnResume(t *testing.T) {
 		t.Fatalf("restore: %v", err)
 	}
 
-	status, err := after.Status(sessionID)
+	status, err := after.Status(workflowID)
 	if err != nil {
 		t.Fatalf("status after restore: %v", err)
 	}
 
-	if status.Status != enums.SessionPaused {
-		t.Fatalf("restored session is %s, want %s", status.Status, enums.SessionPaused)
+	if status.Status != enums.WorkflowPaused {
+		t.Fatalf("restored workflow is %s, want %s", status.Status, enums.WorkflowPaused)
 	}
 
-	if got := status.Tasks[first].Status; got != enums.TaskCompleted {
-		t.Fatalf("finished task came back %s, want %s", got, enums.TaskCompleted)
+	if got := status.Steps[first].Status; got != enums.StepCompleted {
+		t.Fatalf("finished step came back %s, want %s", got, enums.StepCompleted)
 	}
 
-	if got := status.Tasks[second].Status; got != enums.TaskNotTaken {
-		t.Fatalf("interrupted task came back %s, want %s", got, enums.TaskNotTaken)
+	if got := status.Steps[second].Status; got != enums.StepNotTaken {
+		t.Fatalf("interrupted step came back %s, want %s", got, enums.StepNotTaken)
 	}
 
-	docs := status.Tasks[first].HandoverDocs
+	docs := status.Steps[first].Handoffs
 	if len(docs) != 1 || docs[0].Outcome != "seven ports, each with the call that reaches it" {
-		t.Fatalf("handover doc did not survive the restart: %+v", docs)
+		t.Fatalf("handoff did not survive the restart: %+v", docs)
 	}
 
-	ready, err := after.ReadyTasks(sessionID)
+	ready, err := after.ReadySteps(workflowID)
 	if err != nil {
-		t.Fatalf("ready tasks while paused: %v", err)
+		t.Fatalf("ready steps while paused: %v", err)
 	}
 
 	if len(ready) != 0 {
-		t.Fatalf("a paused session offered %d tasks, want none", len(ready))
+		t.Fatalf("a paused workflow offered %d steps, want none", len(ready))
 	}
 
-	history, err := workspace_history.InitV1(filepath.Join(t.TempDir(), "sessions"))
+	history, err := workspace_history.InitV1(filepath.Join(t.TempDir(), "workflows"))
 	if err != nil {
 		t.Fatalf("init workspace history: %v", err)
 	}
@@ -206,29 +206,29 @@ func TestAnInterruptedRunComesBackPausedAndFinishesOnResume(t *testing.T) {
 
 	t.Cleanup(coord.Stop)
 
-	if err := coord.Run(sessionID); err != nil {
-		t.Fatalf("resume the restored session: %v", err)
+	if err := coord.Run(workflowID); err != nil {
+		t.Fatalf("resume the restored workflow: %v", err)
 	}
 
-	waitFor(t, "the parked task to be prompted again", func() bool {
+	waitFor(t, "the parked step to be prompted again", func() bool {
 		return agents.promptFor("wire it up") != ""
 	})
 
 	prompt := agents.promptFor("wire it up")
 	if !strings.Contains(prompt, "seven ports, each with the call that reaches it") {
-		t.Fatalf("the resumed prompt lost the upstream handover doc:\n%s", prompt)
+		t.Fatalf("the resumed prompt lost the upstream handoff:\n%s", prompt)
 	}
 
 	if !strings.Contains(prompt, "stayed inside interface/core") {
 		t.Fatalf("the resumed prompt lost the upstream nuances:\n%s", prompt)
 	}
 
-	resumed, err := after.Status(sessionID)
+	resumed, err := after.Status(workflowID)
 	if err != nil {
 		t.Fatalf("status after resume: %v", err)
 	}
 
-	if resumed.Status != enums.SessionProcessing {
-		t.Fatalf("resumed session is %s, want %s", resumed.Status, enums.SessionProcessing)
+	if resumed.Status != enums.WorkflowProcessing {
+		t.Fatalf("resumed workflow is %s, want %s", resumed.Status, enums.WorkflowProcessing)
 	}
 }

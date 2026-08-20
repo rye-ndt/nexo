@@ -16,10 +16,10 @@ import (
 )
 
 type file struct {
-	AgentDefaults map[enums.TaskLevel]*output_itf.AgentDefault `json:"agent_defaults"`
-	ModelPrices   map[enums.ModelName]*output_itf.TokenPrices  `json:"model_prices"`
-	Onboarded     bool                                         `json:"onboarded"`
-	Autopilot     bool                                         `json:"autopilot"`
+	AgentDefaults map[enums.Effort]*output_itf.AgentDefault   `json:"agent_defaults"`
+	ModelPrices   map[enums.ModelName]*output_itf.TokenPrices `json:"model_prices"`
+	Onboarded     bool                                        `json:"onboarded"`
+	Autopilot     bool                                        `json:"autopilot"`
 }
 
 type v1 struct {
@@ -28,11 +28,11 @@ type v1 struct {
 	cfg  *file
 }
 
-var seedAgentDefaults = map[enums.TaskLevel]*output_itf.AgentDefault{
-	enums.LightweightTask:   {Model: enums.Haiku, ThinkingLevel: enums.LowThinking},
-	enums.DailyTask:         {Model: enums.Sonnet, ThinkingLevel: enums.MedThinking},
-	enums.HeavyTask:         {Model: enums.Opus, ThinkingLevel: enums.HighThinking},
-	enums.MaximumEffortTask: {Model: enums.Fable, ThinkingLevel: enums.MaxThinking},
+var seedAgentDefaults = map[enums.Effort]*output_itf.AgentDefault{
+	enums.EffortQuick:      {Model: enums.Haiku, ThinkingLevel: enums.LowThinking},
+	enums.EffortStandard:   {Model: enums.Sonnet, ThinkingLevel: enums.MedThinking},
+	enums.EffortDeep:       {Model: enums.Opus, ThinkingLevel: enums.HighThinking},
+	enums.EffortExhaustive: {Model: enums.Fable, ThinkingLevel: enums.MaxThinking},
 }
 
 func InitV1(path string) (output_itf.UserConfig, error) {
@@ -60,7 +60,7 @@ func InitV1(path string) (output_itf.UserConfig, error) {
 
 func read(path string) (*file, error) {
 	cfg := &file{
-		AgentDefaults: map[enums.TaskLevel]*output_itf.AgentDefault{},
+		AgentDefaults: map[enums.Effort]*output_itf.AgentDefault{},
 		ModelPrices:   map[enums.ModelName]*output_itf.TokenPrices{},
 	}
 
@@ -75,10 +75,10 @@ func read(path string) (*file, error) {
 		}
 	}
 
-	stored := cfg.AgentDefaults
-	cfg.AgentDefaults = make(map[enums.TaskLevel]*output_itf.AgentDefault, len(enums.TaskLevels()))
+	stored := renamedEfforts(cfg.AgentDefaults)
+	cfg.AgentDefaults = make(map[enums.Effort]*output_itf.AgentDefault, len(enums.Efforts()))
 
-	for _, level := range enums.TaskLevels() {
+	for _, level := range enums.Efforts() {
 		cfg.AgentDefaults[level] = repaired(level, stored[level])
 	}
 
@@ -99,7 +99,28 @@ func usablePrices(stored map[enums.ModelName]*output_itf.TokenPrices) map[enums.
 	return prices
 }
 
-func repaired(level enums.TaskLevel, stored *output_itf.AgentDefault) *output_itf.AgentDefault {
+var retiredEfforts = map[enums.Effort]enums.Effort{
+	"lightweight_task":    enums.EffortQuick,
+	"daily_task":          enums.EffortStandard,
+	"heavy_task":          enums.EffortDeep,
+	"maximum_effort_task": enums.EffortExhaustive,
+}
+
+func renamedEfforts(stored map[enums.Effort]*output_itf.AgentDefault) map[enums.Effort]*output_itf.AgentDefault {
+	carried := make(map[enums.Effort]*output_itf.AgentDefault, len(stored))
+
+	for level, value := range stored {
+		if current, retired := retiredEfforts[level]; retired {
+			level = current
+		}
+
+		carried[level] = value
+	}
+
+	return carried
+}
+
+func repaired(level enums.Effort, stored *output_itf.AgentDefault) *output_itf.AgentDefault {
 	if stored != nil && helpers.ValidateStruct(stored) == nil {
 		return cloneAgentDefault(stored)
 	}
@@ -138,11 +159,11 @@ func clonePrice(price *float64) *float64 {
 	return &copied
 }
 
-func (c *v1) AgentDefaults() map[enums.TaskLevel]*output_itf.AgentDefault {
+func (c *v1) AgentDefaults() map[enums.Effort]*output_itf.AgentDefault {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
-	defaults := make(map[enums.TaskLevel]*output_itf.AgentDefault, len(c.cfg.AgentDefaults))
+	defaults := make(map[enums.Effort]*output_itf.AgentDefault, len(c.cfg.AgentDefaults))
 
 	for level, stored := range c.cfg.AgentDefaults {
 		defaults[level] = cloneAgentDefault(stored)
@@ -151,9 +172,9 @@ func (c *v1) AgentDefaults() map[enums.TaskLevel]*output_itf.AgentDefault {
 	return defaults
 }
 
-func (c *v1) AgentDefault(level enums.TaskLevel) (*output_itf.AgentDefault, error) {
+func (c *v1) AgentDefault(level enums.Effort) (*output_itf.AgentDefault, error) {
 	if !level.Valid() {
-		return nil, custom_error.Critical("unknown task level %q", level.String())
+		return nil, custom_error.Critical("unknown step level %q", level.String())
 	}
 
 	c.mu.RLock()
@@ -161,15 +182,15 @@ func (c *v1) AgentDefault(level enums.TaskLevel) (*output_itf.AgentDefault, erro
 
 	stored := c.cfg.AgentDefaults[level]
 	if stored == nil {
-		return nil, custom_error.Critical("task level %q has no agent default", level.String())
+		return nil, custom_error.Critical("step level %q has no agent default", level.String())
 	}
 
 	return cloneAgentDefault(stored), nil
 }
 
-func (c *v1) SetAgentDefault(level enums.TaskLevel, agentDefault *output_itf.AgentDefault) error {
+func (c *v1) SetAgentDefault(level enums.Effort, agentDefault *output_itf.AgentDefault) error {
 	if !level.Valid() {
-		return custom_error.Critical("unknown task level %q", level.String())
+		return custom_error.Critical("unknown step level %q", level.String())
 	}
 
 	if agentDefault == nil {

@@ -14,7 +14,7 @@ type AgentInfo struct {
 type ApprovalInfo struct {
 	ID          string                     `json:"id"`
 	AgentID     string                     `json:"agent_id"`
-	TaskID      string                     `json:"task_id"`
+	StepID      string                     `json:"step_id"`
 	Kind        string                     `json:"kind"`
 	Question    string                     `json:"question"`
 	Detail      string                     `json:"detail"`
@@ -23,7 +23,7 @@ type ApprovalInfo struct {
 	RequestedAt string                     `json:"requested_at"`
 }
 
-type TemplateParamInfo struct {
+type RoleInputInfo struct {
 	Description string   `json:"description"`
 	Required    bool     `json:"required"`
 	Type        string   `json:"type"`
@@ -31,43 +31,42 @@ type TemplateParamInfo struct {
 	Options     []string `json:"options"`
 }
 
-type TemplateInfo struct {
-	ID                   string                        `json:"id"`
-	Name                 string                        `json:"name"`
-	Role                 string                        `json:"role"`
-	TaskLevel            string                        `json:"task_level"`
-	Retryable            bool                          `json:"retryable"`
-	ManualAcceptRequired bool                          `json:"manual_accept_required"`
-	Params               map[string]*TemplateParamInfo `json:"params"`
-	SystemPrompts        map[string]string             `json:"system_prompts"`
-	OutputStructure      string                        `json:"output_structure"`
+type RoleInfo struct {
+	ID              string                    `json:"id"`
+	Name            string                    `json:"name"`
+	Description     string                    `json:"description"`
+	Effort          string                    `json:"effort"`
+	Retryable       bool                      `json:"retryable"`
+	PauseForReview  bool                      `json:"pause_for_review"`
+	Inputs          map[string]*RoleInputInfo `json:"inputs"`
+	Instructions    map[string]string         `json:"instructions"`
+	OutputStructure string                    `json:"output_structure"`
 }
 
-type RunTaskSpec struct {
-	ClientID             string   `json:"client_id"`
-	Name                 string   `json:"name"`
-	Prompt               string   `json:"prompt"`
-	TaskLevel            string   `json:"task_level"`
-	SystemPrompts        []string `json:"system_prompts"`
-	OutputStructure      string   `json:"output_structure"`
-	DependsOn            []string `json:"depends_on"`
-	AutoRetry            bool     `json:"auto_retry"`
-	ManualAcceptRequired bool     `json:"manual_accept_required"`
+type RunStepSpec struct {
+	ClientID        string   `json:"client_id"`
+	Name            string   `json:"name"`
+	Prompt          string   `json:"prompt"`
+	Effort          string   `json:"effort"`
+	Instructions    []string `json:"instructions"`
+	OutputStructure string   `json:"output_structure"`
+	DependsOn       []string `json:"depends_on"`
+	AutoRetry       bool     `json:"auto_retry"`
+	PauseForReview  bool     `json:"pause_for_review"`
 }
 
-type RunSessionSpec struct {
-	WorkingDirPath string         `json:"working_dir_path"`
-	ContextDirPath string         `json:"context_dir_path"`
-	Tasks          []*RunTaskSpec `json:"tasks"`
+type RunWorkflowSpec struct {
+	ProjectDirPath string         `json:"project_dir_path"`
+	Steps          []*RunStepSpec `json:"steps"`
 }
 
-type RunSessionResult struct {
-	SessionID string            `json:"session_id"`
-	TaskIDs   map[string]string `json:"task_ids"`
+type RunWorkflowResult struct {
+	WorkflowID string            `json:"workflow_id"`
+	StepIDs    map[string]string `json:"step_ids"`
 }
 
-type HandoverDocInfo struct {
-	Task              string            `json:"task"`
+type HandoffInfo struct {
+	Step              string            `json:"step"`
 	TLDR              string            `json:"tldr"`
 	Outcome           string            `json:"outcome"`
 	Blockers          map[string]string `json:"blockers"`
@@ -89,45 +88,45 @@ type FileChangeInfo struct {
 	UnifiedDiff string `json:"unified_diff"`
 }
 
-type TaskActivityInfo struct {
+type StepActivityInfo struct {
 	Seq  int    `json:"seq"`
 	At   string `json:"at"`
 	Text string `json:"text"`
 }
 
-// Spent is every token this node has cost across all of its attempts; CostUSD is what
+// Spent is every token this step has cost across all of its attempts; CostUSD is what
 // that comes to at the prices of the model behind it, and is only meaningful when
 // Priced is true.
-type SessionTaskInfo struct {
-	TaskID       string                  `json:"task_id"`
+type WorkflowStepInfo struct {
+	StepID       string                  `json:"step_id"`
 	AgentID      string                  `json:"agent_id"`
-	TaskLevel    string                  `json:"task_level"`
+	Effort       string                  `json:"effort"`
 	Status       string                  `json:"status"`
-	HandoverDocs []*HandoverDocInfo      `json:"handover_docs"`
+	Handoffs     []*HandoffInfo          `json:"handoffs"`
 	ContextUsage *input_itf.ContextUsage `json:"context_usage"`
 	Spent        *input_itf.ContextUsage `json:"spent"`
 	CostUSD      float64                 `json:"cost_usd"`
 	Priced       bool                    `json:"priced"`
-	Activity     []*TaskActivityInfo     `json:"activity"`
+	Activity     []*StepActivityInfo     `json:"activity"`
 }
 
-// Priced is false as soon as one node that spent something ran on a model with no
-// prices filled in, because a total missing one node reads as the whole bill.
-type SessionStatusInfo struct {
-	SessionID    string             `json:"session_id"`
-	Status       string             `json:"status"`
-	Tasks        []*SessionTaskInfo `json:"tasks"`
-	TokensBilled int                `json:"tokens_billed"`
-	TokensInput  int                `json:"tokens_input"`
-	TokensCached int                `json:"tokens_cached"`
-	CostUSD      float64            `json:"cost_usd"`
-	Priced       bool               `json:"priced"`
-	StartedAt    string             `json:"started_at"`
-	CompletedAt  string             `json:"completed_at"`
+// Priced is false as soon as one step that spent something ran on a model with no
+// prices filled in, because a total missing one step reads as the whole bill.
+type WorkflowStatusInfo struct {
+	WorkflowID   string              `json:"workflow_id"`
+	Status       string              `json:"status"`
+	Steps        []*WorkflowStepInfo `json:"steps"`
+	TokensBilled int                 `json:"tokens_billed"`
+	TokensInput  int                 `json:"tokens_input"`
+	TokensCached int                 `json:"tokens_cached"`
+	CostUSD      float64             `json:"cost_usd"`
+	Priced       bool                `json:"priced"`
+	StartedAt    string              `json:"started_at"`
+	CompletedAt  string              `json:"completed_at"`
 }
 
 type AgentDefaultInfo struct {
-	TaskLevel     string `json:"task_level"`
+	Effort        string `json:"effort"`
 	Model         string `json:"model"`
 	ModelLabel    string `json:"model_label"`
 	ThinkingLevel string `json:"thinking_level"`
@@ -150,7 +149,7 @@ type ModelOptionInfo struct {
 	Harness string `json:"harness"`
 }
 
-type SessionDraftInfo struct {
+type WorkflowDraftInfo struct {
 	ID        string `json:"id"`
 	Doc       string `json:"doc"`
 	UpdatedAt string `json:"updated_at"`
@@ -166,7 +165,7 @@ type MCPServerInfo struct {
 }
 
 type AgentDefaultOptionsInfo struct {
-	TaskLevels     []string           `json:"task_levels"`
+	Efforts        []string           `json:"efforts"`
 	Models         []*ModelOptionInfo `json:"models"`
 	ThinkingLevels []string           `json:"thinking_levels"`
 }

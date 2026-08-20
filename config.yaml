@@ -10,7 +10,7 @@ app:
 version: 1.0.0
 log_level: info # debug | info | warn | error
 
-session:
+workflow:
   heartbeat_timeout: 30m
   heartbeat_scan_interval: 1m
   agent_heartbeat_interval: 1m
@@ -44,8 +44,8 @@ mcp_servers:
     endpoint_file: control.json
     allow_any_workspace: true
     allowed_roots: []
-    max_tasks_per_session: 32
-    max_sessions_listed: 20
+    max_steps_per_workflow: 32
+    max_workflows_listed: 20
     autostart_default: false
   supported_servers:
     atlassian:

@@ -1,0 +1,404 @@
+import {WorkflowStatus, StepState} from '@/shared/lib/enums'
+import type {Point, Workflow, WorkflowDraft, Step, StepDraft} from '@/features/workflows/types'
+import type {DraftContext} from '@/features/roles/types'
+
+const SETTLED_STATES = new Set<StepState>([
+    StepState.Running,
+    StepState.AwaitingReview,
+    StepState.Done,
+    StepState.Failed,
+    StepState.Cancelled,
+])
+
+const FINISHED_STATES = new Set<StepState>([StepState.Done, StepState.Failed, StepState.Cancelled])
+
+const KEPT_ON_CANCEL = new Set<StepState>([StepState.Done, StepState.Failed])
+
+const WAITING_STATES = new Set<StepState>([StepState.Idle, StepState.Queued, StepState.Blocked])
+
+const STEP_STAGGER = 40
+
+function isSettled(state: StepState) {
+    return SETTLED_STATES.has(state)
+}
+
+export function isFinished(state: StepState) {
+    return FINISHED_STATES.has(state)
+}
+
+export function createStep(draft: StepDraft, position: Point): Step {
+    return {
+        id: crypto.randomUUID(),
+        title: draft.title,
+        prompt: draft.prompt,
+        state: StepState.Idle,
+        position,
+        dependsOn: [],
+        roleId: draft.roleId,
+        values: draft.values,
+    }
+}
+
+export function createWorkflow(draft: WorkflowDraft): Workflow {
+    return {
+        id: crypto.randomUUID(),
+        name: draft.name.trim(),
+        createdAt: new Date().toISOString(),
+        locked: false,
+        started: false,
+        cancelled: false,
+        paused: false,
+        projectDir: draft.projectDir.trim(),
+        steps: [],
+    }
+}
+
+/** Deep copy: new workflow id, new step ids, remapped edges, run history cleared. */
+export function copyWorkflow(workflow: Workflow, name = `${workflow.name} copy`): Workflow {
+    const idMap = new Map(workflow.steps.map((step) => [step.id, crypto.randomUUID()]))
+
+    return {
+        id: crypto.randomUUID(),
+        name,
+        createdAt: new Date().toISOString(),
+        locked: false,
+        started: false,
+        cancelled: false,
+        paused: false,
+        projectDir: workflow.projectDir,
+        steps: workflow.steps.map((step) => ({
+            id: idMap.get(step.id)!,
+            title: step.title,
+            prompt: step.prompt,
+            state: StepState.Idle,
+            position: {...step.position},
+            dependsOn: step.dependsOn.map((id) => idMap.get(id)!).filter(Boolean),
+            roleId: step.roleId,
+            spec: step.spec,
+            values: step.values ? {...step.values} : undefined,
+        })),
+    }
+}
+
+/**
+ * A duplicate takes the graph and its roles, never what was typed into them:
+ * every step's inputs start over at its role's defaults. A step whose role
+ * is gone has no form left to refill, so it keeps the values it was carrying.
+ */
+export function duplicateWorkflow(workflow: Workflow, name?: string): Workflow {
+    const copy = copyWorkflow(workflow, name)
+
+    return {
+        ...copy,
+        steps: copy.steps.map((step) => (step.roleId ? {...step, values: undefined} : step)),
+    }
+}
+
+export function pauseRun(workflow: Workflow): Workflow {
+    return {
+        ...workflow,
+        paused: true,
+        steps: workflow.steps.map((step) =>
+            step.state === StepState.AwaitingReview || isFinished(step.state)
+                ? step
+                : notStarted(step),
+        ),
+    }
+}
+
+export function resumeRun(workflow: Workflow): Workflow {
+    return label({...workflow, paused: false})
+}
+
+export function isPausable(workflow: Workflow): boolean {
+    return !workflow.paused && isCancellable(workflow)
+}
+
+export function isResumable(workflow: Workflow): boolean {
+    return workflow.paused
+}
+
+function notStarted(step: Step): Step {
+    return {...step, state: StepState.Idle, run: undefined, report: undefined}
+}
+
+/** Cancel is terminal: finished steps keep their reports, everything else loses its work. */
+export function cancelRun(workflow: Workflow): Workflow {
+    const now = new Date().toISOString()
+
+    return {
+        ...workflow,
+        cancelled: true,
+        paused: false,
+        steps: workflow.steps.map((step) => {
+            if (KEPT_ON_CANCEL.has(step.state)) return step
+
+            return {
+                ...step,
+                state: StepState.Cancelled,
+                run: step.run ? {...step.run, finishedAt: now, context: undefined} : undefined,
+                report: undefined,
+            }
+        }),
+    }
+}
+
+/** Reverting to a step keeps it and everything upstream; the run stops and every step after it is back to not started. */
+export function rewindTo(workflow: Workflow, stepId: string): Workflow {
+    const undone = descendantsOf(workflow.steps, stepId)
+
+    return {
+        ...workflow,
+        started: false,
+        paused: false,
+        steps: workflow.steps.map((step) => {
+            const kept =
+                step.id === stepId || (!undone.has(step.id) && KEPT_ON_CANCEL.has(step.state))
+
+            return kept ? step : notStarted(step)
+        }),
+    }
+}
+
+export function isCancellable(workflow: Workflow): boolean {
+    if (!workflow.started || workflow.cancelled) return false
+    return workflow.steps.some((step) => !isFinished(step.state))
+}
+
+/** What an agent writing a new role is told about the workflow it is being written for. */
+export function draftContext(workflow: Workflow): DraftContext {
+    return {
+        workflow_name: workflow.name,
+        project_dir: workflow.projectDir,
+        steps: workflow.steps.map((step) => ({
+            id: step.id,
+            title: step.title,
+            role_id: step.roleId ?? '',
+            depends_on: step.dependsOn,
+        })),
+    }
+}
+
+export function findWorkflow(workflows: Workflow[], workflowId: string | null) {
+    if (!workflowId) return undefined
+    return workflows.find((workflow) => workflow.id === workflowId)
+}
+
+export function moveWorkflow(
+    workflows: Workflow[],
+    workflowId: string,
+    toIndex: number,
+): Workflow[] {
+    const from = workflows.findIndex((workflow) => workflow.id === workflowId)
+    const to = Math.min(Math.max(toIndex, 0), workflows.length - 1)
+    if (from < 0 || from === to) return workflows
+
+    const next = [...workflows]
+    const [moved] = next.splice(from, 1)
+    next.splice(to, 0, moved)
+
+    return next.map((workflow, railRank) =>
+        workflow.railRank === railRank ? workflow : {...workflow, railRank},
+    )
+}
+
+export function byRailRank(a: Workflow, b: Workflow) {
+    return (a.railRank ?? 0) - (b.railRank ?? 0)
+}
+
+export function findStep(workflow: Workflow, stepId: string | null) {
+    if (!stepId) return undefined
+    return workflow.steps.find((step) => step.id === stepId)
+}
+
+export function withStep(workflow: Workflow, step: Step): Workflow {
+    return {...workflow, steps: [...workflow.steps, step]}
+}
+
+export function withStepPatch(workflow: Workflow, stepId: string, patch: Partial<Step>): Workflow {
+    return {
+        ...workflow,
+        steps: workflow.steps.map((step) =>
+            step.id === stepId ? {...step, ...patch, id: stepId} : step,
+        ),
+    }
+}
+
+export function withoutStep(workflow: Workflow, stepId: string): Workflow {
+    return {
+        ...workflow,
+        steps: workflow.steps
+            .filter((step) => step.id !== stepId)
+            .map((step) => ({...step, dependsOn: step.dependsOn.filter((id) => id !== stepId)})),
+    }
+}
+
+export function withDependency(workflow: Workflow, sourceId: string, targetId: string): Workflow {
+    if (createsCycle(workflow.steps, sourceId, targetId)) return workflow
+
+    return {
+        ...workflow,
+        steps: workflow.steps.map((step) => {
+            const needsEdge = step.id === targetId && !step.dependsOn.includes(sourceId)
+            return needsEdge ? {...step, dependsOn: [...step.dependsOn, sourceId]} : step
+        }),
+    }
+}
+
+export function withoutDependency(
+    workflow: Workflow,
+    sourceId: string,
+    targetId: string,
+): Workflow {
+    return {
+        ...workflow,
+        steps: workflow.steps.map((step) =>
+            step.id === targetId
+                ? {...step, dependsOn: step.dependsOn.filter((id) => id !== sourceId)}
+                : step,
+        ),
+    }
+}
+
+export function freePosition(workflow: Workflow, wanted: Point): Point {
+    const taken = (point: Point) =>
+        workflow.steps.some((step) => step.position.x === point.x && step.position.y === point.y)
+
+    let position = wanted
+    while (taken(position)) position = {x: position.x + STEP_STAGGER, y: position.y + STEP_STAGGER}
+
+    return position
+}
+
+export function workflowStatus(workflow: Workflow): WorkflowStatus {
+    if (workflow.steps.length === 0) return WorkflowStatus.Empty
+    if (workflow.cancelled) return WorkflowStatus.Cancelled
+    if (!workflow.locked) return WorkflowStatus.Draft
+    if (!workflow.started) return WorkflowStatus.Ready
+    if (workflow.paused) return WorkflowStatus.Paused
+    if (workflow.steps.some((step) => step.state === StepState.Failed)) return WorkflowStatus.Failed
+    if (workflow.steps.every((step) => step.state === StepState.Done)) return WorkflowStatus.Done
+    return WorkflowStatus.Running
+}
+
+export function hasRunningStep(workflow: Workflow) {
+    return workflow.steps.some((step) => step.state === StepState.Running)
+}
+
+export function hasActiveStep(workflow: Workflow) {
+    return workflow.steps.some(
+        (step) =>
+            step.state === StepState.Running ||
+            step.state === StepState.Queued ||
+            step.state === StepState.AwaitingReview,
+    )
+}
+
+export function workflowProgress(workflow: Workflow) {
+    const done = workflow.steps.filter((step) => step.state === StepState.Done).length
+    return {done, total: workflow.steps.length}
+}
+
+/**
+ * A run that ends on a failure is kept open for a retry, so it never gets a completion
+ * time — fall back to when its last step stopped, or the clock would run forever.
+ */
+export function workflowRunWindow(workflow: Workflow) {
+    if (hasActiveStep(workflow)) return {startedAt: workflow.startedAt}
+
+    const stops = workflow.steps.flatMap((step) => step.run?.finishedAt ?? [])
+
+    return {startedAt: workflow.startedAt, finishedAt: workflow.finishedAt ?? stops.sort().at(-1)}
+}
+
+/** Running the workflow releases the roots; every other step also waits on its upstream — the fan-in join. */
+export function isRunnable(workflow: Workflow, step: Step) {
+    const upstreamDone = step.dependsOn.every(
+        (id) => findStep(workflow, id)?.state === StepState.Done,
+    )
+
+    return workflow.started && WAITING_STATES.has(step.state) && upstreamDone
+}
+
+export function label(workflow: Workflow): Workflow {
+    return {
+        ...workflow,
+        steps: workflow.steps.map((step) => {
+            if (isSettled(step.state)) return step
+            return {
+                ...step,
+                state: isRunnable(workflow, step) ? StepState.Queued : StepState.Blocked,
+            }
+        }),
+    }
+}
+
+export function upstreamOf(workflow: Workflow, step: Step) {
+    return step.dependsOn
+        .map((id) => findStep(workflow, id))
+        .filter((candidate): candidate is Step => Boolean(candidate))
+}
+
+function reachable(adjacency: Map<string, string[]>, from: string) {
+    const seen = new Set<string>()
+    const stack = [...(adjacency.get(from) ?? [])]
+
+    while (stack.length > 0) {
+        const current = stack.pop()!
+        if (seen.has(current)) continue
+        seen.add(current)
+        stack.push(...(adjacency.get(current) ?? []))
+    }
+
+    return seen
+}
+
+function ancestorsOf(steps: Step[], stepId: string) {
+    return reachable(new Map(steps.map((step) => [step.id, step.dependsOn])), stepId)
+}
+
+export function descendantsOf(steps: Step[], stepId: string) {
+    const adjacency = new Map<string, string[]>(steps.map((step) => [step.id, []]))
+    for (const step of steps)
+        for (const dependency of step.dependsOn) adjacency.get(dependency)?.push(step.id)
+
+    return reachable(adjacency, stepId)
+}
+
+export function createsCycle(steps: Step[], sourceId: string, targetId: string) {
+    return sourceId === targetId || ancestorsOf(steps, sourceId).has(targetId)
+}
+
+export function unlinkableFrom(steps: Step[], sourceId: string) {
+    const blocked = ancestorsOf(steps, sourceId)
+    blocked.add(sourceId)
+    return blocked
+}
+
+export function unlinkableInto(steps: Step[], targetId: string) {
+    const blocked = descendantsOf(steps, targetId)
+    blocked.add(targetId)
+    return blocked
+}
+
+/** Layer index per step: 0 for roots, otherwise one past its deepest upstream. */
+export function stepLayers(workflow: Workflow) {
+    const layers = new Map<string, number>()
+
+    const depth = (step: Step, seen: Set<string>): number => {
+        if (layers.has(step.id)) return layers.get(step.id)!
+        if (seen.has(step.id)) return 0
+        seen.add(step.id)
+
+        const upstream = upstreamOf(workflow, step)
+        const value =
+            upstream.length === 0 ? 0 : Math.max(...upstream.map((t) => depth(t, seen))) + 1
+
+        layers.set(step.id, value)
+        return value
+    }
+
+    for (const step of workflow.steps) depth(step, new Set())
+
+    return layers
+}

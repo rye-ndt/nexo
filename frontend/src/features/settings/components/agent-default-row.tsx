@@ -1,16 +1,11 @@
 import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from '@/shared/ui/select'
-import {
-    TASK_LEVEL_LABELS,
-    TASK_LEVELS,
-    THINKING_LEVEL_LABELS,
-    type ThinkingLevel,
-} from '@/shared/lib/enums'
-import {taskLevelWeight} from '@/features/settings/agent-default'
+import {EFFORT_LABELS, EFFORTS, THINKING_LEVEL_LABELS, type ThinkingLevel} from '@/shared/lib/enums'
+import {effortWeight} from '@/features/settings/agent-default'
 import {cn} from '@/shared/lib/utils'
 import type {AgentDefault, AgentDefaultOptions} from '@/features/settings/types'
 
 export const MODEL_COLUMN = 'w-[148px]'
-export const EFFORT_COLUMN = 'w-[116px]'
+export const THINKING_COLUMN = 'w-[116px]'
 
 export function AgentDefaultRow({
     agentDefault,
@@ -25,14 +20,14 @@ export function AgentDefaultRow({
     onChangeModel: (model: string) => void
     onChangeThinkingLevel: (thinkingLevel: ThinkingLevel) => void
 }) {
-    const {taskLevel} = agentDefault
-    const label = TASK_LEVEL_LABELS[taskLevel]
+    const {effort} = agentDefault
+    const label = EFFORT_LABELS[effort]
 
     return (
         <div className="flex items-center gap-3 px-4 py-3">
             <span className="flex min-w-0 flex-1 items-center gap-2">
                 <span className="truncate text-base font-medium">{label}</span>
-                <LevelWeight weight={taskLevelWeight(taskLevel)} />
+                <LevelWeight weight={effortWeight(effort)} />
             </span>
 
             <Select value={agentDefault.model} disabled={saving} onValueChange={onChangeModel}>
@@ -57,8 +52,8 @@ export function AgentDefaultRow({
                 onValueChange={onChangeThinkingLevel}
             >
                 <SelectTrigger
-                    className={cn('shrink-0', EFFORT_COLUMN)}
-                    aria-label={`${label} effort`}
+                    className={cn('shrink-0', THINKING_COLUMN)}
+                    aria-label={`${label} thinking`}
                 >
                     <SelectValue />
                 </SelectTrigger>
@@ -78,7 +73,7 @@ export function AgentDefaultRow({
 function LevelWeight({weight}: {weight: number}) {
     return (
         <span className="flex shrink-0 items-end gap-0.75" aria-hidden="true">
-            {TASK_LEVELS.map((level, index) => (
+            {EFFORTS.map((level, index) => (
                 <span
                     key={level}
                     className={cn(

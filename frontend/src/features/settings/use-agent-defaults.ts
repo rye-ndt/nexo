@@ -1,13 +1,13 @@
 import {useMutation, useQuery, useQueryClient} from '@tanstack/react-query'
 
 import * as api from '@/features/settings/api/preferences'
-import type {TaskLevel, ThinkingLevel} from '@/shared/lib/enums'
+import type {Effort, ThinkingLevel} from '@/shared/lib/enums'
 
 const AGENT_DEFAULTS_KEY = ['agent-defaults']
 const AGENT_DEFAULT_OPTIONS_KEY = ['agent-default-options']
 
 type AgentDefaultEdit = {
-    taskLevel: TaskLevel
+    effort: Effort
     model: string
     thinkingLevel: ThinkingLevel
 }
@@ -28,8 +28,8 @@ export function useAgentDefaults() {
 
     const save = useMutation({
         meta: {action: 'Could not save that default'},
-        mutationFn: ({taskLevel, model, thinkingLevel}: AgentDefaultEdit) =>
-            api.setAgentDefault(taskLevel, model, thinkingLevel),
+        mutationFn: ({effort, model, thinkingLevel}: AgentDefaultEdit) =>
+            api.setAgentDefault(effort, model, thinkingLevel),
         onSuccess: () => queryClient.invalidateQueries({queryKey: AGENT_DEFAULTS_KEY}),
     })
 
@@ -37,7 +37,7 @@ export function useAgentDefaults() {
         defaults: defaults.data ?? [],
         options: options.data,
         loading: defaults.isPending || options.isPending,
-        pendingTaskLevel: save.isPending ? save.variables.taskLevel : null,
+        pendingEffort: save.isPending ? save.variables.effort : null,
         setAgentDefault: save.mutate,
     }
 }

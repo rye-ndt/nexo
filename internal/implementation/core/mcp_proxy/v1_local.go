@@ -14,26 +14,26 @@ import (
 
 const (
 	approvalTool = "request_approval"
-	reportTool   = "report_task"
-	draftTool    = "report_template"
+	reportTool   = "report_step"
+	draftTool    = "report_role"
 )
 
 const approvalToolDescription = `Ask the human operator to approve a decision or grant a permission, then wait for their answer.
 Call this instead of asking the user directly: you are running non-interactively and have no other way to reach them.
 Use it when a choice would be expensive to undo, when you need a decision locked in before continuing, or when you need
-permission the current task does not already grant. The call blocks until the operator answers.
+permission the current step does not already grant. The call blocks until the operator answers.
 The operator may approve, which returns the option they picked, or reject, which returns approved=false and no option.`
 
-const reportToolDescription = `Report the assigned task as finished. Call this exactly once, when the task is done.
+const reportToolDescription = `Report the assigned step as finished. Call this exactly once, when the step is done.
 Use status completed when the goal is met, failed when you are blocked and cannot meet it.
-The handover doc you submit here is the only context the next agent gets, so rejected decisions
+The handoff you submit here is the only context the next agent gets, so rejected decisions
 and things to avoid matter as much as the outcome itself.
 The tldr is the exception: it is read by a person, not by an agent, so write it for someone
 who has never seen this project.`
 
-const draftToolDescription = `Submit the finished template. Call this exactly once, when every field is filled.
-This call is the only way to hand the template back: text you write in the conversation is discarded.
-The call is checked before it is accepted, so a template that is incomplete or inconsistent comes back
+const draftToolDescription = `Submit the finished role. Call this exactly once, when every field is filled.
+This call is the only way to hand the role back: text you write in the conversation is discarded.
+The call is checked before it is accepted, so a role that is incomplete or inconsistent comes back
 as an error describing what is wrong. Fix what it names and call again.`
 
 const (
@@ -41,8 +41,8 @@ const (
 		"Wait for that message before continuing; do not act on the rejected approach."
 	rejectedNoGuidance = "The operator rejected this and gave no guidance. " +
 		"Do not retry the same approach; stop and report what is blocked."
-	reportReceived = "Report received. This task is closed — stop now and take no further actions."
-	draftReceived  = "Template accepted. You are done — stop now and take no further actions."
+	reportReceived = "Report received. This step is closed — stop now and take no further actions."
+	draftReceived  = "Role accepted. You are done — stop now and take no further actions."
 )
 
 type approvalArgs struct {
@@ -71,7 +71,7 @@ type reportArgs struct {
 	KnownGaps         map[string]string `json:"known_gaps"`
 }
 
-type templateParamArgs struct {
+type roleInputArgs struct {
 	Key         string   `json:"key"`
 	Description string   `json:"description"`
 	Type        string   `json:"type"`
@@ -80,22 +80,22 @@ type templateParamArgs struct {
 	Options     []string `json:"options"`
 }
 
-type templatePromptArgs struct {
+type roleInstructionArgs struct {
 	Key   string `json:"key"`
 	Value string `json:"value"`
 }
 
-// Params and prompts arrive as arrays rather than the maps Template holds, so the
+// Inputs and instructions arrive as arrays rather than the maps Role holds, so the
 // tool schema can state what a key and a value are. They are folded into maps here.
-type templateArgs struct {
-	Name                 string                `json:"name"`
-	Role                 string                `json:"role"`
-	TaskLevel            string                `json:"task_level"`
-	Retryable            bool                  `json:"retryable"`
-	ManualAcceptRequired bool                  `json:"manual_accept_required"`
-	Params               []*templateParamArgs  `json:"params"`
-	SystemPrompts        []*templatePromptArgs `json:"system_prompts"`
-	OutputStructure      string                `json:"output_structure"`
+type roleArgs struct {
+	Name            string                 `json:"name"`
+	Description     string                 `json:"description"`
+	Effort          string                 `json:"effort"`
+	Retryable       bool                   `json:"retryable"`
+	PauseForReview  bool                   `json:"pause_for_review"`
+	Inputs          []*roleInputArgs       `json:"inputs"`
+	Instructions    []*roleInstructionArgs `json:"instructions"`
+	OutputStructure string                 `json:"output_structure"`
 }
 
 func (s *v1) serveLocal(w http.ResponseWriter, r *http.Request) {
@@ -133,21 +133,21 @@ var approvalToolSchema = objectSchema(map[string]any{
 var reportToolSchema = objectSchema(map[string]any{
 	"status": map[string]any{
 		"type":        "string",
-		"enum":        []string{string(enums.TaskCompleted), string(enums.TaskFailed)},
+		"enum":        []string{string(enums.StepCompleted), string(enums.StepFailed)},
 		"description": "completed when the goal is met, failed when you are blocked.",
 	},
 	"tldr": stringProp("Exactly one sentence, written for a person who has not read the code and knows " +
 		"nothing about this project: what you did and how you did it. Use plain words, " +
 		"no file paths, no identifiers, no jargon. It must make sense on its own."),
-	"outcome":            stringProp("What was achieved, or why the task failed."),
-	"blockers":           handoverSection("What is blocking further progress, keyed by a short name."),
-	"approved_decisions": handoverSection("Decisions the operator approved, keyed by a short name."),
-	"rejected_decisions": handoverSection("Decisions the operator rejected, keyed by a short name."),
-	"current_behaviors":  handoverSection("How the system behaves now, keyed by a short name."),
-	"changed_behaviors":  handoverSection("Behaviors this task changed, keyed by a short name."),
-	"must_avoid":         handoverSection("Approaches the next agent must not take, keyed by a short name."),
-	"nuances":            handoverSection("Subtleties the next agent needs, keyed by a short name."),
-	"known_gaps":         handoverSection("Work knowingly left undone, keyed by a short name."),
+	"outcome":            stringProp("What was achieved, or why the step failed."),
+	"blockers":           handoffSection("What is blocking further progress, keyed by a short name."),
+	"approved_decisions": handoffSection("Decisions the operator approved, keyed by a short name."),
+	"rejected_decisions": handoffSection("Decisions the operator rejected, keyed by a short name."),
+	"current_behaviors":  handoffSection("How the system behaves now, keyed by a short name."),
+	"changed_behaviors":  handoffSection("Behaviors this step changed, keyed by a short name."),
+	"must_avoid":         handoffSection("Approaches the next agent must not take, keyed by a short name."),
+	"nuances":            handoffSection("Subtleties the next agent needs, keyed by a short name."),
+	"known_gaps":         handoffSection("Work knowingly left undone, keyed by a short name."),
 }, "status", "tldr", "outcome")
 
 func (s *v1) localTools(agentID uuid.UUID) []*rpcTool {
@@ -182,30 +182,30 @@ func (s *v1) localTools(agentID uuid.UUID) []*rpcTool {
 }
 
 var draftToolSchema = objectSchema(map[string]any{
-	"name": stringProp("The template's name: two or three words naming the job it does."),
-	"role": stringProp("One or two sentences saying what an agent built from this template does."),
-	"task_level": map[string]any{
+	"name":        stringProp("The role's name: two or three words naming the job it does."),
+	"description": stringProp("One or two sentences saying what an agent built from this role does."),
+	"effort": map[string]any{
 		"type":        "string",
-		"enum":        helpers.Labels(enums.TaskLevels()),
-		"description": "How much effort a node built from this template deserves.",
+		"enum":        helpers.Labels(enums.Efforts()),
+		"description": "How much effort a step built from this role deserves.",
 	},
 	"retryable": map[string]any{
 		"type":        "boolean",
-		"description": "Whether a failed node should be retried automatically. False when a retry could repeat a side effect.",
+		"description": "Whether a failed step should be retried automatically. False when a retry could repeat a side effect.",
 	},
-	"manual_accept_required": map[string]any{
+	"pause_for_review": map[string]any{
 		"type":        "boolean",
-		"description": "Whether a human must read the report before anything downstream runs.",
+		"description": "Whether a human must review the result before anything downstream runs.",
 	},
-	"params": map[string]any{
+	"inputs": map[string]any{
 		"type":        "array",
-		"description": "The inputs a node fills in before it runs. Keep them few and each one load-bearing.",
+		"description": "The inputs a step fills in before it runs. Keep them few and each one load-bearing.",
 		"items": objectSchema(map[string]any{
-			"key":         stringProp("snake_case identifier the prompts reference."),
+			"key":         stringProp("snake_case identifier the instructions reference."),
 			"description": stringProp("What the person filling this in should type."),
 			"type": map[string]any{
 				"type": "string",
-				"enum": helpers.Labels(enums.ParamTypes()),
+				"enum": helpers.Labels(enums.InputTypes()),
 			},
 			"required": map[string]any{"type": "boolean"},
 			"default":  stringProp("Optional starting value, a comma-separated list when type is multiselect. Leave empty when there is no sane default."),
@@ -216,26 +216,26 @@ var draftToolSchema = objectSchema(map[string]any{
 			},
 		}, "key", "description", "type"),
 	},
-	"system_prompts": map[string]any{
+	"instructions": map[string]any{
 		"type":     "array",
 		"minItems": 1,
-		"description": "The prompt sections given to the agent. They are stored by key and read back " +
-			"in alphabetical order, so name them so that order reads correctly. " +
-			"Reference a param as {{key}}.",
+		"description": "The instruction sections given to the agent. They are stored by key and read " +
+			"back in alphabetical order, so name them so that order reads correctly. " +
+			"Reference an input as {{key}}.",
 		"items": objectSchema(map[string]any{
 			"key":   stringProp("snake_case name for this section, such as base or constraints."),
-			"value": stringProp("The prompt text itself."),
+			"value": stringProp("The instruction text itself."),
 		}, "key", "value"),
 	},
 	"output_structure": stringProp(
-		"The fields every node must report, one per line as `name: what it holds`, or empty when " +
-			"the node should report in its own words. A name uses only letters, numbers and " +
+		"The fields every step must report, one per line as `name: what it holds`, or empty when " +
+			"the step should report in its own words. A name uses only letters, numbers and " +
 			"underscores and cannot start with a number. A name with nothing after the colon opens " +
 			"a group whose fields are indented two more spaces. A group whose first line starts " +
 			"with `- ` is a list: it describes one element, holds exactly one item, and its fields " +
 			"line up two spaces past the dash. Indent with spaces, never tabs.",
 	),
-}, "name", "role", "task_level", "system_prompts")
+}, "name", "description", "effort", "instructions")
 
 func (s *v1) callDraft(arguments json.RawMessage, agentID uuid.UUID) *toolResult {
 	if agentID == uuid.Nil {
@@ -244,63 +244,63 @@ func (s *v1) callDraft(arguments json.RawMessage, agentID uuid.UUID) *toolResult
 
 	drafter := s.drafter()
 	if drafter == nil {
-		return errorResult("no template is being drafted right now")
+		return errorResult("no role is being drafted right now")
 	}
 
-	args := templateArgs{}
+	args := roleArgs{}
 	if err := json.Unmarshal(arguments, &args); err != nil {
 		return errorResult("cannot parse tool arguments: " + err.Error())
 	}
 
-	template := &core_itf.Template{
-		Name:                 args.Name,
-		Role:                 args.Role,
-		TaskLevel:            enums.TaskLevel(args.TaskLevel),
-		Retryable:            args.Retryable,
-		ManualAcceptRequired: args.ManualAcceptRequired,
-		OutputStructure:      args.OutputStructure,
-		Params:               make(map[string]*core_itf.TemplateParams, len(args.Params)),
-		SystemPrompts:        make(map[string]string, len(args.SystemPrompts)),
+	role := &core_itf.Role{
+		Name:            args.Name,
+		Description:     args.Description,
+		Effort:          enums.Effort(args.Effort),
+		Retryable:       args.Retryable,
+		PauseForReview:  args.PauseForReview,
+		OutputStructure: args.OutputStructure,
+		Inputs:          make(map[string]*core_itf.RoleInputs, len(args.Inputs)),
+		Instructions:    make(map[string]string, len(args.Instructions)),
 	}
 
-	for _, param := range args.Params {
-		if param == nil {
-			return errorResult("one of the params is empty")
+	for _, input := range args.Inputs {
+		if input == nil {
+			return errorResult("one of the inputs is empty")
 		}
 
-		if _, taken := template.Params[param.Key]; taken {
-			return errorResult("two params share the key " + param.Key)
+		if _, taken := role.Inputs[input.Key]; taken {
+			return errorResult("two inputs share the key " + input.Key)
 		}
 
-		template.Params[param.Key] = &core_itf.TemplateParams{
-			Description: param.Description,
-			Required:    param.Required,
-			Type:        param.Type,
-			Default:     param.Default,
-			Options:     param.Options,
+		role.Inputs[input.Key] = &core_itf.RoleInputs{
+			Description: input.Description,
+			Required:    input.Required,
+			Type:        input.Type,
+			Default:     input.Default,
+			Options:     input.Options,
 		}
 	}
 
-	for _, prompt := range args.SystemPrompts {
-		if prompt == nil {
-			return errorResult("one of the system prompts is empty")
+	for _, instruction := range args.Instructions {
+		if instruction == nil {
+			return errorResult("one of the instructions is empty")
 		}
 
-		if _, taken := template.SystemPrompts[prompt.Key]; taken {
-			return errorResult("two system prompts share the key " + prompt.Key)
+		if _, taken := role.Instructions[instruction.Key]; taken {
+			return errorResult("two instructions share the key " + instruction.Key)
 		}
 
-		template.SystemPrompts[prompt.Key] = prompt.Value
+		role.Instructions[instruction.Key] = instruction.Value
 	}
 
-	if err := drafter.Deliver(agentID, template); err != nil {
+	if err := drafter.Deliver(agentID, role); err != nil {
 		return errorResult(err.Error())
 	}
 
 	return textResult(draftReceived)
 }
 
-func handoverSection(description string) map[string]any {
+func handoffSection(description string) map[string]any {
 	return map[string]any{
 		"type":                 "object",
 		"additionalProperties": map[string]any{"type": "string"},
@@ -353,7 +353,7 @@ func (s *v1) callReport(arguments json.RawMessage, agentID uuid.UUID) *toolResul
 		return errorResult("cannot parse tool arguments: " + err.Error())
 	}
 
-	docs := []*core_itf.HandoverDoc{{
+	docs := []*core_itf.Handoff{{
 		TLDR:              args.TLDR,
 		Outcome:           args.Outcome,
 		Blockers:          args.Blockers,
@@ -366,7 +366,7 @@ func (s *v1) callReport(arguments json.RawMessage, agentID uuid.UUID) *toolResul
 		KnownGaps:         args.KnownGaps,
 	}}
 
-	if err := s.reporter.Report(agentID, enums.TaskStatus(args.Status), docs); err != nil {
+	if err := s.reporter.Report(agentID, enums.StepStatus(args.Status), docs); err != nil {
 		return errorResult(err.Error())
 	}
 

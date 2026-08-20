@@ -77,7 +77,7 @@ func (m *agentManagerV1) RequestInstance(specs *core_itf.AgentRequest) (*core_it
 		return nil, custom_error.Critical("no harness client support model %s", specs.Name)
 	}
 
-	agentID, err := harness.Spawn(specs.Name, specs.ThinkingLevel, specs.SystemPrompts, specs.WorkingDir)
+	agentID, err := harness.Spawn(specs.Name, specs.ThinkingLevel, specs.Instructions, specs.ProjectDir)
 	if err != nil {
 		return nil, err
 	}
@@ -160,7 +160,7 @@ func (m *agentManagerV1) HeartBeat(agentID uuid.UUID) error {
 	if err != nil {
 		m.setHealth(agentID, enums.Terminated)
 
-		return custom_error.Critical("session of agent %v is gone: %v", agentID, err)
+		return custom_error.Critical("workflow of agent %v is gone: %v", agentID, err)
 	}
 
 	if m.approvalBroker.Awaiting(agentID) {
@@ -180,11 +180,11 @@ func (m *agentManagerV1) HeartBeat(agentID uuid.UUID) error {
 
 	if err := m.checkConnectivity(); err != nil {
 		return custom_error.Critical(
-			"session of agent %v is silent for %v and the network is unreachable: %v", agentID, frozenFor, err,
+			"workflow of agent %v is silent for %v and the network is unreachable: %v", agentID, frozenFor, err,
 		)
 	}
 
-	return custom_error.Critical("session of agent %v is frozen, silent for %v", agentID, frozenFor)
+	return custom_error.Critical("workflow of agent %v is frozen, silent for %v", agentID, frozenFor)
 }
 
 func (m *agentManagerV1) checkConnectivity() error {

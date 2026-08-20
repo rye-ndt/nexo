@@ -10,8 +10,8 @@ import (
 type AgentRequest struct {
 	Name          enums.ModelName
 	ThinkingLevel enums.ThinkingLevel
-	SystemPrompts []string
-	WorkingDir    string
+	Instructions  []string
+	ProjectDir    string
 }
 
 type Agent struct {

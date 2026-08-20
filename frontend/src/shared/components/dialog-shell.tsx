@@ -1,5 +1,7 @@
 import type {ReactNode} from 'react'
 
+import {HelpTip} from '@/shared/components/help-tip'
+import type {GlossaryTerm} from '@/shared/lib/glossary'
 import {cn} from '@/shared/lib/utils'
 import {Dialog, DialogContent, DialogDescription, DialogTitle} from '@/shared/ui/dialog'
 
@@ -12,6 +14,7 @@ const SIZES = {
 export function DialogShell({
     title,
     description,
+    term,
     aside,
     footer,
     size = 'default',
@@ -20,6 +23,7 @@ export function DialogShell({
 }: {
     title: string
     description?: string
+    term?: GlossaryTerm
     aside?: ReactNode
     footer: ReactNode
     size?: keyof typeof SIZES
@@ -38,7 +42,10 @@ export function DialogShell({
             >
                 <div className="flex h-16 shrink-0 items-center gap-3 border-b border-border px-4 pr-12">
                     <div className="flex min-w-0 flex-1 flex-col gap-1">
-                        <DialogTitle className="truncate">{title}</DialogTitle>
+                        <div className="flex min-w-0 items-center gap-2">
+                            <DialogTitle className="truncate">{title}</DialogTitle>
+                            {term && <HelpTip term={term} side="bottom" />}
+                        </div>
                         {description && (
                             <DialogDescription className="truncate">
                                 {description}

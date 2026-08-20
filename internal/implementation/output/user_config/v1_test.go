@@ -24,7 +24,7 @@ func openConfig(t *testing.T, path string) output_itf.UserConfig {
 	return cfg
 }
 
-func agentDefault(t *testing.T, cfg output_itf.UserConfig, level enums.TaskLevel) *output_itf.AgentDefault {
+func agentDefault(t *testing.T, cfg output_itf.UserConfig, level enums.Effort) *output_itf.AgentDefault {
 	t.Helper()
 
 	stored, err := cfg.AgentDefault(level)
@@ -109,7 +109,7 @@ func TestSetAgentDefaultLeavesModelPricesAlone(t *testing.T) {
 
 	setPrices(t, cfg, enums.Sonnet, &output_itf.TokenPrices{Input: price(3), Output: price(15)})
 
-	if err := cfg.SetAgentDefault(enums.DailyTask, &output_itf.AgentDefault{
+	if err := cfg.SetAgentDefault(enums.EffortStandard, &output_itf.AgentDefault{
 		Model:         enums.Opus,
 		ThinkingLevel: enums.HighThinking,
 	}); err != nil {
@@ -118,7 +118,7 @@ func TestSetAgentDefaultLeavesModelPricesAlone(t *testing.T) {
 
 	reopened := openConfig(t, path)
 
-	if stored := agentDefault(t, reopened, enums.DailyTask); stored.Model != enums.Opus {
+	if stored := agentDefault(t, reopened, enums.EffortStandard); stored.Model != enums.Opus {
 		t.Fatalf("model change did not stick: %+v", stored)
 	}
 
@@ -150,11 +150,11 @@ func TestConfigWrittenBeforePricesExistedStillLoads(t *testing.T) {
 
 	old := `{
   "agent_defaults": {
-    "daily_task": {
+    "standard": {
       "model": "opus",
       "thinking_level": "high"
     },
-    "heavy_task": {
+    "deep": {
       "model": "fable",
       "thinking_level": "max"
     }
@@ -169,7 +169,7 @@ func TestConfigWrittenBeforePricesExistedStillLoads(t *testing.T) {
 
 	cfg := openConfig(t, path)
 
-	daily := agentDefault(t, cfg, enums.DailyTask)
+	daily := agentDefault(t, cfg, enums.EffortStandard)
 
 	if daily.Model != enums.Opus || daily.ThinkingLevel != enums.HighThinking {
 		t.Fatalf("upgrade lost the stored model: %+v", daily)
@@ -195,7 +195,7 @@ func TestUnreadablePricesKeepTheStoredModel(t *testing.T) {
 
 	broken := `{
   "agent_defaults": {
-    "daily_task": {
+    "standard": {
       "model": "opus",
       "thinking_level": "high"
     }
@@ -212,7 +212,7 @@ func TestUnreadablePricesKeepTheStoredModel(t *testing.T) {
 
 	cfg := openConfig(t, path)
 
-	if stored := agentDefault(t, cfg, enums.DailyTask); stored.Model != enums.Opus {
+	if stored := agentDefault(t, cfg, enums.EffortStandard); stored.Model != enums.Opus {
 		t.Fatalf("an unusable price reset the agent default: %+v", stored)
 	}
 
@@ -261,5 +261,29 @@ func TestNegativePriceIsRejected(t *testing.T) {
 
 	if stored := cfg.ModelPrice(enums.Sonnet); stored != nil {
 		t.Fatalf("a rejected write left prices %+v behind", stored)
+	}
+}
+
+func TestAgentDefaultsSurviveTheEffortRename(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.json")
+
+	seeded := `{"agent_defaults":{"daily_task":{"model":"opus","thinking_level":"xhigh"}}}`
+	if err := os.WriteFile(path, []byte(seeded), 0o644); err != nil {
+		t.Fatalf("cannot seed the config: %v", err)
+	}
+
+	cfg, err := InitV1(path)
+	if err != nil {
+		t.Fatalf("init: %v", err)
+	}
+
+	carried := cfg.AgentDefaults()[enums.EffortStandard]
+	if carried == nil {
+		t.Fatal("the default stored under daily_task did not carry over to standard")
+	}
+
+	if carried.ThinkingLevel != enums.XHighThinking {
+		t.Fatalf("thinking level = %q, want the stored one back", carried.ThinkingLevel)
 	}
 }

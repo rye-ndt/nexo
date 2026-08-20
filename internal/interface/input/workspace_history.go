@@ -15,10 +15,10 @@ type FileChange struct {
 	UnifiedDiff string
 }
 
-// WorkspaceHistory snapshots the session working tree so a task can be reverted to.
-// Implementations are lazy: the first Commit for a session creates its store.
+// WorkspaceHistory snapshots the workflow working tree so a step can be reverted to.
+// Implementations are lazy: the first Commit for a workflow creates its store.
 type WorkspaceHistory interface {
-	Commit(sessionID, taskID uuid.UUID, workingDir string, excludes []string) error
-	Diff(sessionID, taskID uuid.UUID) ([]*FileChange, error)
-	RestoreTo(sessionID, taskID uuid.UUID, workingDir string) error
+	Commit(workflowID, stepID uuid.UUID, projectDir string, excludes []string) error
+	Diff(workflowID, stepID uuid.UUID) ([]*FileChange, error)
+	RestoreTo(workflowID, stepID uuid.UUID, projectDir string) error
 }

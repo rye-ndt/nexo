@@ -32,8 +32,8 @@ const (
 	ErrChromeLaunchFailed ErrorType = "err_chrome_launch_failed"
 	ErrChromeNotConnected ErrorType = "err_chrome_not_connected"
 
-	ErrTemplateFileInvalid ErrorType = "err_template_file_invalid"
-	ErrTemplateConflict    ErrorType = "err_template_conflict"
+	ErrRoleFileInvalid ErrorType = "err_role_file_invalid"
+	ErrRoleConflict    ErrorType = "err_role_conflict"
 
-	ErrSessionFileInvalid ErrorType = "err_session_file_invalid"
+	ErrWorkflowFileInvalid ErrorType = "err_workflow_file_invalid"
 )

@@ -17,15 +17,15 @@ type AgentDefault struct {
 	ThinkingLevel enums.ThinkingLevel `json:"thinking_level" validate:"required,thinking_level"`
 }
 
-// Prices hang off the model, not the task level: two levels that name the same model
+// Prices hang off the model, not the step level: two levels that name the same model
 // are billed the same, and the effort a level asks for changes how many tokens are
 // spent, never what one costs. SetModelPrices writes the three prices of one model
-// and a nil argument clears them; the task level's own writer only ever moves the
+// and a nil argument clears them; the step level's own writer only ever moves the
 // model and the effort.
 type UserConfig interface {
-	AgentDefaults() map[enums.TaskLevel]*AgentDefault
-	AgentDefault(level enums.TaskLevel) (*AgentDefault, error)
-	SetAgentDefault(level enums.TaskLevel, agentDefault *AgentDefault) error
+	AgentDefaults() map[enums.Effort]*AgentDefault
+	AgentDefault(level enums.Effort) (*AgentDefault, error)
+	SetAgentDefault(level enums.Effort, agentDefault *AgentDefault) error
 	ModelPrice(model enums.ModelName) *TokenPrices
 	SetModelPrices(model enums.ModelName, prices *TokenPrices) error
 	Onboarded() bool

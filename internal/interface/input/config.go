@@ -14,7 +14,7 @@ type AppConfig struct {
 	Bg      string `mapstructure:"bg" validate:"required,hexcolor"`
 }
 
-type SessionConfig struct {
+type WorkflowConfig struct {
 	HeartbeatTimeout       time.Duration `mapstructure:"heartbeat_timeout" validate:"gt=0"`
 	HeartbeatScanInterval  time.Duration `mapstructure:"heartbeat_scan_interval" validate:"gt=0,ltefield=HeartbeatTimeout"`
 	AgentHeartbeatInterval time.Duration `mapstructure:"agent_heartbeat_interval" validate:"gt=0,ltefield=HeartbeatTimeout"`
@@ -73,20 +73,20 @@ type MCPServersConfig struct {
 }
 
 type ControlConfig struct {
-	Enabled            bool     `mapstructure:"enabled"`
-	EndpointFile       string   `mapstructure:"endpoint_file" validate:"required"`
-	AllowAnyWorkspace  bool     `mapstructure:"allow_any_workspace"`
-	AllowedRoots       []string `mapstructure:"allowed_roots"`
-	MaxTasksPerSession int      `mapstructure:"max_tasks_per_session" validate:"gt=0"`
-	MaxSessionsListed  int      `mapstructure:"max_sessions_listed" validate:"gt=0"`
-	AutostartDefault   bool     `mapstructure:"autostart_default"`
+	Enabled             bool     `mapstructure:"enabled"`
+	EndpointFile        string   `mapstructure:"endpoint_file" validate:"required"`
+	AllowAnyWorkspace   bool     `mapstructure:"allow_any_workspace"`
+	AllowedRoots        []string `mapstructure:"allowed_roots"`
+	MaxStepsPerWorkflow int      `mapstructure:"max_steps_per_workflow" validate:"gt=0"`
+	MaxWorkflowsListed  int      `mapstructure:"max_workflows_listed" validate:"gt=0"`
+	AutostartDefault    bool     `mapstructure:"autostart_default"`
 }
 
 type ConfigStruct struct {
 	App            *AppConfig                            `mapstructure:"app" validate:"required"`
 	Version        string                                `mapstructure:"version" validate:"required"`
 	LogLevel       string                                `mapstructure:"log_level" validate:"required,oneof=debug info warn error"`
-	Session        *SessionConfig                        `mapstructure:"session" validate:"required"`
+	Workflow       *WorkflowConfig                       `mapstructure:"workflow" validate:"required"`
 	ApprovalBroker *ApprovalBrokerConfig                 `mapstructure:"approval_broker" validate:"required"`
 	AgentManager   *AgentManagerConfig                   `mapstructure:"agent_manager" validate:"required"`
 	MCPServers     *MCPServersConfig                     `mapstructure:"mcp_servers" validate:"required"`

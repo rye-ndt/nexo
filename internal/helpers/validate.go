@@ -30,12 +30,12 @@ func newConfigValidator() *validator.Validate {
 		return enums.ModelName(fl.Field().String()).Valid()
 	})
 
-	v.RegisterValidation("task_level", func(fl validator.FieldLevel) bool {
-		return enums.TaskLevel(fl.Field().String()).Valid()
+	v.RegisterValidation("effort", func(fl validator.FieldLevel) bool {
+		return enums.Effort(fl.Field().String()).Valid()
 	})
 
-	v.RegisterValidation("param_type", func(fl validator.FieldLevel) bool {
-		return enums.ParamType(fl.Field().String()).Valid()
+	v.RegisterValidation("input_type", func(fl validator.FieldLevel) bool {
+		return enums.InputType(fl.Field().String()).Valid()
 	})
 
 	v.RegisterValidation("thinking_level", func(fl validator.FieldLevel) bool {

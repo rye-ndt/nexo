@@ -96,11 +96,11 @@ func (c *fakeHttpCli) Stream(req *input_itf.HttpRequest) (*input_itf.HttpRespons
 
 func testControlConfig() *input_itf.ControlConfig {
 	return &input_itf.ControlConfig{
-		Enabled:            true,
-		EndpointFile:       "control.json",
-		AllowAnyWorkspace:  true,
-		MaxTasksPerSession: 32,
-		MaxSessionsListed:  20,
+		Enabled:             true,
+		EndpointFile:        "control.json",
+		AllowAnyWorkspace:   true,
+		MaxStepsPerWorkflow: 32,
+		MaxWorkflowsListed:  20,
 	}
 }
 
@@ -279,11 +279,11 @@ func TestFetchAccountSendsABareTokenWhenNoSchemeIsConfigured(t *testing.T) {
 }
 
 type fakeReporter struct {
-	status enums.TaskStatus
-	docs   []*core_itf.HandoverDoc
+	status enums.StepStatus
+	docs   []*core_itf.Handoff
 }
 
-func (r *fakeReporter) Report(_ uuid.UUID, status enums.TaskStatus, docs []*core_itf.HandoverDoc) error {
+func (r *fakeReporter) Report(_ uuid.UUID, status enums.StepStatus, docs []*core_itf.Handoff) error {
 	r.status = status
 	r.docs = docs
 
@@ -304,7 +304,7 @@ func reportSchema(t *testing.T, proxy *v1) map[string]any {
 	return nil
 }
 
-func TestReportToolDoesNotAskForTheTaskName(t *testing.T) {
+func TestReportToolDoesNotAskForTheStepName(t *testing.T) {
 	proxy := newTestProxy(t, newFakeMCPStore(), &fakeHttpCli{})
 	proxy.reporter = &fakeReporter{}
 
@@ -315,8 +315,8 @@ func TestReportToolDoesNotAskForTheTaskName(t *testing.T) {
 		t.Fatal("the report tool has no properties")
 	}
 
-	if _, found := properties["task"]; found {
-		t.Error("the report tool still asks the agent for a task name")
+	if _, found := properties["step"]; found {
+		t.Error("the report tool still asks the agent for a step name")
 	}
 
 	required, ok := schema["required"].([]string)
@@ -324,8 +324,8 @@ func TestReportToolDoesNotAskForTheTaskName(t *testing.T) {
 		t.Fatal("the report tool has no required list")
 	}
 
-	if slices.Contains(required, "task") {
-		t.Error("the report tool still requires a task name")
+	if slices.Contains(required, "step") {
+		t.Error("the report tool still requires a step name")
 	}
 
 	for _, field := range []string{"status", "tldr", "outcome"} {
@@ -335,14 +335,14 @@ func TestReportToolDoesNotAskForTheTaskName(t *testing.T) {
 	}
 }
 
-func TestReportLeavesTheTaskNameToTheSessionManager(t *testing.T) {
+func TestReportLeavesTheStepNameToTheWorkflowManager(t *testing.T) {
 	proxy := newTestProxy(t, newFakeMCPStore(), &fakeHttpCli{})
 	reporter := &fakeReporter{}
 	proxy.reporter = reporter
 
 	arguments, err := json.Marshal(map[string]any{
-		"status":  string(enums.TaskCompleted),
-		"task":    "whatever the agent felt like calling it",
+		"status":  string(enums.StepCompleted),
+		"step":    "whatever the agent felt like calling it",
 		"tldr":    "one sentence",
 		"outcome": "the work is done",
 	})
@@ -355,15 +355,15 @@ func TestReportLeavesTheTaskNameToTheSessionManager(t *testing.T) {
 	}
 
 	if len(reporter.docs) != 1 {
-		t.Fatalf("reported %d handover docs, want 1", len(reporter.docs))
+		t.Fatalf("reported %d handoffs, want 1", len(reporter.docs))
 	}
 
-	if got := reporter.docs[0].Task; got != "" {
-		t.Errorf("handover doc task = %q, want it left empty for the session manager to fill", got)
+	if got := reporter.docs[0].Step; got != "" {
+		t.Errorf("handoff step = %q, want it left empty for the workflow manager to fill", got)
 	}
 
 	if got := reporter.docs[0].Outcome; got != "the work is done" {
-		t.Errorf("handover doc outcome = %q, want the reported outcome", got)
+		t.Errorf("handoff outcome = %q, want the reported outcome", got)
 	}
 }
 

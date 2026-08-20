@@ -59,7 +59,7 @@ type AgentHarness interface {
 	Spawn(
 		name enums.ModelName,
 		thinkingLevel enums.ThinkingLevel,
-		systemPrompts []string,
+		instructions []string,
 		workdir string,
 	) (uuid.UUID, error)
 	Send(id string, message string) error

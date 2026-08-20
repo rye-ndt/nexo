@@ -16,7 +16,7 @@ type ApprovalOption struct {
 type ApprovalRequest struct {
 	ID          uuid.UUID          `json:"id"`
 	AgentID     uuid.UUID          `json:"agent_id"`
-	TaskID      uuid.UUID          `json:"task_id"`
+	StepID      uuid.UUID          `json:"step_id"`
 	Kind        enums.ApprovalKind `json:"kind"`
 	Question    string             `json:"question"`
 	Detail      string             `json:"detail"`

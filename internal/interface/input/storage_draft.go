@@ -6,14 +6,14 @@ import (
 	"github.com/google/uuid"
 )
 
-type SessionDraftEntity struct {
+type WorkflowDraftEntity struct {
 	ID        uuid.UUID
 	Doc       string
 	UpdatedAt time.Time
 }
 
 type DraftStorage interface {
-	List() ([]*SessionDraftEntity, error)
-	Save(draft *SessionDraftEntity) error
+	List() ([]*WorkflowDraftEntity, error)
+	Save(draft *WorkflowDraftEntity) error
 	Delete(id uuid.UUID) error
 }

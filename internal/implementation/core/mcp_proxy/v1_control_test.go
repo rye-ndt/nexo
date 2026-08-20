@@ -18,19 +18,19 @@ import (
 	"github.com/google/uuid"
 )
 
-var errPortRefused = errors.New("session 7f3 is already running")
+var errPortRefused = errors.New("workflow 7f3 is already running")
 
 var (
-	sessionOne  = uuid.MustParse("00000000-0000-7000-8000-000000000001")
-	templateOne = uuid.MustParse("00000000-0000-7000-8000-000000000002")
-	taskExplore = uuid.MustParse("00000000-0000-7000-8000-000000000003")
-	taskFix     = uuid.MustParse("00000000-0000-7000-8000-000000000004")
-	taskReview  = uuid.MustParse("00000000-0000-7000-8000-000000000005")
+	workflowOne = uuid.MustParse("00000000-0000-7000-8000-000000000001")
+	roleOne     = uuid.MustParse("00000000-0000-7000-8000-000000000002")
+	stepExplore = uuid.MustParse("00000000-0000-7000-8000-000000000003")
+	stepFix     = uuid.MustParse("00000000-0000-7000-8000-000000000004")
+	stepReview  = uuid.MustParse("00000000-0000-7000-8000-000000000005")
 )
 
-type fakeSessionControl struct {
+type fakeWorkflowControl struct {
 	mu        sync.Mutex
-	spec      *core_itf.ControlSessionSpec
+	spec      *core_itf.ControlWorkflowSpec
 	started   []uuid.UUID
 	paused    []uuid.UUID
 	cancelled []uuid.UUID
@@ -39,11 +39,11 @@ type fakeSessionControl struct {
 	err       error
 }
 
-func newFakeSessionControl() *fakeSessionControl {
-	return &fakeSessionControl{answered: map[uuid.UUID]bool{}}
+func newFakeWorkflowControl() *fakeWorkflowControl {
+	return &fakeWorkflowControl{answered: map[uuid.UUID]bool{}}
 }
 
-func (c *fakeSessionControl) CreateSession(spec *core_itf.ControlSessionSpec) (*core_itf.ControlSessionRef, error) {
+func (c *fakeWorkflowControl) CreateWorkflow(spec *core_itf.ControlWorkflowSpec) (*core_itf.ControlWorkflowRef, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -54,14 +54,14 @@ func (c *fakeSessionControl) CreateSession(spec *core_itf.ControlSessionSpec) (*
 	c.spec = spec
 
 	ids := map[string]uuid.UUID{}
-	for _, task := range spec.Tasks {
-		ids[task.ClientID] = map[string]uuid.UUID{"explore": taskExplore, "fix": taskFix}[task.ClientID]
+	for _, step := range spec.Steps {
+		ids[step.ClientID] = map[string]uuid.UUID{"explore": stepExplore, "fix": stepFix}[step.ClientID]
 	}
 
-	return &core_itf.ControlSessionRef{SessionID: sessionOne, TaskIDs: ids}, nil
+	return &core_itf.ControlWorkflowRef{WorkflowID: workflowOne, StepIDs: ids}, nil
 }
 
-func (c *fakeSessionControl) StartSession(sessionID uuid.UUID) error {
+func (c *fakeWorkflowControl) StartWorkflow(workflowID uuid.UUID) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -69,12 +69,12 @@ func (c *fakeSessionControl) StartSession(sessionID uuid.UUID) error {
 		return c.err
 	}
 
-	c.started = append(c.started, sessionID)
+	c.started = append(c.started, workflowID)
 
 	return nil
 }
 
-func (c *fakeSessionControl) PauseSession(sessionID uuid.UUID) error {
+func (c *fakeWorkflowControl) PauseWorkflow(workflowID uuid.UUID) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -82,12 +82,12 @@ func (c *fakeSessionControl) PauseSession(sessionID uuid.UUID) error {
 		return c.err
 	}
 
-	c.paused = append(c.paused, sessionID)
+	c.paused = append(c.paused, workflowID)
 
 	return nil
 }
 
-func (c *fakeSessionControl) CancelSession(sessionID uuid.UUID) error {
+func (c *fakeWorkflowControl) CancelWorkflow(workflowID uuid.UUID) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -95,12 +95,12 @@ func (c *fakeSessionControl) CancelSession(sessionID uuid.UUID) error {
 		return c.err
 	}
 
-	c.cancelled = append(c.cancelled, sessionID)
+	c.cancelled = append(c.cancelled, workflowID)
 
 	return nil
 }
 
-func (c *fakeSessionControl) SessionState(sessionID uuid.UUID) (*core_itf.SessionStatus, error) {
+func (c *fakeWorkflowControl) WorkflowState(workflowID uuid.UUID) (*core_itf.WorkflowStatus, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -108,17 +108,17 @@ func (c *fakeSessionControl) SessionState(sessionID uuid.UUID) (*core_itf.Sessio
 		return nil, c.err
 	}
 
-	return &core_itf.SessionStatus{
-		ID:             sessionID,
-		Status:         enums.SessionProcessing,
-		WorkingDirPath: "/tmp/work",
+	return &core_itf.WorkflowStatus{
+		ID:             workflowID,
+		Status:         enums.WorkflowProcessing,
+		ProjectDirPath: "/tmp/work",
 		TokensBilled:   120,
-		Tasks: map[uuid.UUID]*core_itf.TaskReport{
-			taskReview: {
-				TaskID: taskReview,
+		Steps: map[uuid.UUID]*core_itf.StepResult{
+			stepReview: {
+				StepID: stepReview,
 				Name:   "Review diff",
-				Status: enums.TaskAwaitingAccept,
-				HandoverDocs: []*core_itf.HandoverDoc{
+				Status: enums.StepAwaitingReview,
+				Handoffs: []*core_itf.Handoff{
 					{TLDR: "read the diff"},
 				},
 			},
@@ -126,7 +126,7 @@ func (c *fakeSessionControl) SessionState(sessionID uuid.UUID) (*core_itf.Sessio
 	}, nil
 }
 
-func (c *fakeSessionControl) ListSessions(limit int) ([]*core_itf.SessionStatus, error) {
+func (c *fakeWorkflowControl) ListWorkflows(limit int) ([]*core_itf.WorkflowStatus, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -136,20 +136,20 @@ func (c *fakeSessionControl) ListSessions(limit int) ([]*core_itf.SessionStatus,
 
 	c.limit = limit
 
-	return []*core_itf.SessionStatus{
+	return []*core_itf.WorkflowStatus{
 		{
-			ID:             sessionOne,
-			Status:         enums.SessionCompleted,
-			WorkingDirPath: "/tmp/work",
-			Tasks: map[uuid.UUID]*core_itf.TaskReport{
-				taskExplore: {},
-				taskFix:     {},
+			ID:             workflowOne,
+			Status:         enums.WorkflowCompleted,
+			ProjectDirPath: "/tmp/work",
+			Steps: map[uuid.UUID]*core_itf.StepResult{
+				stepExplore: {},
+				stepFix:     {},
 			},
 		},
 	}, nil
 }
 
-func (c *fakeSessionControl) ListTemplates() ([]*core_itf.Template, error) {
+func (c *fakeWorkflowControl) ListRoles() ([]*core_itf.Role, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -157,20 +157,20 @@ func (c *fakeSessionControl) ListTemplates() ([]*core_itf.Template, error) {
 		return nil, c.err
 	}
 
-	return []*core_itf.Template{
+	return []*core_itf.Role{
 		{
-			ID:        templateOne,
-			Name:      "Code reviewer",
-			Role:      "Reads a diff and reports the defects it can prove.",
-			TaskLevel: enums.HeavyTask,
-			Params: map[string]*core_itf.TemplateParams{
+			ID:          roleOne,
+			Name:        "Code reviewer",
+			Description: "Reads a diff and reports the defects it can prove.",
+			Effort:      enums.EffortDeep,
+			Inputs: map[string]*core_itf.RoleInputs{
 				"diff_path": {Description: "Where the diff is", Type: "text", Required: true},
 			},
 		},
 	}, nil
 }
 
-func (c *fakeSessionControl) AnswerAcceptance(taskID uuid.UUID, accepted bool) error {
+func (c *fakeWorkflowControl) AnswerReview(stepID uuid.UUID, accepted bool) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -178,12 +178,12 @@ func (c *fakeSessionControl) AnswerAcceptance(taskID uuid.UUID, accepted bool) e
 		return c.err
 	}
 
-	c.answered[taskID] = accepted
+	c.answered[stepID] = accepted
 
 	return nil
 }
 
-func (c *fakeSessionControl) createdSpec() *core_itf.ControlSessionSpec {
+func (c *fakeWorkflowControl) createdSpec() *core_itf.ControlWorkflowSpec {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -270,7 +270,7 @@ func callControl(t *testing.T, srv *httptest.Server, token, method string, param
 
 func TestControlServerExposesEveryControlTool(t *testing.T) {
 	proxy := newTestProxy(t, newFakeMCPStore(), &fakeHttpCli{})
-	proxy.TrackSessionControl(newFakeSessionControl())
+	proxy.TrackWorkflowControl(newFakeWorkflowControl())
 
 	srv, _ := servedControl(t, proxy)
 
@@ -282,13 +282,13 @@ func TestControlServerExposesEveryControlTool(t *testing.T) {
 	}
 
 	want := []string{
-		listTemplatesTool,
-		createSessionTool,
-		startSessionTool,
-		pauseSessionTool,
-		cancelSessionTool,
-		sessionStatusTool,
-		listSessionsTool,
+		listRolesTool,
+		createWorkflowTool,
+		startWorkflowTool,
+		pauseWorkflowTool,
+		cancelWorkflowTool,
+		workflowStatusTool,
+		listWorkflowsTool,
 		answerAcceptanceTool,
 	}
 
@@ -302,7 +302,7 @@ func TestControlServerExposesEveryControlTool(t *testing.T) {
 
 func TestControlEndpointRejectsTheHarnessGatewayToken(t *testing.T) {
 	proxy := newTestProxy(t, newFakeMCPStore(), &fakeHttpCli{})
-	proxy.TrackSessionControl(newFakeSessionControl())
+	proxy.TrackWorkflowControl(newFakeWorkflowControl())
 
 	srv, gateway := servedControl(t, proxy)
 
@@ -326,7 +326,7 @@ func TestControlEndpointRejectsTheHarnessGatewayToken(t *testing.T) {
 
 func TestControlToolsAreNotOfferedOnTheHarnessGateway(t *testing.T) {
 	proxy := newTestProxy(t, newFakeMCPStore(), &fakeHttpCli{})
-	proxy.TrackSessionControl(newFakeSessionControl())
+	proxy.TrackWorkflowControl(newFakeWorkflowControl())
 
 	_, gateway := servedControl(t, proxy)
 
@@ -337,105 +337,131 @@ func TestControlToolsAreNotOfferedOnTheHarnessGateway(t *testing.T) {
 	}
 }
 
-func TestCreateSessionHandsTheParsedSpecToTheControlPort(t *testing.T) {
+func TestCreateWorkflowHandsTheParsedSpecToTheControlPort(t *testing.T) {
 	proxy := newTestProxy(t, newFakeMCPStore(), &fakeHttpCli{})
-	control := newFakeSessionControl()
-	proxy.TrackSessionControl(control)
+	control := newFakeWorkflowControl()
+	proxy.TrackWorkflowControl(control)
 
 	srv, _ := servedControl(t, proxy)
 
 	answer := callControl(t, srv, proxy.controlToken, methodToolsCall, map[string]any{
-		"name": createSessionTool,
+		"name": createWorkflowTool,
 		"arguments": map[string]any{
-			"working_dir_path": "/tmp/work",
-			"context_dir_path": "/tmp/context",
-			"tasks": []map[string]any{
+			"project_dir_path": "/tmp/work",
+			"steps": []map[string]any{
 				{
-					"client_id":  "explore",
-					"name":       "Explore",
-					"prompt":     "Find where sessions are persisted.",
-					"task_level": "daily_task",
+					"client_id": "explore",
+					"name":      "Explore",
+					"prompt":    "Find where workflows are persisted.",
+					"effort":    "standard",
 				},
 				{
-					"client_id":              "fix",
-					"name":                   "Fix",
-					"prompt":                 "Fix what explore found.",
-					"template_id":            templateOne.String(),
-					"params":                 map[string]string{"diff_path": "/tmp/diff"},
-					"depends_on":             []string{"explore"},
-					"auto_retry":             true,
-					"manual_accept_required": true,
+					"client_id":        "fix",
+					"name":             "Fix",
+					"prompt":           "Fix what explore found.",
+					"role_id":          roleOne.String(),
+					"inputs":           map[string]string{"diff_path": "/tmp/diff"},
+					"depends_on":       []string{"explore"},
+					"auto_retry":       true,
+					"pause_for_review": true,
 				},
 			},
 		},
 	})
 
 	if answer.Result.IsError {
-		t.Fatalf("create_session failed: %v", answer.Result.Content)
+		t.Fatalf("create_workflow failed: %v", answer.Result.Content)
 	}
 
 	spec := control.createdSpec()
 	if spec == nil {
-		t.Fatal("create_session never reached the control port")
+		t.Fatal("create_workflow never reached the control port")
 	}
 
-	if spec.WorkingDirPath != "/tmp/work" || spec.ContextDirPath != "/tmp/context" {
-		t.Errorf("spec dirs = %q and %q, want the ones the caller sent", spec.WorkingDirPath, spec.ContextDirPath)
+	if spec.ProjectDirPath != "/tmp/work" {
+		t.Errorf("spec project dir = %q, want the one the caller sent", spec.ProjectDirPath)
 	}
 
 	if spec.Autostart != nil {
 		t.Errorf("autostart = %v, want nil so the app's own setting decides", *spec.Autostart)
 	}
 
-	if len(spec.Tasks) != 2 {
-		t.Fatalf("spec carries %d tasks, want 2", len(spec.Tasks))
+	if len(spec.Steps) != 2 {
+		t.Fatalf("spec carries %d steps, want 2", len(spec.Steps))
 	}
 
-	if spec.Tasks[0].ClientID != "explore" || spec.Tasks[0].TaskLevel != "daily_task" {
-		t.Errorf("first task = %+v, want the explore node", spec.Tasks[0])
+	if spec.Steps[0].ClientID != "explore" || spec.Steps[0].Effort != "standard" {
+		t.Errorf("first step = %+v, want the explore node", spec.Steps[0])
 	}
 
-	fix := spec.Tasks[1]
+	fix := spec.Steps[1]
 
 	if !slices.Equal(fix.DependsOn, []string{"explore"}) {
-		t.Errorf("depends_on = %v, want the client id of the node it follows", fix.DependsOn)
+		t.Errorf("depends_on = %v, want the client id of the step it follows", fix.DependsOn)
 	}
 
-	if fix.TemplateID != templateOne || fix.Params["diff_path"] != "/tmp/diff" {
-		t.Errorf("second task = %+v, want the template and its params", fix)
+	if fix.RoleID != roleOne || fix.Inputs["diff_path"] != "/tmp/diff" {
+		t.Errorf("second step = %+v, want the role and its inputs", fix)
 	}
 
-	if !fix.AutoRetry || !fix.ManualAcceptRequired {
-		t.Errorf("second task flags = %v and %v, want both true", fix.AutoRetry, fix.ManualAcceptRequired)
+	if !fix.AutoRetry || !fix.PauseForReview {
+		t.Errorf("second step flags = %v and %v, want both true", fix.AutoRetry, fix.PauseForReview)
 	}
 
 	payload := struct {
-		SessionID string            `json:"session_id"`
-		TaskIDs   map[string]string `json:"task_ids"`
+		WorkflowID string            `json:"workflow_id"`
+		StepIDs    map[string]string `json:"step_ids"`
 	}{}
 
 	if len(answer.Result.Content) == 0 {
-		t.Fatal("create_session answered with no content")
+		t.Fatal("create_workflow answered with no content")
 	}
 
 	if err := json.Unmarshal([]byte(answer.Result.Content[0].Text), &payload); err != nil {
-		t.Fatalf("decode create_session answer: %v", err)
+		t.Fatalf("decode create_workflow answer: %v", err)
 	}
 
-	if payload.SessionID != sessionOne.String() || payload.TaskIDs["explore"] != taskExplore.String() {
-		t.Errorf("answer = %+v, want the session id and a real task id per client id", payload)
+	if payload.WorkflowID != workflowOne.String() || payload.StepIDs["explore"] != stepExplore.String() {
+		t.Errorf("answer = %+v, want the workflow id and a real step id per client id", payload)
 	}
 }
 
-func TestCreateSessionKeepsAnExplicitAutostartFalse(t *testing.T) {
+func TestCreateWorkflowIgnoresARetiredContextDirArgument(t *testing.T) {
 	proxy := newTestProxy(t, newFakeMCPStore(), &fakeHttpCli{})
-	control := newFakeSessionControl()
-	proxy.TrackSessionControl(control)
+	control := newFakeWorkflowControl()
+	proxy.TrackWorkflowControl(control)
+
+	srv, _ := servedControl(t, proxy)
+
+	answer := callControl(t, srv, proxy.controlToken, methodToolsCall, map[string]any{
+		"name": createWorkflowTool,
+		"arguments": map[string]any{
+			"project_dir_path": "/tmp/work",
+			"context_dir_path": "/tmp/context",
+			"steps": []map[string]any{
+				{"client_id": "only", "name": "Only", "prompt": "Do the thing."},
+			},
+		},
+	})
+
+	if answer.Result.IsError {
+		t.Fatalf("create_workflow refused an argument it should ignore: %v", answer.Result.Content)
+	}
+
+	if control.createdSpec() == nil {
+		t.Fatal("create_workflow never reached the control port")
+	}
+}
+
+func TestCreateWorkflowKeepsAnExplicitAutostartFalse(t *testing.T) {
+	proxy := newTestProxy(t, newFakeMCPStore(), &fakeHttpCli{})
+	control := newFakeWorkflowControl()
+	proxy.TrackWorkflowControl(control)
 
 	arguments, err := json.Marshal(map[string]any{
-		"working_dir_path": "/tmp/work",
+		"project_dir_path": "/tmp/work",
 		"autostart":        false,
-		"tasks": []map[string]any{
+		"steps": []map[string]any{
 			{"client_id": "only", "name": "Only", "prompt": "Do the thing."},
 		},
 	})
@@ -443,8 +469,8 @@ func TestCreateSessionKeepsAnExplicitAutostartFalse(t *testing.T) {
 		t.Fatalf("encode arguments: %v", err)
 	}
 
-	if result := proxy.callCreateSession(arguments, uuid.Nil); result.IsError {
-		t.Fatalf("create_session failed: %v", result.Content)
+	if result := proxy.callCreateWorkflow(arguments, uuid.Nil); result.IsError {
+		t.Fatalf("create_workflow failed: %v", result.Content)
 	}
 
 	spec := control.createdSpec()
@@ -458,14 +484,14 @@ func TestCreateSessionKeepsAnExplicitAutostartFalse(t *testing.T) {
 	}
 }
 
-func TestControlToolsFailWhenNoSessionControlIsTracked(t *testing.T) {
+func TestControlToolsFailWhenNoWorkflowControlIsTracked(t *testing.T) {
 	proxy := newTestProxy(t, newFakeMCPStore(), &fakeHttpCli{})
 
 	for _, tool := range proxy.controlTools() {
 		result := tool.call(json.RawMessage(`{}`), uuid.Nil)
 
 		if !result.IsError {
-			t.Errorf("%s answered as a success while the app tracks no session control", tool.name)
+			t.Errorf("%s answered as a success while the app tracks no workflow control", tool.name)
 			continue
 		}
 
@@ -477,13 +503,13 @@ func TestControlToolsFailWhenNoSessionControlIsTracked(t *testing.T) {
 
 func TestControlToolsSurfaceThePortsErrorAsAToolError(t *testing.T) {
 	proxy := newTestProxy(t, newFakeMCPStore(), &fakeHttpCli{})
-	proxy.TrackSessionControl(&fakeSessionControl{err: errPortRefused, answered: map[uuid.UUID]bool{}})
+	proxy.TrackWorkflowControl(&fakeWorkflowControl{err: errPortRefused, answered: map[uuid.UUID]bool{}})
 
 	srv, _ := servedControl(t, proxy)
 
 	answer := callControl(t, srv, proxy.controlToken, methodToolsCall, map[string]any{
-		"name":      startSessionTool,
-		"arguments": map[string]any{"session_id": sessionOne.String()},
+		"name":      startWorkflowTool,
+		"arguments": map[string]any{"workflow_id": workflowOne.String()},
 	})
 
 	if !answer.Result.IsError {
@@ -503,87 +529,87 @@ func TestControlToolsSurfaceThePortsErrorAsAToolError(t *testing.T) {
 	}
 }
 
-func TestControlToolsReadTheSessionAndTheAcceptGate(t *testing.T) {
+func TestControlToolsReadTheWorkflowAndTheAcceptGate(t *testing.T) {
 	proxy := newTestProxy(t, newFakeMCPStore(), &fakeHttpCli{})
-	control := newFakeSessionControl()
-	proxy.TrackSessionControl(control)
+	control := newFakeWorkflowControl()
+	proxy.TrackWorkflowControl(control)
 
 	srv, _ := servedControl(t, proxy)
 
 	answer := callControl(t, srv, proxy.controlToken, methodToolsCall, map[string]any{
-		"name":      sessionStatusTool,
-		"arguments": map[string]any{"session_id": sessionOne.String()},
+		"name":      workflowStatusTool,
+		"arguments": map[string]any{"workflow_id": workflowOne.String()},
 	})
 
 	if answer.Result.IsError {
-		t.Fatalf("session_status failed: %v", answer.Result.Content)
+		t.Fatalf("workflow_status failed: %v", answer.Result.Content)
 	}
 
 	state := struct {
-		SessionID string `json:"session_id"`
-		Status    string `json:"status"`
-		Tasks     []struct {
-			TaskID string `json:"task_id"`
+		WorkflowID string `json:"workflow_id"`
+		Status     string `json:"status"`
+		Steps      []struct {
+			StepID string `json:"step_id"`
 			Status string `json:"status"`
 			TLDR   string `json:"tldr"`
-		} `json:"tasks"`
+		} `json:"steps"`
 		TokensBilled int `json:"tokens_billed"`
 	}{}
 
 	if err := json.Unmarshal([]byte(answer.Result.Content[0].Text), &state); err != nil {
-		t.Fatalf("decode session_status answer: %v", err)
+		t.Fatalf("decode workflow_status answer: %v", err)
 	}
 
-	if state.SessionID != sessionOne.String() || state.Status != "processing" || state.TokensBilled != 120 {
-		t.Errorf("state = %+v, want the session the port reported", state)
+	if state.WorkflowID != workflowOne.String() || state.Status != "processing" || state.TokensBilled != 120 {
+		t.Errorf("state = %+v, want the workflow the port reported", state)
 	}
 
-	if len(state.Tasks) != 1 || state.Tasks[0].TaskID != taskReview.String() || state.Tasks[0].TLDR != "read the diff" {
-		t.Fatalf("tasks = %+v, want the one task the port reported", state.Tasks)
+	if len(state.Steps) != 1 || state.Steps[0].StepID != stepReview.String() || state.Steps[0].TLDR != "read the diff" {
+		t.Fatalf("steps = %+v, want the one step the port reported", state.Steps)
 	}
 
 	answer = callControl(t, srv, proxy.controlToken, methodToolsCall, map[string]any{
 		"name":      answerAcceptanceTool,
-		"arguments": map[string]any{"task_id": taskReview.String(), "accepted": true},
+		"arguments": map[string]any{"step_id": stepReview.String(), "accepted": true},
 	})
 
 	if answer.Result.IsError {
-		t.Fatalf("answer_acceptance failed: %v", answer.Result.Content)
+		t.Fatalf("answer_review failed: %v", answer.Result.Content)
 	}
 
 	control.mu.Lock()
-	accepted, answered := control.answered[taskReview]
+	accepted, answered := control.answered[stepReview]
 	control.mu.Unlock()
 
 	if !answered || !accepted {
-		t.Errorf("the accept gate on task-review was answered %v, %v, want an acceptance", accepted, answered)
+		t.Errorf("the accept gate on step-review was answered %v, %v, want an acceptance", accepted, answered)
 	}
 }
 
-func TestListSessionsTakesNoArgumentsAtAll(t *testing.T) {
+func TestListWorkflowsTakesNoArgumentsAtAll(t *testing.T) {
 	proxy := newTestProxy(t, newFakeMCPStore(), &fakeHttpCli{})
-	control := newFakeSessionControl()
-	proxy.TrackSessionControl(control)
+	control := newFakeWorkflowControl()
+	proxy.TrackWorkflowControl(control)
 
 	srv, _ := servedControl(t, proxy)
 
-	answer := callControl(t, srv, proxy.controlToken, methodToolsCall, map[string]any{"name": listSessionsTool})
+	answer := callControl(t, srv, proxy.controlToken, methodToolsCall, map[string]any{"name": listWorkflowsTool})
 
 	if answer.Result.IsError {
-		t.Fatalf("list_sessions failed without arguments: %v", answer.Result.Content)
+		t.Fatalf("list_workflows failed without arguments: %v", answer.Result.Content)
 	}
 
-	sessions := []struct {
-		SessionID string `json:"session_id"`
-		TotalTask int    `json:"total_task"`
+	workflows := []struct {
+		WorkflowID string `json:"workflow_id"`
+		TotalStep  int    `json:"total_step"`
 	}{}
 
-	if err := json.Unmarshal([]byte(answer.Result.Content[0].Text), &sessions); err != nil {
-		t.Fatalf("decode list_sessions answer: %v", err)
+	if err := json.Unmarshal([]byte(answer.Result.Content[0].Text), &workflows); err != nil {
+		t.Fatalf("decode list_workflows answer: %v", err)
 	}
 
-	if len(sessions) != 1 || sessions[0].SessionID != sessionOne.String() || sessions[0].TotalTask != 2 {
-		t.Errorf("sessions = %+v, want the one summary the port reported", sessions)
+	if len(workflows) != 1 || workflows[0].WorkflowID != workflowOne.String() || workflows[0].TotalStep != 2 {
+		t.Errorf("workflows = %+v, want the one summary the port reported", workflows)
 	}
 
 	control.mu.Lock()
@@ -597,21 +623,21 @@ func TestListSessionsTakesNoArgumentsAtAll(t *testing.T) {
 
 func TestControlToolsRejectMalformedArguments(t *testing.T) {
 	proxy := newTestProxy(t, newFakeMCPStore(), &fakeHttpCli{})
-	proxy.TrackSessionControl(newFakeSessionControl())
+	proxy.TrackWorkflowControl(newFakeWorkflowControl())
 
-	result := proxy.callCreateSession(json.RawMessage(`{"tasks": "not an array"}`), uuid.Nil)
+	result := proxy.callCreateWorkflow(json.RawMessage(`{"steps": "not an array"}`), uuid.Nil)
 
 	if !result.IsError {
-		t.Fatal("a malformed create_session payload was accepted")
+		t.Fatal("a malformed create_workflow payload was accepted")
 	}
 
 	if len(result.Content) == 0 || !bytes.HasPrefix([]byte(result.Content[0].Text), []byte("cannot parse tool arguments: ")) {
 		t.Errorf("answer = %v, want a parse failure", result.Content)
 	}
 
-	result = proxy.callStartSession(json.RawMessage(`{"session_id": "not-a-uuid"}`), uuid.Nil)
-	if !result.IsError || len(result.Content) == 0 || !strings.Contains(result.Content[0].Text, "invalid session id") {
-		t.Errorf("answer = %v, want an invalid session id failure", result.Content)
+	result = proxy.callStartWorkflow(json.RawMessage(`{"workflow_id": "not-a-uuid"}`), uuid.Nil)
+	if !result.IsError || len(result.Content) == 0 || !strings.Contains(result.Content[0].Text, "invalid workflow id") {
+		t.Errorf("answer = %v, want an invalid workflow id failure", result.Content)
 	}
 }
 

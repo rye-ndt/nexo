@@ -2,8 +2,8 @@ package input_itf
 
 type Storage interface {
 	HarnessStorage
-	TaskStore() TaskStorage
+	StepStore() StepStorage
 	MCPStore() StorageMCP
-	TemplateStore() TemplateStorage
+	RoleStore() RoleStorage
 	DraftStore() DraftStorage
 }

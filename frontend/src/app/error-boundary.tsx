@@ -31,7 +31,7 @@ export class ErrorBoundary extends Component<Props, State> {
                         <p className="text-lg font-medium">{error.title}</p>
                         <p className="text-base break-words">{error.message}</p>
                         <p className="text-sm text-muted-foreground">
-                            Reload to start over. Your sessions are saved.
+                            Reload to start over. Your workflows are saved.
                         </p>
                     </div>
 

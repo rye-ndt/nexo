@@ -24,17 +24,17 @@ const CHILDREN: Record<string, string[]> = {
 const FILES: Record<string, string[]> = {
     '/Users/rye': ['.zshrc'],
     '/Users/rye/dev/agent-harness': ['README.md', 'config.yaml', 'go.mod'],
-    '/Users/rye/dev/agent-harness/.harness/context': ['handover.json', 'session.log'],
+    '/Users/rye/dev/agent-harness/.harness/context': ['handoff.json', 'workflow.log'],
     '/Users/rye/dev/agent-harness/docs': ['architecture.md', 'diagram.png'],
     '/Users/rye/Documents/notes': ['brief.pdf', 'roadmap.md'],
     '/Users/rye/Downloads': [
         'export.csv',
         'screenshot.png',
-        'templates-sound.json',
-        'templates-torn.json',
-        'templates-incomplete.json',
-        'session-sound.json',
-        'session-torn.json',
+        'roles-sound.json',
+        'roles-torn.json',
+        'roles-incomplete.json',
+        'workflow-sound.json',
+        'workflow-torn.json',
     ],
 }
 
@@ -49,19 +49,19 @@ export function mockChildFiles(path: string): string[] {
 }
 
 const CONTENTS: Record<string, string> = {
-    '/Users/rye/Downloads/templates-sound.json': JSON.stringify(
+    '/Users/rye/Downloads/roles-sound.json': JSON.stringify(
         {
-            version: 1,
+            version: 2,
             exported_at: '2026-08-13T09:00:00Z',
-            templates: [
+            roles: [
                 {
                     id: '0192f3a1-0900-7000-8000-000000000009',
                     name: 'Release notes writer',
-                    role: 'Turns a set of merged changes into notes a user can read.',
-                    task_level: 'daily_task',
+                    description: 'Turns a set of merged changes into notes a user can read.',
+                    effort: 'standard',
                     retryable: true,
-                    manual_accept_required: false,
-                    params: {
+                    pause_for_review: false,
+                    inputs: {
                         since_tag: {
                             description: 'Tag to start from',
                             required: true,
@@ -70,7 +70,7 @@ const CONTENTS: Record<string, string> = {
                             options: [],
                         },
                     },
-                    system_prompts: {
+                    instructions: {
                         base: 'You write release notes. One line per change, in the words a user would use.',
                     },
                     output_structure: 'highlights: the three changes that matter most',
@@ -80,21 +80,20 @@ const CONTENTS: Record<string, string> = {
         null,
         2,
     ),
-    '/Users/rye/Downloads/templates-torn.json': '{ this was edited by hand and is not json',
-    '/Users/rye/Downloads/session-sound.json': JSON.stringify(
+    '/Users/rye/Downloads/roles-torn.json': '{ this was edited by hand and is not json',
+    '/Users/rye/Downloads/workflow-sound.json': JSON.stringify(
         {
-            version: 1,
+            version: 2,
             exported_at: '2026-08-14T11:20:00Z',
-            session: {
+            workflow: {
                 id: '0198e3a1-0000-7000-8000-000000000101',
                 name: 'Gateway credential sweep',
                 createdAt: '2026-08-14T11:20:00Z',
-                finalized: false,
+                locked: false,
                 started: false,
                 cancelled: false,
-                workingDir: '/Users/rye/dev/agent-harness',
-                contextDir: '/Users/rye/dev/agent-harness/.harness/context',
-                tasks: [
+                projectDir: '/Users/rye/dev/agent-harness',
+                steps: [
                     {
                         id: '0198e3a1-0000-7000-8000-000000000102',
                         title: 'Read how credentials are revoked',
@@ -103,13 +102,13 @@ const CONTENTS: Record<string, string> = {
                         position: {x: 0, y: 120},
                         dependsOn: [],
                         spec: {
-                            taskLevel: 'heavy_task',
-                            systemPrompts: [
+                            effort: 'deep',
+                            instructions: [
                                 'You review code. Report only defects you can point to a line for, ranked by severity.',
                             ],
                             outputStructure:
                                 'verdict: ship | fix first\nfindings: what you can prove',
-                            manualAcceptRequired: true,
+                            pauseForReview: true,
                         },
                         values: {},
                     },
@@ -121,12 +120,12 @@ const CONTENTS: Record<string, string> = {
                         position: {x: 340, y: 120},
                         dependsOn: ['0198e3a1-0000-7000-8000-000000000102'],
                         spec: {
-                            taskLevel: 'daily_task',
-                            systemPrompts: [
+                            effort: 'standard',
+                            instructions: [
                                 'You write tests. Cover the branches a reader would doubt, run them, and report failures verbatim.',
                             ],
                             outputStructure: '',
-                            manualAcceptRequired: false,
+                            pauseForReview: false,
                         },
                         values: {},
                     },
@@ -136,17 +135,17 @@ const CONTENTS: Record<string, string> = {
         null,
         2,
     ),
-    '/Users/rye/Downloads/session-torn.json': '{ not json',
-    '/Users/rye/Downloads/templates-incomplete.json': JSON.stringify(
+    '/Users/rye/Downloads/workflow-torn.json': '{ not json',
+    '/Users/rye/Downloads/roles-incomplete.json': JSON.stringify(
         {
-            version: 1,
+            version: 2,
             exported_at: '2026-08-13T09:00:00Z',
-            templates: [
+            roles: [
                 {
                     id: '0192f3a1-0910-7000-8000-000000000010',
                     name: 'Nameless prompt',
-                    task_level: 'weekly_task',
-                    system_prompts: {},
+                    effort: 'weekly',
+                    instructions: {},
                 },
             ],
         },

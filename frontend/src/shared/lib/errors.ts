@@ -66,17 +66,17 @@ const READINGS: Record<string, Reading> = {
         title: 'The server did not answer',
         hint: 'Check your connection, then try again.',
     },
-    err_template_file_invalid: {
-        title: 'That file is not a template export',
-        hint: 'Nothing was imported. Export a fresh file from the app that has the templates.',
+    err_role_file_invalid: {
+        title: 'That file is not a role export',
+        hint: 'Nothing was imported. Export a fresh file from the app that has the roles.',
     },
-    err_session_file_invalid: {
-        title: 'That file is not a session export',
-        hint: 'Nothing was imported. Export a fresh file from the app that has the session.',
+    err_workflow_file_invalid: {
+        title: 'That file is not a workflow export',
+        hint: 'Nothing was imported. Export a fresh file from the app that has the workflow.',
     },
-    err_template_conflict: {
-        title: 'Those templates clash with the ones you have',
-        hint: 'Nothing was imported. Delete the ones named here, then import again — an imported template keeps the id it was exported with, so renaming yours is not enough.',
+    err_role_conflict: {
+        title: 'Those roles clash with the ones you have',
+        hint: 'Nothing was imported. Delete the ones named here, then import again — an imported role keeps the id it was exported with, so renaming yours is not enough.',
     },
     err_mcp_token_required: {
         title: 'That server needs an access token',
@@ -92,7 +92,7 @@ const READINGS: Record<string, Reading> = {
     },
     err_chrome_not_connected: {
         title: 'Chrome is not running',
-        hint: 'Enable chrome-devtools in Settings › MCP, then run the task again.',
+        hint: 'Enable chrome-devtools in Settings › MCP, then run the step again.',
     },
 }
 

@@ -1,4 +1,4 @@
-import {TaskLevel, ThinkingLevel} from '@/shared/lib/enums'
+import {Effort, ThinkingLevel} from '@/shared/lib/enums'
 import type {
     AgentDefault,
     AgentDefaultOptions,
@@ -21,7 +21,7 @@ const MOCK_MODEL_OPTIONS = [
 ]
 
 export const MOCK_AGENT_DEFAULT_OPTIONS: AgentDefaultOptions = {
-    taskLevels: [TaskLevel.Lightweight, TaskLevel.Daily, TaskLevel.Heavy, TaskLevel.MaximumEffort],
+    efforts: [Effort.Quick, Effort.Standard, Effort.Deep, Effort.Exhaustive],
     models: MOCK_MODEL_OPTIONS,
     thinkingLevels: [
         ThinkingLevel.Low,
@@ -34,25 +34,25 @@ export const MOCK_AGENT_DEFAULT_OPTIONS: AgentDefaultOptions = {
 
 export const MOCK_AGENT_DEFAULTS: AgentDefault[] = [
     {
-        taskLevel: TaskLevel.Lightweight,
+        effort: Effort.Quick,
         model: 'haiku',
         modelLabel: 'Claude Haiku',
         thinkingLevel: ThinkingLevel.Low,
     },
     {
-        taskLevel: TaskLevel.Daily,
+        effort: Effort.Standard,
         model: 'sonnet',
         modelLabel: 'Claude Sonnet',
         thinkingLevel: ThinkingLevel.Medium,
     },
     {
-        taskLevel: TaskLevel.Heavy,
+        effort: Effort.Deep,
         model: 'opus',
         modelLabel: 'Claude Opus',
         thinkingLevel: ThinkingLevel.High,
     },
     {
-        taskLevel: TaskLevel.MaximumEffort,
+        effort: Effort.Exhaustive,
         model: 'opus',
         modelLabel: 'Claude Opus',
         thinkingLevel: ThinkingLevel.Max,

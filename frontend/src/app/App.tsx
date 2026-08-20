@@ -1,62 +1,62 @@
 import {useState} from 'react'
 
-import {DeleteSessionDialog} from '@/features/sessions/components/delete-session-dialog'
-import {ImportSessionDialog} from '@/features/sessions/components/import-session-dialog'
-import {NewSessionDialog} from '@/features/sessions/components/new-session-dialog'
+import {DeleteWorkflowDialog} from '@/features/workflows/components/delete-workflow-dialog'
+import {ImportWorkflowDialog} from '@/features/workflows/components/import-workflow-dialog'
+import {NewWorkflowDialog} from '@/features/workflows/components/new-workflow-dialog'
 import {NoticeDialog} from '@/shared/components/notice-dialog'
 import {PathPickerHost} from '@/shared/components/path-picker'
-import {SessionWorkspace} from '@/features/sessions/components/session-workspace'
-import {SessionsRail} from '@/features/sessions/components/sessions-rail'
+import {WorkflowWorkspace} from '@/features/workflows/components/workflow-workspace'
+import {WorkflowsRail} from '@/features/workflows/components/workflows-rail'
 import {SettingsDialog} from '@/features/settings/components/settings-dialog'
 import {WorkingDialog} from '@/shared/components/working-dialog'
 import {WelcomeDialog} from '@/features/onboarding/components/welcome-dialog'
 import {useDependencies} from '@/features/onboarding/use-dependencies'
-import {useSessionStore} from '@/features/sessions/use-session-store'
-import {useSessionTransfer} from '@/features/sessions/use-session-transfer'
+import {useWorkflowStore} from '@/features/workflows/use-workflow-store'
+import {useWorkflowTransfer} from '@/features/workflows/use-workflow-transfer'
 import {useToggle} from '@/shared/hooks/use-toggle'
-import type {SessionLocations} from '@/features/sessions/types'
+import type {WorkflowLocations} from '@/features/workflows/types'
 
 function App() {
-    const store = useSessionStore()
-    const transfer = useSessionTransfer(store.importSession)
+    const store = useWorkflowStore()
+    const transfer = useWorkflowTransfer(store.importWorkflow)
     const dependencies = useDependencies()
 
     const rail = useToggle(true)
     const settings = useToggle()
-    const newSession = useToggle()
+    const newWorkflow = useToggle()
     const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
 
-    const pendingDelete = store.sessions.find((session) => session.id === pendingDeleteId)
+    const pendingDelete = store.workflows.find((workflow) => workflow.id === pendingDeleteId)
 
-    const createSession = (locations: SessionLocations) => {
-        store.addSession({name: `Session ${store.sessions.length + 1}`, ...locations})
-        newSession.close()
+    const createWorkflow = (locations: WorkflowLocations) => {
+        store.addWorkflow({name: `Workflow ${store.workflows.length + 1}`, ...locations})
+        newWorkflow.close()
     }
 
     const cancelDelete = () => setPendingDeleteId(null)
 
     const confirmDelete = () => {
-        if (pendingDelete) store.deleteSession(pendingDelete.id)
+        if (pendingDelete) store.deleteWorkflow(pendingDelete.id)
         cancelDelete()
     }
 
     return (
         <div className="flex h-screen gap-3 overflow-hidden bg-background p-3 text-foreground">
             {rail.on && (
-                <SessionsRail
-                    sessions={store.sessions}
-                    activeSessionId={store.activeSessionId}
-                    onSelect={store.selectSession}
-                    onCreate={newSession.open}
+                <WorkflowsRail
+                    workflows={store.workflows}
+                    activeWorkflowId={store.activeWorkflowId}
+                    onSelect={store.selectWorkflow}
+                    onCreate={newWorkflow.open}
                     onImport={transfer.beginImport}
-                    onClone={store.cloneSession}
-                    onExport={transfer.exportSession}
+                    onDuplicate={store.duplicateWorkflow}
+                    onExport={transfer.exportWorkflow}
                     onDelete={setPendingDeleteId}
-                    onReorder={store.reorderSession}
+                    onReorder={store.reorderWorkflow}
                 />
             )}
 
-            <SessionWorkspace
+            <WorkflowWorkspace
                 store={store}
                 railOpen={rail.on}
                 onToggleRail={rail.toggle}
@@ -64,33 +64,39 @@ function App() {
             />
 
             {pendingDelete && (
-                <DeleteSessionDialog
+                <DeleteWorkflowDialog
                     key={pendingDelete.id}
-                    session={pendingDelete}
+                    workflow={pendingDelete}
                     onConfirm={confirmDelete}
                     onClose={cancelDelete}
                 />
             )}
 
-            {newSession.on && (
-                <NewSessionDialog onCreate={createSession} onClose={newSession.close} />
+            {newWorkflow.on && (
+                <NewWorkflowDialog onCreate={createWorkflow} onClose={newWorkflow.close} />
             )}
 
             {transfer.pending && (
-                <ImportSessionDialog
+                <ImportWorkflowDialog
                     key={transfer.pending.id}
-                    session={transfer.pending}
+                    workflow={transfer.pending}
                     onImport={transfer.confirmImport}
                     onClose={transfer.cancelImport}
                 />
             )}
 
             {transfer.reading && (
-                <WorkingDialog title="Importing session" description="Reading the file. Hold on." />
+                <WorkingDialog
+                    title="Importing workflow"
+                    description="Reading the file. Hold on."
+                />
             )}
 
             {transfer.writing && (
-                <WorkingDialog title="Exporting session" description="Writing the file. Hold on." />
+                <WorkingDialog
+                    title="Exporting workflow"
+                    description="Writing the file. Hold on."
+                />
             )}
 
             {transfer.notice && (

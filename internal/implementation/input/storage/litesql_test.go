@@ -15,7 +15,7 @@ import (
 	"github.com/google/uuid"
 )
 
-func TestTemplateRoundTripsManualAcceptRequired(t *testing.T) {
+func TestRoleRoundTripsPauseForReview(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "harness.db")
 
 	store, err := New(path)
@@ -23,68 +23,68 @@ func TestTemplateRoundTripsManualAcceptRequired(t *testing.T) {
 		t.Fatalf("open storage: %v", err)
 	}
 
-	templates := store.TemplateStore()
+	roles := store.RoleStore()
 
-	gated := &input_itf.TemplateEntity{
-		ID:                   uuid.New(),
-		Name:                 "planner",
-		TaskLevel:            enums.HeavyTask,
-		ManualAcceptRequired: true,
-		SystemPrompts:        map[string]string{"base": "plan carefully"},
+	gated := &input_itf.RoleEntity{
+		ID:             uuid.New(),
+		Name:           "planner",
+		Effort:         enums.EffortDeep,
+		PauseForReview: true,
+		Instructions:   map[string]string{"base": "plan carefully"},
 	}
 
-	plain := &input_itf.TemplateEntity{
-		ID:            uuid.New(),
-		Name:          "implementer",
-		TaskLevel:     enums.DailyTask,
-		SystemPrompts: map[string]string{"base": "write code"},
+	plain := &input_itf.RoleEntity{
+		ID:           uuid.New(),
+		Name:         "implementer",
+		Effort:       enums.EffortStandard,
+		Instructions: map[string]string{"base": "write code"},
 	}
 
-	for _, template := range []*input_itf.TemplateEntity{gated, plain} {
-		if err := templates.Upsert(template); err != nil {
-			t.Fatalf("upsert %s: %v", template.Name, err)
+	for _, role := range []*input_itf.RoleEntity{gated, plain} {
+		if err := roles.Upsert(role); err != nil {
+			t.Fatalf("upsert %s: %v", role.Name, err)
 		}
 	}
 
-	found, err := templates.Find(gated.ID)
+	found, err := roles.Find(gated.ID)
 	if err != nil {
-		t.Fatalf("find gated template: %v", err)
+		t.Fatalf("find gated role: %v", err)
 	}
 
-	if !found.ManualAcceptRequired {
-		t.Fatal("gated template lost manual_accept_required on the round trip")
+	if !found.PauseForReview {
+		t.Fatal("gated role lost pause_for_review on the round trip")
 	}
 
-	found, err = templates.Find(plain.ID)
+	found, err = roles.Find(plain.ID)
 	if err != nil {
-		t.Fatalf("find plain template: %v", err)
+		t.Fatalf("find plain role: %v", err)
 	}
 
-	if found.ManualAcceptRequired {
-		t.Fatal("plain template gained manual_accept_required on the round trip")
+	if found.PauseForReview {
+		t.Fatal("plain role gained pause_for_review on the round trip")
 	}
 
-	gated.ManualAcceptRequired = false
-	if err := templates.Upsert(gated); err != nil {
-		t.Fatalf("re-upsert gated template: %v", err)
+	gated.PauseForReview = false
+	if err := roles.Upsert(gated); err != nil {
+		t.Fatalf("re-upsert gated role: %v", err)
 	}
 
-	found, err = templates.Find(gated.ID)
+	found, err = roles.Find(gated.ID)
 	if err != nil {
-		t.Fatalf("re-find gated template: %v", err)
+		t.Fatalf("re-find gated role: %v", err)
 	}
 
-	if found.ManualAcceptRequired {
-		t.Fatal("clearing manual_accept_required did not persist")
+	if found.PauseForReview {
+		t.Fatal("clearing pause_for_review did not persist")
 	}
 
-	listed, err := templates.List()
+	listed, err := roles.List()
 	if err != nil {
-		t.Fatalf("list templates: %v", err)
+		t.Fatalf("list roles: %v", err)
 	}
 
 	if len(listed) != 2 {
-		t.Fatalf("listed %d templates, want 2", len(listed))
+		t.Fatalf("listed %d roles, want 2", len(listed))
 	}
 }
 
@@ -96,15 +96,15 @@ func TestMigrationsAreIdempotentAcrossReopen(t *testing.T) {
 		t.Fatalf("open storage: %v", err)
 	}
 
-	template := &input_itf.TemplateEntity{
-		ID:                   uuid.New(),
-		Name:                 "planner",
-		TaskLevel:            enums.HeavyTask,
-		ManualAcceptRequired: true,
-		SystemPrompts:        map[string]string{"base": "plan carefully"},
+	role := &input_itf.RoleEntity{
+		ID:             uuid.New(),
+		Name:           "planner",
+		Effort:         enums.EffortDeep,
+		PauseForReview: true,
+		Instructions:   map[string]string{"base": "plan carefully"},
 	}
 
-	if err := first.TemplateStore().Upsert(template); err != nil {
+	if err := first.RoleStore().Upsert(role); err != nil {
 		t.Fatalf("upsert: %v", err)
 	}
 
@@ -113,13 +113,13 @@ func TestMigrationsAreIdempotentAcrossReopen(t *testing.T) {
 		t.Fatalf("reopen storage: %v", err)
 	}
 
-	found, err := second.TemplateStore().Find(template.ID)
+	found, err := second.RoleStore().Find(role.ID)
 	if err != nil {
 		t.Fatalf("find after reopen: %v", err)
 	}
 
-	if !found.ManualAcceptRequired {
-		t.Fatal("manual_accept_required did not survive a reopen")
+	if !found.PauseForReview {
+		t.Fatal("pause_for_review did not survive a reopen")
 	}
 }
 
@@ -180,11 +180,11 @@ func TestMCPCredentialsRoundTripAccountAndDelete(t *testing.T) {
 	}
 }
 
-// Task writes arrive concurrently from the coordinator, the heartbeat watcher and
+// Step writes arrive concurrently from the coordinator, the heartbeat watcher and
 // every agent's report. On the default rollback journal with no busy timeout the
 // second writer of an overlapping pair fails immediately with SQLITE_BUSY, which
-// makes SessionManager roll back a report that already happened.
-func TestOverlappingTaskWritesDoNotHitSQLiteBusy(t *testing.T) {
+// makes WorkflowManager roll back a report that already happened.
+func TestOverlappingStepWritesDoNotHitSQLiteBusy(t *testing.T) {
 	// A space, matching the real macOS "Application Support" data dir.
 	dir := filepath.Join(t.TempDir(), "Application Support")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
@@ -196,8 +196,8 @@ func TestOverlappingTaskWritesDoNotHitSQLiteBusy(t *testing.T) {
 		t.Fatalf("open storage: %v", err)
 	}
 
-	tasks := store.TaskStore()
-	session := &input_itf.SessionEntity{ID: uuid.New(), CreatedAt: time.Now()}
+	steps := store.StepStore()
+	workflow := &input_itf.WorkflowEntity{ID: uuid.New(), CreatedAt: time.Now()}
 
 	const writers, each = 8, 50
 
@@ -212,18 +212,18 @@ func TestOverlappingTaskWritesDoNotHitSQLiteBusy(t *testing.T) {
 		go func() {
 			defer wg.Done()
 
-			task := &input_itf.TaskEntity{
-				ID:        uuid.New(),
-				SessionID: session.ID,
-				Status:    enums.TaskProcessing,
+			step := &input_itf.StepEntity{
+				ID:         uuid.New(),
+				WorkflowID: workflow.ID,
+				Status:     enums.StepProcessing,
 			}
 
 			<-start
 
 			for j := 0; j < each; j++ {
-				if err := tasks.SaveTaskHistory(
-					[]*input_itf.SessionEntity{session},
-					[]*input_itf.TaskEntity{task},
+				if err := steps.SaveStepHistory(
+					[]*input_itf.WorkflowEntity{workflow},
+					[]*input_itf.StepEntity{step},
 					nil,
 				); err != nil {
 					errs <- err
@@ -250,82 +250,81 @@ func TestOverlappingTaskWritesDoNotHitSQLiteBusy(t *testing.T) {
 	}
 }
 
-func TestLoadTaskHistoryRoundTripsSessionsTasksAndReports(t *testing.T) {
+func TestLoadStepHistoryRoundTripsWorkflowsStepsAndReports(t *testing.T) {
 	store, err := New(filepath.Join(t.TempDir(), "harness.db"))
 	if err != nil {
 		t.Fatalf("open storage: %v", err)
 	}
 
-	tasks := store.TaskStore()
+	steps := store.StepStore()
 	base := time.Now().UTC().Truncate(time.Second)
 
-	first := &input_itf.SessionEntity{
+	first := &input_itf.WorkflowEntity{
 		ID:             uuid.New(),
-		WorkingDirPath: "/repo/nexo",
-		ContextDirPath: "/repo/nexo/.nexo",
+		ProjectDirPath: "/repo/nexo",
 		StartedAt:      base,
 		CompletedAt:    base.Add(10 * time.Minute),
-		TotalTask:      2,
+		TotalStep:      2,
 		TotalRetry:     1,
 		CreatedAt:      base,
 		UpdatedAt:      base.Add(10 * time.Minute),
 	}
 
-	second := &input_itf.SessionEntity{
+	second := &input_itf.WorkflowEntity{
 		ID:             uuid.New(),
-		WorkingDirPath: "/repo/other",
+		ProjectDirPath: "/repo/other",
 		StartedAt:      base.Add(time.Hour),
-		TotalTask:      1,
+		TotalStep:      1,
 		CreatedAt:      base.Add(time.Hour),
 		UpdatedAt:      base.Add(time.Hour),
 	}
 
-	planner := &input_itf.TaskEntity{
-		ID:                   uuid.New(),
-		SessionID:            first.ID,
-		Name:                 "plan the slice",
-		TaskLevel:            enums.HeavyTask,
-		PreferredModel:       enums.Opus,
-		ThinkingLevel:        enums.HighThinking,
-		SystemPrompts:        []string{"be terse", "no new comments"},
-		AutoRetry:            true,
-		ManualAcceptRequired: true,
-		ExtraGuidance:        "read CLAUDE.md first",
-		RetryCount:           2,
-		Status:               enums.TaskAwaitingAccept,
-		CreatedAt:            base,
-		UpdatedAt:            base.Add(time.Minute),
+	planner := &input_itf.StepEntity{
+		ID:             uuid.New(),
+		WorkflowID:     first.ID,
+		Name:           "plan the slice",
+		Effort:         enums.EffortDeep,
+		PreferredModel: enums.Opus,
+		ThinkingLevel:  enums.HighThinking,
+		Instructions:   []string{"be terse", "no new comments"},
+		AutoRetry:      true,
+		PauseForReview: true,
+		ExtraGuidance:  "read CLAUDE.md first",
+		RetryCount:     2,
+		Status:         enums.StepAwaitingReview,
+		CreatedAt:      base,
+		UpdatedAt:      base.Add(time.Minute),
 	}
 
-	implementer := &input_itf.TaskEntity{
+	implementer := &input_itf.StepEntity{
 		ID:               uuid.New(),
-		SessionID:        first.ID,
+		WorkflowID:       first.ID,
 		Name:             "write the code",
-		TaskLevel:        enums.DailyTask,
+		Effort:           enums.EffortStandard,
 		PreferredModel:   enums.Sonnet,
 		ThinkingLevel:    enums.MedThinking,
-		Status:           enums.TaskNotTaken,
-		DependsOnTaskIDs: uuid.UUIDs{planner.ID},
+		Status:           enums.StepNotTaken,
+		DependsOnStepIDs: uuid.UUIDs{planner.ID},
 		CreatedAt:        base.Add(time.Second),
 		UpdatedAt:        base.Add(time.Second),
 	}
 
-	stray := &input_itf.TaskEntity{
-		ID:        uuid.New(),
-		SessionID: second.ID,
-		Name:      "unrelated",
-		Status:    enums.TaskCompleted,
-		CreatedAt: base.Add(time.Hour),
-		UpdatedAt: base.Add(time.Hour),
+	stray := &input_itf.StepEntity{
+		ID:         uuid.New(),
+		WorkflowID: second.ID,
+		Name:       "unrelated",
+		Status:     enums.StepCompleted,
+		CreatedAt:  base.Add(time.Hour),
+		UpdatedAt:  base.Add(time.Hour),
 	}
 
-	failed := &input_itf.TaskReportEntity{
+	failed := &input_itf.StepResultEntity{
 		ID:            uuid.New(),
-		TaskID:        planner.ID,
+		StepID:        planner.ID,
 		AgentID:       uuid.New(),
-		AttemptStatus: enums.TaskFailed,
-		HandoverDocs: []*input_itf.HandoverDocEntity{{
-			Task:     "plan the slice",
+		AttemptStatus: enums.StepFailed,
+		Handoffs: []*input_itf.HandoffEntity{{
+			Step:     "plan the slice",
 			TLDR:     "ran out of context",
 			Blockers: map[string]string{"context": "window filled"},
 		}},
@@ -336,13 +335,13 @@ func TestLoadTaskHistoryRoundTripsSessionsTasksAndReports(t *testing.T) {
 		UpdatedAt:    base.Add(30 * time.Second),
 	}
 
-	accepted := &input_itf.TaskReportEntity{
+	accepted := &input_itf.StepResultEntity{
 		ID:            uuid.New(),
-		TaskID:        planner.ID,
+		StepID:        planner.ID,
 		AgentID:       uuid.New(),
-		AttemptStatus: enums.TaskAwaitingAccept,
-		HandoverDocs: []*input_itf.HandoverDocEntity{{
-			Task:              "plan the slice",
+		AttemptStatus: enums.StepAwaitingReview,
+		Handoffs: []*input_itf.HandoffEntity{{
+			Step:              "plan the slice",
 			TLDR:              "plan is three queries",
 			Outcome:           "ready for review",
 			ApprovedDecisions: map[string]string{"reports": "oldest first"},
@@ -358,117 +357,115 @@ func TestLoadTaskHistoryRoundTripsSessionsTasksAndReports(t *testing.T) {
 
 	planner.LastReportID = accepted.ID
 
-	if err := tasks.SaveTaskHistory(
-		[]*input_itf.SessionEntity{first, second},
-		[]*input_itf.TaskEntity{planner, implementer, stray},
-		[]*input_itf.TaskReportEntity{failed, accepted},
+	if err := steps.SaveStepHistory(
+		[]*input_itf.WorkflowEntity{first, second},
+		[]*input_itf.StepEntity{planner, implementer, stray},
+		[]*input_itf.StepResultEntity{failed, accepted},
 	); err != nil {
-		t.Fatalf("save task history: %v", err)
+		t.Fatalf("save step history: %v", err)
 	}
 
-	snapshots, err := tasks.LoadTaskHistory()
+	snapshots, err := steps.LoadStepHistory()
 	if err != nil {
-		t.Fatalf("load task history: %v", err)
+		t.Fatalf("load step history: %v", err)
 	}
 
 	if len(snapshots) != 2 {
 		t.Fatalf("loaded %d snapshots, want 2", len(snapshots))
 	}
 
-	if snapshots[0].Session.ID != first.ID || snapshots[1].Session.ID != second.ID {
+	if snapshots[0].Workflow.ID != first.ID || snapshots[1].Workflow.ID != second.ID {
 		t.Fatalf("snapshots came back out of created_at order: %s then %s",
-			snapshots[0].Session.ID, snapshots[1].Session.ID)
+			snapshots[0].Workflow.ID, snapshots[1].Workflow.ID)
 	}
 
-	gotSession := snapshots[0].Session
+	gotWorkflow := snapshots[0].Workflow
 
-	if gotSession.WorkingDirPath != first.WorkingDirPath || gotSession.ContextDirPath != first.ContextDirPath {
-		t.Fatalf("session paths = %q / %q, want %q / %q",
-			gotSession.WorkingDirPath, gotSession.ContextDirPath,
-			first.WorkingDirPath, first.ContextDirPath)
+	if gotWorkflow.ProjectDirPath != first.ProjectDirPath {
+		t.Fatalf("workflow path = %q, want %q", gotWorkflow.ProjectDirPath, first.ProjectDirPath)
 	}
 
-	if gotSession.TotalTask != first.TotalTask || gotSession.TotalRetry != first.TotalRetry {
-		t.Fatalf("session totals = %d / %d, want %d / %d",
-			gotSession.TotalTask, gotSession.TotalRetry, first.TotalTask, first.TotalRetry)
+	if gotWorkflow.TotalStep != first.TotalStep || gotWorkflow.TotalRetry != first.TotalRetry {
+		t.Fatalf("workflow totals = %d / %d, want %d / %d",
+			gotWorkflow.TotalStep, gotWorkflow.TotalRetry, first.TotalStep, first.TotalRetry)
 	}
 
-	if !gotSession.StartedAt.Equal(first.StartedAt) || !gotSession.CompletedAt.Equal(first.CompletedAt) {
-		t.Fatalf("session window = %s..%s, want %s..%s",
-			gotSession.StartedAt, gotSession.CompletedAt, first.StartedAt, first.CompletedAt)
+	if !gotWorkflow.StartedAt.Equal(first.StartedAt) || !gotWorkflow.CompletedAt.Equal(first.CompletedAt) {
+		t.Fatalf("workflow window = %s..%s, want %s..%s",
+			gotWorkflow.StartedAt, gotWorkflow.CompletedAt, first.StartedAt, first.CompletedAt)
 	}
 
-	if !gotSession.CreatedAt.Equal(first.CreatedAt) || !gotSession.UpdatedAt.Equal(first.UpdatedAt) {
-		t.Fatalf("session timestamps = %s / %s, want %s / %s",
-			gotSession.CreatedAt, gotSession.UpdatedAt, first.CreatedAt, first.UpdatedAt)
+	if !gotWorkflow.CreatedAt.Equal(first.CreatedAt) || !gotWorkflow.UpdatedAt.Equal(first.UpdatedAt) {
+		t.Fatalf("workflow timestamps = %s / %s, want %s / %s",
+			gotWorkflow.CreatedAt, gotWorkflow.UpdatedAt, first.CreatedAt, first.UpdatedAt)
 	}
 
-	if len(snapshots[0].Tasks) != 2 {
-		t.Fatalf("first session loaded %d tasks, want 2", len(snapshots[0].Tasks))
+	if len(snapshots[0].Steps) != 2 {
+		t.Fatalf("first workflow loaded %d steps, want 2", len(snapshots[0].Steps))
 	}
 
-	if len(snapshots[1].Tasks) != 1 || snapshots[1].Tasks[0].ID != stray.ID {
-		t.Fatalf("second session tasks = %+v, want only %s", snapshots[1].Tasks, stray.ID)
+	if len(snapshots[1].Steps) != 1 || snapshots[1].Steps[0].ID != stray.ID {
+		t.Fatalf("second workflow steps = %+v, want only %s", snapshots[1].Steps, stray.ID)
 	}
 
 	if len(snapshots[1].Reports) != 0 {
-		t.Fatalf("second session gained %d reports", len(snapshots[1].Reports))
+		t.Fatalf("second workflow gained %d reports", len(snapshots[1].Reports))
 	}
 
-	gotTask := snapshots[0].Tasks[0]
+	gotStep := snapshots[0].Steps[0]
 
-	if gotTask.ID != planner.ID {
-		t.Fatalf("tasks came back out of created_at order: first is %s, want %s", gotTask.ID, planner.ID)
+	if gotStep.ID != planner.ID {
+		t.Fatalf("steps came back out of created_at order: first is %s, want %s", gotStep.ID, planner.ID)
 	}
 
-	if gotTask.SessionID != planner.SessionID || gotTask.Name != planner.Name {
-		t.Fatalf("task identity = %s / %q, want %s / %q",
-			gotTask.SessionID, gotTask.Name, planner.SessionID, planner.Name)
+	if gotStep.WorkflowID != planner.WorkflowID || gotStep.Name != planner.Name {
+		t.Fatalf("step identity = %s / %q, want %s / %q",
+			gotStep.WorkflowID, gotStep.Name, planner.WorkflowID, planner.Name)
 	}
 
-	if gotTask.TaskLevel != planner.TaskLevel || gotTask.PreferredModel != planner.PreferredModel ||
-		gotTask.ThinkingLevel != planner.ThinkingLevel {
-		t.Fatalf("task enums = %s / %s / %s, want %s / %s / %s",
-			gotTask.TaskLevel, gotTask.PreferredModel, gotTask.ThinkingLevel,
-			planner.TaskLevel, planner.PreferredModel, planner.ThinkingLevel)
+	if gotStep.Effort != planner.Effort || gotStep.PreferredModel != planner.PreferredModel ||
+		gotStep.ThinkingLevel != planner.ThinkingLevel {
+		t.Fatalf("step enums = %s / %s / %s, want %s / %s / %s",
+			gotStep.Effort, gotStep.PreferredModel, gotStep.ThinkingLevel,
+			planner.Effort, planner.PreferredModel, planner.ThinkingLevel)
 	}
 
-	if !reflect.DeepEqual(gotTask.SystemPrompts, planner.SystemPrompts) {
-		t.Fatalf("task system prompts = %#v, want %#v", gotTask.SystemPrompts, planner.SystemPrompts)
+	if !reflect.DeepEqual(gotStep.Instructions, planner.Instructions) {
+		t.Fatalf("step system prompts = %#v, want %#v", gotStep.Instructions, planner.Instructions)
 	}
 
-	if !gotTask.AutoRetry || !gotTask.ManualAcceptRequired {
-		t.Fatalf("task flags = auto_retry %t / manual_accept %t, want both true",
-			gotTask.AutoRetry, gotTask.ManualAcceptRequired)
+	if !gotStep.AutoRetry || !gotStep.PauseForReview {
+		t.Fatalf("step flags = auto_retry %t / manual_accept %t, want both true",
+			gotStep.AutoRetry, gotStep.PauseForReview)
 	}
 
-	if gotTask.ExtraGuidance != planner.ExtraGuidance || gotTask.RetryCount != planner.RetryCount {
-		t.Fatalf("task guidance = %q / retries %d, want %q / %d",
-			gotTask.ExtraGuidance, gotTask.RetryCount, planner.ExtraGuidance, planner.RetryCount)
+	if gotStep.ExtraGuidance != planner.ExtraGuidance || gotStep.RetryCount != planner.RetryCount {
+		t.Fatalf("step guidance = %q / retries %d, want %q / %d",
+			gotStep.ExtraGuidance, gotStep.RetryCount, planner.ExtraGuidance, planner.RetryCount)
 	}
 
-	if gotTask.Status != enums.TaskAwaitingAccept || gotTask.LastReportID != accepted.ID {
-		t.Fatalf("task status = %s / last report %s, want %s / %s",
-			gotTask.Status, gotTask.LastReportID, enums.TaskAwaitingAccept, accepted.ID)
+	if gotStep.Status != enums.StepAwaitingReview || gotStep.LastReportID != accepted.ID {
+		t.Fatalf("step status = %s / last report %s, want %s / %s",
+			gotStep.Status, gotStep.LastReportID, enums.StepAwaitingReview, accepted.ID)
 	}
 
-	if !gotTask.CreatedAt.Equal(planner.CreatedAt) || !gotTask.UpdatedAt.Equal(planner.UpdatedAt) {
-		t.Fatalf("task timestamps = %s / %s, want %s / %s",
-			gotTask.CreatedAt, gotTask.UpdatedAt, planner.CreatedAt, planner.UpdatedAt)
+	if !gotStep.CreatedAt.Equal(planner.CreatedAt) || !gotStep.UpdatedAt.Equal(planner.UpdatedAt) {
+		t.Fatalf("step timestamps = %s / %s, want %s / %s",
+			gotStep.CreatedAt, gotStep.UpdatedAt, planner.CreatedAt, planner.UpdatedAt)
 	}
 
-	gotDependant := snapshots[0].Tasks[1]
+	gotDependant := snapshots[0].Steps[1]
 
-	if !reflect.DeepEqual(gotDependant.DependsOnTaskIDs, uuid.UUIDs{planner.ID}) {
-		t.Fatalf("depends on = %v, want %v", gotDependant.DependsOnTaskIDs, uuid.UUIDs{planner.ID})
+	if !reflect.DeepEqual(gotDependant.DependsOnStepIDs, uuid.UUIDs{planner.ID}) {
+		t.Fatalf("depends on = %v, want %v", gotDependant.DependsOnStepIDs, uuid.UUIDs{planner.ID})
 	}
 
-	if gotDependant.Status != enums.TaskNotTaken {
-		t.Fatalf("dependant status = %s, want %s", gotDependant.Status, enums.TaskNotTaken)
+	if gotDependant.Status != enums.StepNotTaken {
+		t.Fatalf("dependant status = %s, want %s", gotDependant.Status, enums.StepNotTaken)
 	}
 
 	if len(snapshots[0].Reports) != 2 {
-		t.Fatalf("first session loaded %d reports, want 2", len(snapshots[0].Reports))
+		t.Fatalf("first workflow loaded %d reports, want 2", len(snapshots[0].Reports))
 	}
 
 	gotFailed, gotAccepted := snapshots[0].Reports[0], snapshots[0].Reports[1]
@@ -478,18 +475,18 @@ func TestLoadTaskHistoryRoundTripsSessionsTasksAndReports(t *testing.T) {
 			gotFailed.ID, gotAccepted.ID, failed.ID, accepted.ID)
 	}
 
-	if gotAccepted.TaskID != accepted.TaskID || gotAccepted.AgentID != accepted.AgentID {
+	if gotAccepted.StepID != accepted.StepID || gotAccepted.AgentID != accepted.AgentID {
 		t.Fatalf("report owners = %s / %s, want %s / %s",
-			gotAccepted.TaskID, gotAccepted.AgentID, accepted.TaskID, accepted.AgentID)
+			gotAccepted.StepID, gotAccepted.AgentID, accepted.StepID, accepted.AgentID)
 	}
 
-	if gotFailed.AttemptStatus != enums.TaskFailed || gotAccepted.AttemptStatus != enums.TaskAwaitingAccept {
+	if gotFailed.AttemptStatus != enums.StepFailed || gotAccepted.AttemptStatus != enums.StepAwaitingReview {
 		t.Fatalf("attempt statuses = %s / %s, want %s / %s",
-			gotFailed.AttemptStatus, gotAccepted.AttemptStatus, enums.TaskFailed, enums.TaskAwaitingAccept)
+			gotFailed.AttemptStatus, gotAccepted.AttemptStatus, enums.StepFailed, enums.StepAwaitingReview)
 	}
 
-	if !reflect.DeepEqual(gotAccepted.HandoverDocs, accepted.HandoverDocs) {
-		t.Fatalf("handover docs = %#v, want %#v", gotAccepted.HandoverDocs[0], accepted.HandoverDocs[0])
+	if !reflect.DeepEqual(gotAccepted.Handoffs, accepted.Handoffs) {
+		t.Fatalf("handoffs = %#v, want %#v", gotAccepted.Handoffs[0], accepted.Handoffs[0])
 	}
 
 	if !reflect.DeepEqual(gotAccepted.ContextUsage, accepted.ContextUsage) {
@@ -507,51 +504,51 @@ func TestLoadTaskHistoryRoundTripsSessionsTasksAndReports(t *testing.T) {
 	}
 }
 
-func TestLoadTaskHistoryReturnsReportsOldestFirst(t *testing.T) {
+func TestLoadStepHistoryReturnsReportsOldestFirst(t *testing.T) {
 	store, err := New(filepath.Join(t.TempDir(), "harness.db"))
 	if err != nil {
 		t.Fatalf("open storage: %v", err)
 	}
 
-	tasks := store.TaskStore()
+	steps := store.StepStore()
 	base := time.Now().UTC().Truncate(time.Second)
 
-	session := &input_itf.SessionEntity{ID: uuid.New(), CreatedAt: base, UpdatedAt: base}
-	task := &input_itf.TaskEntity{
-		ID:        uuid.New(),
-		SessionID: session.ID,
-		Status:    enums.TaskCompleted,
-		CreatedAt: base,
-		UpdatedAt: base,
+	workflow := &input_itf.WorkflowEntity{ID: uuid.New(), CreatedAt: base, UpdatedAt: base}
+	step := &input_itf.StepEntity{
+		ID:         uuid.New(),
+		WorkflowID: workflow.ID,
+		Status:     enums.StepCompleted,
+		CreatedAt:  base,
+		UpdatedAt:  base,
 	}
 
-	newest := &input_itf.TaskReportEntity{
+	newest := &input_itf.StepResultEntity{
 		ID:        uuid.New(),
-		TaskID:    task.ID,
+		StepID:    step.ID,
 		CreatedAt: base.Add(3 * time.Minute),
 	}
-	oldest := &input_itf.TaskReportEntity{
+	oldest := &input_itf.StepResultEntity{
 		ID:        uuid.New(),
-		TaskID:    task.ID,
+		StepID:    step.ID,
 		CreatedAt: base.Add(time.Minute),
 	}
-	middle := &input_itf.TaskReportEntity{
+	middle := &input_itf.StepResultEntity{
 		ID:        uuid.New(),
-		TaskID:    task.ID,
+		StepID:    step.ID,
 		CreatedAt: base.Add(2 * time.Minute),
 	}
 
-	if err := tasks.SaveTaskHistory(
-		[]*input_itf.SessionEntity{session},
-		[]*input_itf.TaskEntity{task},
-		[]*input_itf.TaskReportEntity{newest, oldest, middle},
+	if err := steps.SaveStepHistory(
+		[]*input_itf.WorkflowEntity{workflow},
+		[]*input_itf.StepEntity{step},
+		[]*input_itf.StepResultEntity{newest, oldest, middle},
 	); err != nil {
-		t.Fatalf("save task history: %v", err)
+		t.Fatalf("save step history: %v", err)
 	}
 
-	snapshots, err := tasks.LoadTaskHistory()
+	snapshots, err := steps.LoadStepHistory()
 	if err != nil {
-		t.Fatalf("load task history: %v", err)
+		t.Fatalf("load step history: %v", err)
 	}
 
 	if len(snapshots) != 1 {
@@ -570,42 +567,42 @@ func TestLoadTaskHistoryReturnsReportsOldestFirst(t *testing.T) {
 	}
 }
 
-func TestLoadTaskHistoryKeepsAMissingContextUsageNil(t *testing.T) {
+func TestLoadStepHistoryKeepsAMissingContextUsageNil(t *testing.T) {
 	store, err := New(filepath.Join(t.TempDir(), "harness.db"))
 	if err != nil {
 		t.Fatalf("open storage: %v", err)
 	}
 
-	tasks := store.TaskStore()
+	steps := store.StepStore()
 	base := time.Now().UTC().Truncate(time.Second)
 
-	session := &input_itf.SessionEntity{ID: uuid.New(), CreatedAt: base, UpdatedAt: base}
-	task := &input_itf.TaskEntity{
-		ID:        uuid.New(),
-		SessionID: session.ID,
-		Status:    enums.TaskFailed,
-		CreatedAt: base,
-		UpdatedAt: base,
+	workflow := &input_itf.WorkflowEntity{ID: uuid.New(), CreatedAt: base, UpdatedAt: base}
+	step := &input_itf.StepEntity{
+		ID:         uuid.New(),
+		WorkflowID: workflow.ID,
+		Status:     enums.StepFailed,
+		CreatedAt:  base,
+		UpdatedAt:  base,
 	}
 
-	report := &input_itf.TaskReportEntity{
+	report := &input_itf.StepResultEntity{
 		ID:            uuid.New(),
-		TaskID:        task.ID,
-		AttemptStatus: enums.TaskFailed,
+		StepID:        step.ID,
+		AttemptStatus: enums.StepFailed,
 		CreatedAt:     base,
 	}
 
-	if err := tasks.SaveTaskHistory(
-		[]*input_itf.SessionEntity{session},
-		[]*input_itf.TaskEntity{task},
-		[]*input_itf.TaskReportEntity{report},
+	if err := steps.SaveStepHistory(
+		[]*input_itf.WorkflowEntity{workflow},
+		[]*input_itf.StepEntity{step},
+		[]*input_itf.StepResultEntity{report},
 	); err != nil {
-		t.Fatalf("save task history: %v", err)
+		t.Fatalf("save step history: %v", err)
 	}
 
-	snapshots, err := tasks.LoadTaskHistory()
+	snapshots, err := steps.LoadStepHistory()
 	if err != nil {
-		t.Fatalf("load task history: %v", err)
+		t.Fatalf("load step history: %v", err)
 	}
 
 	if len(snapshots) != 1 || len(snapshots[0].Reports) != 1 {
@@ -617,15 +614,15 @@ func TestLoadTaskHistoryKeepsAMissingContextUsageNil(t *testing.T) {
 	}
 }
 
-func TestLoadTaskHistoryOnAnEmptyDatabase(t *testing.T) {
+func TestLoadStepHistoryOnAnEmptyDatabase(t *testing.T) {
 	store, err := New(filepath.Join(t.TempDir(), "harness.db"))
 	if err != nil {
 		t.Fatalf("open storage: %v", err)
 	}
 
-	snapshots, err := store.TaskStore().LoadTaskHistory()
+	snapshots, err := store.StepStore().LoadStepHistory()
 	if err != nil {
-		t.Fatalf("load task history: %v", err)
+		t.Fatalf("load step history: %v", err)
 	}
 
 	if len(snapshots) != 0 {

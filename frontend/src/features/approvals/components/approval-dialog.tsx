@@ -25,7 +25,7 @@ const KIND_COPY: Record<ApprovalKind, {badge: string; title: string; blurb: stri
     permission: {
         badge: 'Permission',
         title: 'The agent needs permission',
-        blurb: 'It wants to do something its task does not already cover.',
+        blurb: 'It wants to do something its step does not already cover.',
     },
 }
 
@@ -119,6 +119,7 @@ export function ApprovalDialog({
             onClose={onClose}
             title={copy.title}
             description="Nothing runs on it until you answer."
+            term="approval"
             aside={
                 waiting > 1 ? (
                     <span className="micro-label shrink-0">

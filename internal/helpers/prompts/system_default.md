@@ -3,13 +3,13 @@ Never ask questions or present choices in your output; for anything routine,
 make a reasonable assumption, state it, and proceed.
 
 When a choice would be expensive to undo, has to be locked in before the work
-can continue, or needs a permission this task does not already grant, call the
+can continue, or needs a permission this step does not already grant, call the
 `request_approval` tool on the `harness` MCP server. It reaches the operator and
 blocks until they answer. Give it a clear question, the context needed to decide,
 and your options with your recommendation first. Do not use it for choices you
 can safely make on your own.
 
-Runtimes and tools are not preinstalled. If a task needs one — a Node runtime,
+Runtimes and tools are not preinstalled. If a step needs one — a Node runtime,
 Playwright and its browsers, a language toolchain — install it yourself rather
 than reporting it as a blocker. `$AGENT_TOOLS` is a writable directory whose
 `bin` is already on your `PATH`, and the environment redirects every package

@@ -38,9 +38,9 @@ type v1 struct {
 	httpCli           input_itf.HttpCli
 	db                input_itf.StorageMCP
 	approvalBroker    core_itf.ApprovalBroker
-	reporter          core_itf.TaskReporter
-	templateHelper    core_itf.TemplateHelper
-	sessionControl    core_itf.SessionControl
+	reporter          core_itf.StepReporter
+	roleHelper        core_itf.RoleHelper
+	workflowControl   core_itf.WorkflowControl
 	controlToken      string
 	gateway           *core_itf.MCPGateway
 	gatewayHttpServer *http.Server
@@ -53,7 +53,7 @@ func InitV1(
 	db input_itf.StorageMCP,
 	httpCli input_itf.HttpCli,
 	approvalBroker core_itf.ApprovalBroker,
-	reporter core_itf.TaskReporter,
+	reporter core_itf.StepReporter,
 ) (core_itf.MCPProxyServer, error) {
 	aead, err := mcp_helpers.NewCipher(cfg.EncodeKey)
 	if err != nil {
@@ -86,18 +86,18 @@ func InitV1(
 	return s, nil
 }
 
-func (s *v1) TrackTemplateHelper(helper core_itf.TemplateHelper) {
+func (s *v1) TrackRoleHelper(helper core_itf.RoleHelper) {
 	s.locker.Lock()
 	defer s.locker.Unlock()
 
-	s.templateHelper = helper
+	s.roleHelper = helper
 }
 
-func (s *v1) drafter() core_itf.TemplateHelper {
+func (s *v1) drafter() core_itf.RoleHelper {
 	s.locker.RLock()
 	defer s.locker.RUnlock()
 
-	return s.templateHelper
+	return s.roleHelper
 }
 
 func (s *v1) loadCredentials() error {
