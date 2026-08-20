@@ -46,6 +46,7 @@ type Activity struct {
 type AgentAdmin interface {
 	Auth() (string, error)
 	SubmitAuthCode(code string) error
+	Logout() error
 	Status() (*AgentStatus, error)
 	SupportedModels() []enums.ModelName
 	Install(onProgress func(InstallProgress)) error

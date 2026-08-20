@@ -90,6 +90,28 @@ mcp_servers:
       url: http://127.0.0.1:9222
   encode_key: sk-abcxyz
 
+agent_defaults:
+  - harness: claude_code
+    models:
+      quick: {model: haiku, thinking_level: low}
+      standard: {model: sonnet, thinking_level: medium}
+      deep: {model: opus, thinking_level: high}
+      exhaustive: {model: fable, thinking_level: max}
+
+  - harness: codex
+    models:
+      quick: {model: gpt-5.6-luna, thinking_level: low}
+      standard: {model: gpt-5.6-luna, thinking_level: medium}
+      deep: {model: gpt-5.6-terra, thinking_level: high}
+      exhaustive: {model: gpt-5.6-sol, thinking_level: max}
+
+  - harness: open_code
+    models:
+      quick: {model: opencode/deepseek-v4-flash-free, thinking_level: low}
+      standard: {model: opencode/deepseek-v4-flash-free, thinking_level: medium}
+      deep: {model: opencode/deepseek-v4-flash-free, thinking_level: high}
+      exhaustive: {model: opencode/deepseek-v4-flash-free, thinking_level: max}
+
 agent_harness:
   claude_code:
     name: Claude Code

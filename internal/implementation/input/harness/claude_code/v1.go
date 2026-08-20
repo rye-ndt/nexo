@@ -599,7 +599,7 @@ func (c *claudeCode) Auth() (string, error) {
 		if err != nil {
 			return
 		}
-		if err := os.WriteFile(c.tokenPath, []byte(tok), 0o600); err != nil {
+		if err := c.storeToken(s, tok); err != nil {
 			return
 		}
 		c.dropAuth(s)
@@ -635,13 +635,44 @@ func (c *claudeCode) SubmitAuthCode(code string) error {
 		return custom_error.Critical("confirm login: %v", err)
 	}
 
-	if err := os.WriteFile(c.tokenPath, []byte(tok), 0o600); err != nil {
-		return custom_error.Critical("store login token: %v", err)
+	if err := c.storeToken(s, tok); err != nil {
+		return err
 	}
 
 	c.dropAuth(s)
 
 	return nil
+}
+
+func (c *claudeCode) storeToken(s *authSession, tok string) error {
+	c.authMu.Lock()
+	defer c.authMu.Unlock()
+
+	if c.auth != s {
+		return custom_error.Critical("login was cancelled")
+	}
+
+	if err := os.WriteFile(c.tokenPath, []byte(tok), 0o600); err != nil {
+		return custom_error.Critical("store login token: %v", err)
+	}
+
+	return nil
+}
+
+func (c *claudeCode) Logout() error {
+	c.authMu.Lock()
+	s := c.auth
+	c.auth = nil
+	err := harness_helper.Logout(harnessLabel, c.tokenPath)
+	c.authMu.Unlock()
+
+	if s != nil {
+		s.close()
+	}
+
+	c.stopAll()
+
+	return err
 }
 
 func (c *claudeCode) dropAuth(s *authSession) {

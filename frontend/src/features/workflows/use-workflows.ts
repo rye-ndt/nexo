@@ -165,6 +165,19 @@ export function useWorkflows() {
             ),
     )
 
+    const duplicateStep = useWorkflowMutation(
+        'Could not duplicate the step',
+        (args: {workflowId: string; stepId: string; copyId: string; position: Point}) =>
+            api.duplicateStep(args.workflowId, args.stepId, args.copyId, args.position),
+        (workflows, {workflowId, stepId, copyId, position}) =>
+            editDraft(workflows, workflowId, (workflow) => {
+                const source = graph.findStep(workflow, stepId)
+                if (!source) return workflow
+
+                return graph.withStep(workflow, graph.copyStep(source, copyId, position))
+            }),
+    )
+
     const updateStep = useWorkflowMutation(
         'Could not save the step',
         (args: {workflowId: string; stepId: string; patch: Partial<Step>}) =>
@@ -266,6 +279,7 @@ export function useWorkflows() {
         reorderWorkflow: reorder.mutate,
         deleteWorkflow: remove.mutate,
         createStep: createStep.mutate,
+        duplicateStep: duplicateStep.mutate,
         updateStep: updateStep.mutate,
         moveStep: moveStep.mutate,
         saveStepInputs: saveInputs.mutate,

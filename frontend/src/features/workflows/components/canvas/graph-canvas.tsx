@@ -48,6 +48,7 @@ type GraphCanvasProps = {
     onConnect: (sourceId: string, targetId: string) => void
     onDisconnect: (sourceId: string, targetId: string) => void
     onNewStep: (position: Point) => void
+    onDuplicateStep: (stepId: string) => void
     onDeleteStep: (stepId: string) => void
 }
 
@@ -76,6 +77,7 @@ function Canvas({
     onConnect,
     onDisconnect,
     onNewStep,
+    onDuplicateStep,
     onDeleteStep,
 }: GraphCanvasProps) {
     const {screenToFlowPosition, fitView} = useReactFlow()
@@ -266,6 +268,7 @@ function Canvas({
                     workflow={workflow}
                     target={menuTarget}
                     onOpenStep={onSelectStep}
+                    onDuplicateStep={onDuplicateStep}
                     onDeleteStep={onDeleteStep}
                     onUnlink={unlink}
                     onNewStep={onNewStep}

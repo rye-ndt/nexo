@@ -1,4 +1,4 @@
-import {Menu, Settings} from 'lucide-react'
+import {FolderOpen, Menu, Settings} from 'lucide-react'
 import type {ComponentType} from 'react'
 
 import {Button} from '@/shared/ui/button'
@@ -107,7 +107,26 @@ function MenuAction({
 }
 
 function WorkflowLocations({workflow, onEdit}: {workflow: Workflow; onEdit: () => void}) {
-    if (!workflow.projectDir) return null
+    if (!workflow.projectDir) {
+        if (workflow.locked)
+            return (
+                <span className="flex flex-col gap-2 px-3 py-2">
+                    <span className="micro-label">Project folder</span>
+                    <span className="text-sm text-muted-foreground">Not set</span>
+                </span>
+            )
+
+        return (
+            <button
+                type="button"
+                onClick={onEdit}
+                className="flex items-center gap-2 rounded-lg border border-live/40 bg-live-tint px-3 py-2 text-left text-sm font-medium text-live outline-none transition-colors hover:border-live/70 focus-visible:ring-2 focus-visible:ring-ring/50"
+            >
+                <FolderOpen className="size-4 shrink-0" />
+                Choose project folder
+            </button>
+        )
+    }
 
     const body = (
         <>

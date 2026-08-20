@@ -19,6 +19,7 @@ export function CanvasMenu({
     workflow,
     target,
     onOpenStep,
+    onDuplicateStep,
     onDeleteStep,
     onUnlink,
     onNewStep,
@@ -27,6 +28,7 @@ export function CanvasMenu({
     workflow: Workflow
     target: CanvasTarget
     onOpenStep: (stepId: string) => void
+    onDuplicateStep: (stepId: string) => void
     onDeleteStep: (stepId: string) => void
     onUnlink: (sourceId: string, targetId: string) => void
     onNewStep: (at: Point) => void
@@ -59,6 +61,9 @@ export function CanvasMenu({
                 {!locked && (
                     <>
                         <ContextMenuSeparator />
+                        <ContextMenuItem onSelect={() => onDuplicateStep(step.id)}>
+                            Duplicate step
+                        </ContextMenuItem>
                         <ContextMenuItem
                             variant="destructive"
                             onSelect={() => onDeleteStep(step.id)}

@@ -7,11 +7,13 @@ import (
 	"maps"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 
 	"hexago/internal/helpers"
 	"hexago/internal/helpers/custom_error"
 	"hexago/internal/helpers/enums"
+	input_itf "hexago/internal/interface/input"
 	output_itf "hexago/internal/interface/output"
 )
 
@@ -23,21 +25,28 @@ type file struct {
 }
 
 type v1 struct {
-	path string
-	mu   sync.RWMutex
-	cfg  *file
+	path     string
+	defaults []*input_itf.HarnessDefaults
+	ready    output_itf.ModelReady
+	mu       sync.RWMutex
+	cfg      *file
 }
 
-var seedAgentDefaults = map[enums.Effort]*output_itf.AgentDefault{
-	enums.EffortQuick:      {Model: enums.Haiku, ThinkingLevel: enums.LowThinking},
-	enums.EffortStandard:   {Model: enums.Sonnet, ThinkingLevel: enums.MedThinking},
-	enums.EffortDeep:       {Model: enums.Opus, ThinkingLevel: enums.HighThinking},
-	enums.EffortExhaustive: {Model: enums.Fable, ThinkingLevel: enums.MaxThinking},
-}
-
-func InitV1(path string) (output_itf.UserConfig, error) {
+func InitV1(
+	path string,
+	defaults []*input_itf.HarnessDefaults,
+	ready output_itf.ModelReady,
+) (output_itf.UserConfig, error) {
 	if path == "" {
 		return nil, custom_error.Critical("user config path is empty")
+	}
+
+	if len(defaults) == 0 {
+		return nil, custom_error.Critical("no coding tool declares a model per effort level")
+	}
+
+	if ready == nil {
+		return nil, custom_error.Critical("user config cannot tell which models are runnable")
 	}
 
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
@@ -49,7 +58,7 @@ func InitV1(path string) (output_itf.UserConfig, error) {
 		return nil, err
 	}
 
-	c := &v1{path: path, cfg: cfg}
+	c := &v1{path: path, defaults: defaults, ready: ready, cfg: cfg}
 
 	if err := c.write(); err != nil {
 		return nil, err
@@ -75,12 +84,7 @@ func read(path string) (*file, error) {
 		}
 	}
 
-	stored := renamedEfforts(cfg.AgentDefaults)
-	cfg.AgentDefaults = make(map[enums.Effort]*output_itf.AgentDefault, len(enums.Efforts()))
-
-	for _, level := range enums.Efforts() {
-		cfg.AgentDefaults[level] = repaired(level, stored[level])
-	}
+	cfg.AgentDefaults = picked(renamedEfforts(cfg.AgentDefaults))
 
 	cfg.ModelPrices = usablePrices(cfg.ModelPrices)
 
@@ -110,24 +114,30 @@ func renamedEfforts(stored map[enums.Effort]*output_itf.AgentDefault) map[enums.
 	carried := make(map[enums.Effort]*output_itf.AgentDefault, len(stored))
 
 	for level, value := range stored {
-		if current, retired := retiredEfforts[level]; retired {
-			level = current
+		if _, retired := retiredEfforts[level]; !retired {
+			carried[level] = value
 		}
+	}
 
-		carried[level] = value
+	for level, value := range stored {
+		if current, retired := retiredEfforts[level]; retired && carried[current] == nil {
+			carried[current] = value
+		}
 	}
 
 	return carried
 }
 
-func repaired(level enums.Effort, stored *output_itf.AgentDefault) *output_itf.AgentDefault {
-	if stored != nil && helpers.ValidateStruct(stored) == nil {
-		return cloneAgentDefault(stored)
+func picked(stored map[enums.Effort]*output_itf.AgentDefault) map[enums.Effort]*output_itf.AgentDefault {
+	kept := make(map[enums.Effort]*output_itf.AgentDefault, len(stored))
+
+	for _, level := range enums.Efforts() {
+		if choice := stored[level]; choice != nil && helpers.ValidateStruct(choice) == nil {
+			kept[level] = cloneAgentDefault(choice)
+		}
 	}
 
-	seed := seedAgentDefaults[level]
-
-	return &output_itf.AgentDefault{Model: seed.Model, ThinkingLevel: seed.ThinkingLevel}
+	return kept
 }
 
 func cloneAgentDefault(stored *output_itf.AgentDefault) *output_itf.AgentDefault {
@@ -159,14 +169,40 @@ func clonePrice(price *float64) *float64 {
 	return &copied
 }
 
+func (c *v1) resolve(level enums.Effort) *output_itf.AgentDefault {
+	if choice := c.cfg.AgentDefaults[level]; choice != nil && c.ready(choice.Model) {
+		return cloneAgentDefault(choice)
+	}
+
+	for _, harness := range c.defaults {
+		if offered := harness.Models[level]; offered != nil && c.ready(offered.Model) {
+			return &output_itf.AgentDefault{Model: offered.Model, ThinkingLevel: offered.ThinkingLevel}
+		}
+	}
+
+	return nil
+}
+
+func (c *v1) toolNames() string {
+	names := make([]string, 0, len(c.defaults))
+
+	for _, harness := range c.defaults {
+		names = append(names, harness.Harness.DisplayName())
+	}
+
+	return strings.Join(names, ", ")
+}
+
 func (c *v1) AgentDefaults() map[enums.Effort]*output_itf.AgentDefault {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
-	defaults := make(map[enums.Effort]*output_itf.AgentDefault, len(c.cfg.AgentDefaults))
+	defaults := make(map[enums.Effort]*output_itf.AgentDefault, len(enums.Efforts()))
 
-	for level, stored := range c.cfg.AgentDefaults {
-		defaults[level] = cloneAgentDefault(stored)
+	for _, level := range enums.Efforts() {
+		if resolved := c.resolve(level); resolved != nil {
+			defaults[level] = resolved
+		}
 	}
 
 	return defaults
@@ -180,12 +216,16 @@ func (c *v1) AgentDefault(level enums.Effort) (*output_itf.AgentDefault, error) 
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
-	stored := c.cfg.AgentDefaults[level]
-	if stored == nil {
-		return nil, custom_error.Critical("step level %q has no agent default", level.String())
+	resolved := c.resolve(level)
+	if resolved == nil {
+		return nil, custom_error.Critical(
+			"no model runs %q steps yet: log in to %s",
+			level.String(),
+			c.toolNames(),
+		)
 	}
 
-	return cloneAgentDefault(stored), nil
+	return resolved, nil
 }
 
 func (c *v1) SetAgentDefault(level enums.Effort, agentDefault *output_itf.AgentDefault) error {

@@ -78,6 +78,10 @@ export function InstallAgent(arg1) {
   return window['go']['wails_api']['API']['InstallAgent'](arg1);
 }
 
+export function LogoutAgent(arg1) {
+  return window['go']['wails_api']['API']['LogoutAgent'](arg1);
+}
+
 export function MCPServers() {
   return window['go']['wails_api']['API']['MCPServers']();
 }

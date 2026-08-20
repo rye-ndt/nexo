@@ -12,6 +12,8 @@ type TokenPrices struct {
 	Output      *float64 `json:"output_per_mtok" validate:"omitempty,gte=0"`
 }
 
+type ModelReady func(model enums.ModelName) bool
+
 type AgentDefault struct {
 	Model         enums.ModelName     `json:"model" validate:"required,model_name"`
 	ThinkingLevel enums.ThinkingLevel `json:"thinking_level" validate:"required,thinking_level"`

@@ -9,6 +9,7 @@ export type AgentControls = {
     install: (agentId: string) => void
     uninstall: (agentId: string) => void
     logIn: (agentId: string) => void
+    logOut: (agentId: string) => void
     submitAuthCode: (agentId: string, code: string) => void
     openAuthUrl: (url: string) => void
 }

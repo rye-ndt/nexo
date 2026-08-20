@@ -3,9 +3,11 @@ package user_config
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 
 	"hexago/internal/helpers/enums"
+	input_itf "hexago/internal/interface/input"
 	output_itf "hexago/internal/interface/output"
 )
 
@@ -13,10 +15,70 @@ func price(v float64) *float64 {
 	return &v
 }
 
+func effortDefault(model enums.ModelName, thinking enums.ThinkingLevel) *input_itf.EffortDefault {
+	return &input_itf.EffortDefault{Model: model, ThinkingLevel: thinking}
+}
+
+func shippedDefaults() []*input_itf.HarnessDefaults {
+	return []*input_itf.HarnessDefaults{
+		{
+			Harness: enums.ClaudeCode,
+			Models: map[enums.Effort]*input_itf.EffortDefault{
+				enums.EffortQuick:      effortDefault(enums.Haiku, enums.LowThinking),
+				enums.EffortStandard:   effortDefault(enums.Sonnet, enums.MedThinking),
+				enums.EffortDeep:       effortDefault(enums.Opus, enums.HighThinking),
+				enums.EffortExhaustive: effortDefault(enums.Fable, enums.MaxThinking),
+			},
+		},
+		{
+			Harness: enums.Codex,
+			Models: map[enums.Effort]*input_itf.EffortDefault{
+				enums.EffortQuick:      effortDefault(enums.GPT56Luna, enums.LowThinking),
+				enums.EffortStandard:   effortDefault(enums.GPT56Luna, enums.MedThinking),
+				enums.EffortDeep:       effortDefault(enums.GPT56Terra, enums.HighThinking),
+				enums.EffortExhaustive: effortDefault(enums.GPT56Sol, enums.MaxThinking),
+			},
+		},
+		{
+			Harness: enums.OpenCode,
+			Models: map[enums.Effort]*input_itf.EffortDefault{
+				enums.EffortQuick:      effortDefault(enums.Deepseek4Flash, enums.LowThinking),
+				enums.EffortStandard:   effortDefault(enums.Deepseek4Flash, enums.MedThinking),
+				enums.EffortDeep:       effortDefault(enums.Deepseek4Flash, enums.HighThinking),
+				enums.EffortExhaustive: effortDefault(enums.Deepseek4Flash, enums.MaxThinking),
+			},
+		},
+	}
+}
+
+var enabledModels = map[enums.AgentHarness][]enums.ModelName{
+	enums.ClaudeCode: {enums.Fable, enums.Opus, enums.Sonnet, enums.Haiku},
+	enums.Codex:      {enums.GPT56Sol, enums.GPT56Terra, enums.GPT56Luna},
+	enums.OpenCode:   {enums.Deepseek4Flash},
+}
+
+func readyFrom(harnesses ...enums.AgentHarness) output_itf.ModelReady {
+	return func(model enums.ModelName) bool {
+		for _, harness := range harnesses {
+			if slices.Contains(enabledModels[harness], model) {
+				return true
+			}
+		}
+
+		return false
+	}
+}
+
 func openConfig(t *testing.T, path string) output_itf.UserConfig {
 	t.Helper()
 
-	cfg, err := InitV1(path)
+	return openConfigLoggedInto(t, path, enums.ClaudeCode)
+}
+
+func openConfigLoggedInto(t *testing.T, path string, harnesses ...enums.AgentHarness) output_itf.UserConfig {
+	t.Helper()
+
+	cfg, err := InitV1(path, shippedDefaults(), readyFrom(harnesses...))
 	if err != nil {
 		t.Fatalf("open user config: %v", err)
 	}
@@ -33,6 +95,28 @@ func agentDefault(t *testing.T, cfg output_itf.UserConfig, level enums.Effort) *
 	}
 
 	return stored
+}
+
+func wantEveryLevel(t *testing.T, cfg output_itf.UserConfig, want map[enums.Effort]*output_itf.AgentDefault) {
+	t.Helper()
+
+	resolved := cfg.AgentDefaults()
+
+	if len(resolved) != len(want) {
+		t.Fatalf("resolved %d levels, want %d: %+v", len(resolved), len(want), resolved)
+	}
+
+	for level, expected := range want {
+		got := resolved[level]
+
+		if got == nil {
+			t.Fatalf("level %s resolved to nothing", level)
+		}
+
+		if got.Model != expected.Model || got.ThinkingLevel != expected.ThinkingLevel {
+			t.Fatalf("level %s resolved to %+v, want %+v", level, got, expected)
+		}
+	}
 }
 
 func pricedModels(cfg output_itf.UserConfig) []enums.ModelName {
@@ -265,25 +349,175 @@ func TestNegativePriceIsRejected(t *testing.T) {
 }
 
 func TestAgentDefaultsSurviveTheEffortRename(t *testing.T) {
-	dir := t.TempDir()
-	path := filepath.Join(dir, "config.json")
+	path := filepath.Join(t.TempDir(), "config.json")
 
 	seeded := `{"agent_defaults":{"daily_task":{"model":"opus","thinking_level":"xhigh"}}}`
 	if err := os.WriteFile(path, []byte(seeded), 0o644); err != nil {
 		t.Fatalf("cannot seed the config: %v", err)
 	}
 
-	cfg, err := InitV1(path)
-	if err != nil {
-		t.Fatalf("init: %v", err)
-	}
-
-	carried := cfg.AgentDefaults()[enums.EffortStandard]
+	carried := openConfig(t, path).AgentDefaults()[enums.EffortStandard]
 	if carried == nil {
 		t.Fatal("the default stored under daily_task did not carry over to standard")
 	}
 
-	if carried.ThinkingLevel != enums.XHighThinking {
-		t.Fatalf("thinking level = %q, want the stored one back", carried.ThinkingLevel)
+	if carried.Model != enums.Opus || carried.ThinkingLevel != enums.XHighThinking {
+		t.Fatalf("carried default = %+v, want the stored one back", carried)
+	}
+}
+
+func TestNoRunnableModelLeavesEveryLevelBlank(t *testing.T) {
+	cfg := openConfigLoggedInto(t, filepath.Join(t.TempDir(), "config.json"))
+
+	if resolved := cfg.AgentDefaults(); len(resolved) != 0 {
+		t.Fatalf("levels resolved with no tool logged in: %+v", resolved)
+	}
+
+	if _, err := cfg.AgentDefault(enums.EffortStandard); err == nil {
+		t.Fatal("a level answered with a model no logged-in tool can run")
+	}
+}
+
+func TestClaudeCodeAloneFillsEveryLevel(t *testing.T) {
+	cfg := openConfigLoggedInto(t, filepath.Join(t.TempDir(), "config.json"), enums.ClaudeCode)
+
+	wantEveryLevel(t, cfg, map[enums.Effort]*output_itf.AgentDefault{
+		enums.EffortQuick:      {Model: enums.Haiku, ThinkingLevel: enums.LowThinking},
+		enums.EffortStandard:   {Model: enums.Sonnet, ThinkingLevel: enums.MedThinking},
+		enums.EffortDeep:       {Model: enums.Opus, ThinkingLevel: enums.HighThinking},
+		enums.EffortExhaustive: {Model: enums.Fable, ThinkingLevel: enums.MaxThinking},
+	})
+}
+
+func TestCodexOutranksOpenCodeBecauseItComesFirstInTheTable(t *testing.T) {
+	cfg := openConfigLoggedInto(t, filepath.Join(t.TempDir(), "config.json"), enums.OpenCode, enums.Codex)
+
+	wantEveryLevel(t, cfg, map[enums.Effort]*output_itf.AgentDefault{
+		enums.EffortQuick:      {Model: enums.GPT56Luna, ThinkingLevel: enums.LowThinking},
+		enums.EffortStandard:   {Model: enums.GPT56Luna, ThinkingLevel: enums.MedThinking},
+		enums.EffortDeep:       {Model: enums.GPT56Terra, ThinkingLevel: enums.HighThinking},
+		enums.EffortExhaustive: {Model: enums.GPT56Sol, ThinkingLevel: enums.MaxThinking},
+	})
+}
+
+func TestOpenCodeAloneRunsEveryLevelOnItsOneFreeModel(t *testing.T) {
+	cfg := openConfigLoggedInto(t, filepath.Join(t.TempDir(), "config.json"), enums.OpenCode)
+
+	wantEveryLevel(t, cfg, map[enums.Effort]*output_itf.AgentDefault{
+		enums.EffortQuick:      {Model: enums.Deepseek4Flash, ThinkingLevel: enums.LowThinking},
+		enums.EffortStandard:   {Model: enums.Deepseek4Flash, ThinkingLevel: enums.MedThinking},
+		enums.EffortDeep:       {Model: enums.Deepseek4Flash, ThinkingLevel: enums.HighThinking},
+		enums.EffortExhaustive: {Model: enums.Deepseek4Flash, ThinkingLevel: enums.MaxThinking},
+	})
+}
+
+func TestAPickedModelOutranksTheTableAndSurvivesAReopen(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.json")
+
+	cfg := openConfigLoggedInto(t, path, enums.ClaudeCode, enums.Codex)
+
+	if err := cfg.SetAgentDefault(enums.EffortQuick, &output_itf.AgentDefault{
+		Model:         enums.GPT56Luna,
+		ThinkingLevel: enums.HighThinking,
+	}); err != nil {
+		t.Fatalf("pick a model for quick: %v", err)
+	}
+
+	reopened := openConfigLoggedInto(t, path, enums.ClaudeCode, enums.Codex)
+
+	picked := agentDefault(t, reopened, enums.EffortQuick)
+
+	if picked.Model != enums.GPT56Luna || picked.ThinkingLevel != enums.HighThinking {
+		t.Fatalf("the table overrode the user's pick: %+v", picked)
+	}
+
+	if untouched := agentDefault(t, reopened, enums.EffortStandard); untouched.Model != enums.Sonnet {
+		t.Fatalf("picking one level moved another: %+v", untouched)
+	}
+}
+
+func TestAPickedModelStopsResolvingOnceItsToolIsLoggedOut(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.json")
+
+	cfg := openConfigLoggedInto(t, path, enums.ClaudeCode, enums.Codex)
+
+	if err := cfg.SetAgentDefault(enums.EffortQuick, &output_itf.AgentDefault{
+		Model:         enums.GPT56Luna,
+		ThinkingLevel: enums.HighThinking,
+	}); err != nil {
+		t.Fatalf("pick a model for quick: %v", err)
+	}
+
+	quick := agentDefault(t, openConfigLoggedInto(t, path, enums.ClaudeCode), enums.EffortQuick)
+
+	if quick.Model != enums.Haiku || quick.ThinkingLevel != enums.LowThinking {
+		t.Fatalf("quick answered %+v, want the table entry of the one logged-in tool", quick)
+	}
+}
+
+func TestTheCurrentEffortNameWinsOverItsRetiredSpelling(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.json")
+
+	seeded := `{"agent_defaults":{` +
+		`"daily_task":{"model":"haiku","thinking_level":"low"},` +
+		`"standard":{"model":"opus","thinking_level":"high"}}}`
+
+	for attempt := range 32 {
+		if err := os.WriteFile(path, []byte(seeded), 0o600); err != nil {
+			t.Fatalf("cannot seed the config: %v", err)
+		}
+
+		standard := agentDefault(t, openConfig(t, path), enums.EffortStandard)
+
+		if standard.Model != enums.Opus || standard.ThinkingLevel != enums.HighThinking {
+			t.Fatalf("attempt %d: daily_task overwrote standard with %+v", attempt, standard)
+		}
+	}
+}
+
+func TestALevelAToolDoesNotOfferFallsThroughToTheNextTool(t *testing.T) {
+	defaults := []*input_itf.HarnessDefaults{
+		{
+			Harness: enums.Codex,
+			Models: map[enums.Effort]*input_itf.EffortDefault{
+				enums.EffortQuick:      effortDefault(enums.GPT56Luna, enums.LowThinking),
+				enums.EffortStandard:   effortDefault(enums.GPT56Luna, enums.MedThinking),
+				enums.EffortExhaustive: effortDefault(enums.GPT56Sol, enums.MaxThinking),
+			},
+		},
+		{
+			Harness: enums.OpenCode,
+			Models: map[enums.Effort]*input_itf.EffortDefault{
+				enums.EffortQuick:      effortDefault(enums.Deepseek4Flash, enums.LowThinking),
+				enums.EffortStandard:   effortDefault(enums.Deepseek4Flash, enums.MedThinking),
+				enums.EffortDeep:       effortDefault(enums.Deepseek4Flash, enums.HighThinking),
+				enums.EffortExhaustive: effortDefault(enums.Deepseek4Flash, enums.MaxThinking),
+			},
+		},
+	}
+
+	cfg, err := InitV1(filepath.Join(t.TempDir(), "config.json"), defaults, readyFrom(enums.Codex, enums.OpenCode))
+	if err != nil {
+		t.Fatalf("open user config: %v", err)
+	}
+
+	if deep := agentDefault(t, cfg, enums.EffortDeep); deep.Model != enums.Deepseek4Flash {
+		t.Fatalf("the level Codex does not list resolved to %+v", deep)
+	}
+
+	if quick := agentDefault(t, cfg, enums.EffortQuick); quick.Model != enums.GPT56Luna {
+		t.Fatalf("a gap at one level moved the levels Codex does list: %+v", quick)
+	}
+}
+
+func TestInitRefusesATableItCannotResolveFrom(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.json")
+
+	if _, err := InitV1(path, nil, readyFrom(enums.ClaudeCode)); err == nil {
+		t.Fatal("an empty defaults table was accepted")
+	}
+
+	if _, err := InitV1(path, shippedDefaults(), nil); err == nil {
+		t.Fatal("a missing readiness check was accepted")
 	}
 }

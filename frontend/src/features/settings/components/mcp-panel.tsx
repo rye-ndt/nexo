@@ -4,7 +4,6 @@ import {Button} from '@/shared/ui/button'
 import {ConfirmDialog} from '@/shared/components/confirm-dialog'
 import {Input} from '@/shared/ui/input'
 import {HelpTip} from '@/shared/components/help-tip'
-import {StatusChip} from '@/shared/components/status-chip'
 import {MCPAuthKind} from '@/shared/lib/enums'
 import {useMCPServers} from '@/features/settings/use-mcp'
 import {useToggle} from '@/shared/hooks/use-toggle'
@@ -12,7 +11,6 @@ import {formatRelative} from '@/shared/lib/format'
 import type {MCPServer} from '@/features/settings/types'
 
 type KindCopy = {
-    connected: string
     connect: string
     connecting: string
     disconnect: string
@@ -24,7 +22,6 @@ type KindCopy = {
 
 function revokable(regain: string): KindCopy {
     return {
-        connected: 'Authorized',
         connect: 'Authorize',
         connecting: 'Authorizing',
         disconnect: 'Revoke',
@@ -45,12 +42,10 @@ const KIND_COPY: Record<MCPAuthKind, KindCopy> = {
     [MCPAuthKind.Device]: revokable('until you authorize it again'),
     [MCPAuthKind.Token]: {
         ...revokable('until you save a new token'),
-        connected: 'Connected',
         connect: 'Save token',
         connecting: 'Saving',
     },
     [MCPAuthKind.Enable]: {
-        connected: 'Enabled',
         connect: 'Enable',
         connecting: 'Enabling',
         disconnect: 'Disable',
@@ -157,7 +152,6 @@ function MCPServerRow({
                             {formatRelative(server.authorizedAt)}
                         </span>
                     )}
-                    <StatusChip tone="done">{copy.connected}</StatusChip>
                     <Button
                         variant="ghost"
                         size="sm"

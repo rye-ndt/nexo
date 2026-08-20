@@ -9,10 +9,11 @@
 import {bridge, hasWailsRuntime} from '@/shared/api/bridge'
 import {EFFORTS, THINKING_LEVELS, type Effort, type ThinkingLevel} from '@/shared/lib/enums'
 import {
-    MOCK_AGENT_DEFAULT_OPTIONS,
-    MOCK_AGENT_DEFAULTS,
     MOCK_AUTOPILOT,
     MOCK_MODEL_PRICES,
+    mockAgentDefaultOptions,
+    mockAgentDefaults,
+    mockModelOption,
 } from '@/features/settings/mock-preferences'
 import type {
     AgentDefault,
@@ -32,7 +33,7 @@ import {
 
 const ROUNDTRIP_MS = 400
 
-let defaults: AgentDefault[] = structuredClone(MOCK_AGENT_DEFAULTS)
+let picked: Partial<Record<Effort, AgentDefault>> = {}
 
 let modelPrices: ModelPrice[] = structuredClone(MOCK_MODEL_PRICES)
 
@@ -43,13 +44,13 @@ async function roundtrip() {
 }
 
 function modelLabel(model: string) {
-    const option = MOCK_AGENT_DEFAULT_OPTIONS.models.find((candidate) => candidate.model === model)
+    const option = mockModelOption(model)
     if (!option) throw new Error(`${model} is not a model this agent can run.`)
     return option.label
 }
 
 export async function listAgentDefaults(): Promise<AgentDefault[]> {
-    if (!hasWailsRuntime()) return structuredClone(defaults)
+    if (!hasWailsRuntime()) return mockAgentDefaults(picked)
 
     const infos = await bridge(FetchAgentDefaults)
     const stored: AgentDefault[] = []
@@ -85,7 +86,7 @@ export async function listModelPrices(): Promise<ModelPrice[]> {
 }
 
 export async function agentDefaultOptions(): Promise<AgentDefaultOptions> {
-    if (!hasWailsRuntime()) return structuredClone(MOCK_AGENT_DEFAULT_OPTIONS)
+    if (!hasWailsRuntime()) return mockAgentDefaultOptions()
 
     const info = await bridge(FetchAgentDefaultOptions)
 
@@ -117,9 +118,7 @@ export async function setAgentDefault(
     const label = modelLabel(model)
     await roundtrip()
 
-    defaults = defaults.map((current) =>
-        current.effort === effort ? {...current, model, modelLabel: label, thinkingLevel} : current,
-    )
+    picked = {...picked, [effort]: {effort, model, modelLabel: label, thinkingLevel}}
 }
 
 export async function setModelPrices(model: string, prices: TokenPrices): Promise<void> {
@@ -157,7 +156,7 @@ export function cachedAutopilot(): boolean {
 
 /** What the vite mock has been told so far, for the simulated run's price lookup. */
 export function cachedAgentDefaults(): AgentDefault[] {
-    return defaults
+    return mockAgentDefaults(picked)
 }
 
 export function cachedModelPrices(): ModelPrice[] {

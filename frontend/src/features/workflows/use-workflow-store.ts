@@ -89,6 +89,23 @@ export function useWorkflowStore() {
         setSelectedStepId(stepId)
     }
 
+    const duplicateStep = (workflowId: string, stepId: string) => {
+        const workflow = openWorkflow(workflowId)
+        if (!workflow) return
+
+        const source = graph.findStep(workflow, stepId)
+        if (!source) return
+
+        const copyId = crypto.randomUUID()
+        store.duplicateStep({
+            workflowId,
+            stepId,
+            copyId,
+            position: graph.freePosition(workflow, source.position),
+        })
+        setSelectedStepId(copyId)
+    }
+
     const removeStep = (workflowId: string, stepId: string) => {
         store.deleteStep({workflowId, stepId})
         if (selectedStepId === stepId) setSelectedStepId(null)
@@ -128,6 +145,7 @@ export function useWorkflowStore() {
         moveStep: onActive((workflowId, stepId: string, position: Point) =>
             store.moveStep({workflowId, stepId, position}),
         ),
+        duplicateStep: onActive((workflowId, stepId: string) => duplicateStep(workflowId, stepId)),
         removeStep: onActive((workflowId, stepId: string) => removeStep(workflowId, stepId)),
         saveStepInputs: onActive((workflowId, stepId: string, values: Record<string, InputValue>) =>
             store.saveStepInputs({workflowId, stepId, values}),

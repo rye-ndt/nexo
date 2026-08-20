@@ -86,11 +86,6 @@ func wire(assets fs.FS) (*App, error) {
 		return nil, err
 	}
 
-	userCfg, err := user_config.InitV1(filepath.Join(dataDir, "user_config.json"))
-	if err != nil {
-		return nil, err
-	}
-
 	workflowManager, err := workflow_manager.InitV1(cfg.Read().Workflow, store.StepStore(), message_queue.InitV1())
 	if err != nil {
 		return nil, err
@@ -127,6 +122,15 @@ func wire(assets fs.FS) (*App, error) {
 	}()
 
 	harnesses, err := buildHarnesses(cfg, httpCli, store, mcpGateway)
+	if err != nil {
+		return nil, err
+	}
+
+	userCfg, err := user_config.InitV1(
+		filepath.Join(dataDir, "user_config.json"),
+		cfg.Read().AgentDefaults,
+		runnable(harnesses),
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -229,4 +233,20 @@ func buildHarnesses(
 	}
 
 	return harnesses, nil
+}
+
+func runnable(harnesses map[enums.AgentHarness]input_itf.AgentHarness) output_itf.ModelReady {
+	return func(model enums.ModelName) bool {
+		for _, harness := range harnesses {
+			if !harness.Support(model) {
+				continue
+			}
+
+			if status, err := harness.Status(); err == nil && status.LoggedIn {
+				return true
+			}
+		}
+
+		return false
+	}
 }

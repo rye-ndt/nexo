@@ -54,7 +54,11 @@ export function SettingsDialog({
                     </div>
 
                     <div className="min-h-0 flex-1 scroll-py-6 overflow-y-auto">
-                        {active.id === SettingsTabId.Preferences && <PreferencesPanel />}
+                        {active.id === SettingsTabId.Preferences && (
+                            <PreferencesPanel
+                                onShowAgents={() => setActiveId(SettingsTabId.Agents)}
+                            />
+                        )}
                         {active.id === SettingsTabId.Roles && <RolesPanel />}
                         {active.id === SettingsTabId.MCP && <MCPPanel />}
                         {active.id === SettingsTabId.Agents && <AgentsPanel />}

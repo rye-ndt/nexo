@@ -39,6 +39,25 @@ export function createStep(draft: StepDraft, position: Point): Step {
     }
 }
 
+/**
+ * A copied step is the step and nothing around it: its role, prompt and the values
+ * typed into it all come across, and it arrives unconnected at both ends. You draw
+ * the edges it should have yourself.
+ */
+export function copyStep(step: Step, id: string, position: Point): Step {
+    return {
+        id,
+        title: step.title ? `${step.title} copy` : '',
+        prompt: step.prompt,
+        state: StepState.Idle,
+        position,
+        dependsOn: [],
+        roleId: step.roleId,
+        spec: step.spec,
+        values: step.values ? {...step.values} : undefined,
+    }
+}
+
 export function createWorkflow(draft: WorkflowDraft): Workflow {
     return {
         id: crypto.randomUUID(),
@@ -81,16 +100,17 @@ export function copyWorkflow(workflow: Workflow, name = `${workflow.name} copy`)
 }
 
 /**
- * A duplicate takes the graph and its roles, never what was typed into them:
- * every step's inputs start over at its role's defaults. A step whose role
- * is gone has no form left to refill, so it keeps the values it was carrying.
+ * A duplicate takes the graph and nothing the graph was pointed at: the steps,
+ * their roles and their edges come across, while the project folder and every
+ * input typed into a step start over empty.
  */
 export function duplicateWorkflow(workflow: Workflow, name?: string): Workflow {
     const copy = copyWorkflow(workflow, name)
 
     return {
         ...copy,
-        steps: copy.steps.map((step) => (step.roleId ? {...step, values: undefined} : step)),
+        projectDir: '',
+        steps: copy.steps.map((step) => ({...step, values: undefined})),
     }
 }
 
@@ -379,26 +399,4 @@ export function unlinkableInto(steps: Step[], targetId: string) {
     const blocked = descendantsOf(steps, targetId)
     blocked.add(targetId)
     return blocked
-}
-
-/** Layer index per step: 0 for roots, otherwise one past its deepest upstream. */
-export function stepLayers(workflow: Workflow) {
-    const layers = new Map<string, number>()
-
-    const depth = (step: Step, seen: Set<string>): number => {
-        if (layers.has(step.id)) return layers.get(step.id)!
-        if (seen.has(step.id)) return 0
-        seen.add(step.id)
-
-        const upstream = upstreamOf(workflow, step)
-        const value =
-            upstream.length === 0 ? 0 : Math.max(...upstream.map((t) => depth(t, seen))) + 1
-
-        layers.set(step.id, value)
-        return value
-    }
-
-    for (const step of workflow.steps) depth(step, new Set())
-
-    return layers
 }

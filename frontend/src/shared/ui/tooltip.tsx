@@ -20,8 +20,26 @@ function Tooltip({...props}: React.ComponentProps<typeof TooltipPrimitive.Root>)
     return <TooltipPrimitive.Root data-slot="tooltip" {...props} />
 }
 
-function TooltipTrigger({...props}: React.ComponentProps<typeof TooltipPrimitive.Trigger>) {
-    return <TooltipPrimitive.Trigger data-slot="tooltip-trigger" {...props} />
+/**
+ * Radix opens a tooltip on any focus, so a dialog handing focus to its first
+ * control pops that control's tooltip with the pointer nowhere near it. Only
+ * keyboard focus should show one, and preventDefault is what Radix reads to
+ * skip its own handler — the focus event itself is not cancelable.
+ */
+function TooltipTrigger({
+    onFocus,
+    ...props
+}: React.ComponentProps<typeof TooltipPrimitive.Trigger>) {
+    return (
+        <TooltipPrimitive.Trigger
+            data-slot="tooltip-trigger"
+            {...props}
+            onFocus={(event) => {
+                onFocus?.(event)
+                if (!event.currentTarget.matches(':focus-visible')) event.preventDefault()
+            }}
+        />
+    )
 }
 
 function TooltipContent({

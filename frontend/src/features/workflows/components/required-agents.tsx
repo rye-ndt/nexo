@@ -1,5 +1,8 @@
+import {Boxes} from 'lucide-react'
+
 import {AgentActionButton} from '@/features/agents/components/agent-action-button'
 import {AgentLogin} from '@/features/agents/components/agent-login'
+import {HelpTip} from '@/shared/components/help-tip'
 import {AgentAction} from '@/shared/lib/enums'
 import {isAgentReady, type RequiredAgent} from '@/features/workflows/use-required-agents'
 import {formatAgentName} from '@/shared/lib/format'
@@ -15,6 +18,8 @@ export function RequiredAgents({
     loading: boolean
     controls: AgentControls
 }) {
+    if (!loading && required.length === 0) return <NoAgentLoggedIn />
+
     return (
         <div className="flex flex-col">
             <p className="px-4 py-4 text-base text-muted-foreground">
@@ -31,6 +36,24 @@ export function RequiredAgents({
                     ))}
                 </div>
             )}
+        </div>
+    )
+}
+
+function NoAgentLoggedIn() {
+    return (
+        <div className="flex flex-col items-start gap-2 px-4 py-5">
+            <span className="flex items-center gap-2 text-base font-medium">
+                <Boxes className="size-4 shrink-0 text-muted-foreground" />
+                No agent is logged in
+                <HelpTip term="agent" />
+            </span>
+
+            <p className="text-sm text-muted-foreground">
+                A workflow runs on whichever agent your effort levels resolve to, and none of them
+                resolve yet. Install Claude Code, Codex or Open Code under Settings › Agents and log
+                in; the levels fill in and this workflow can be created.
+            </p>
         </div>
     )
 }

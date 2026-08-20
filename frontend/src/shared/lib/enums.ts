@@ -139,6 +139,7 @@ export const AgentAction = {
     Install: 'install',
     Uninstall: 'uninstall',
     LogIn: 'log_in',
+    LogOut: 'log_out',
     Verify: 'verify',
 } as const
 
@@ -148,6 +149,7 @@ export const AGENT_ACTION_LABELS: Record<AgentAction, string> = {
     [AgentAction.Install]: 'Install',
     [AgentAction.Uninstall]: 'Uninstall',
     [AgentAction.LogIn]: 'Log in',
+    [AgentAction.LogOut]: 'Log out',
     [AgentAction.Verify]: 'Verify',
 }
 
@@ -155,6 +157,7 @@ export const AGENT_ACTION_BUSY_LABELS: Record<AgentAction, string> = {
     [AgentAction.Install]: 'Installing',
     [AgentAction.Uninstall]: 'Uninstalling',
     [AgentAction.LogIn]: 'Logging in',
+    [AgentAction.LogOut]: 'Logging out',
     [AgentAction.Verify]: 'Verifying',
 }
 
@@ -163,6 +166,7 @@ export const AGENT_ACTION_FAILURES: Record<AgentAction, string> = {
     [AgentAction.Install]: 'Could not install',
     [AgentAction.Uninstall]: 'Could not uninstall',
     [AgentAction.LogIn]: 'Could not start the login for',
+    [AgentAction.LogOut]: 'Could not log out of',
     [AgentAction.Verify]: 'Could not verify that code for',
 }
 

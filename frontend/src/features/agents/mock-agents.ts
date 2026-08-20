@@ -2,10 +2,12 @@
  * Browser stand-in for the agent bindings. Outside the Wails webview there is
  * no Go side to install anything, so the roster lives here and installs walk
  * the same stages the real harness emits. Three dev-URL flags drive the paths a
- * fresh machine cannot otherwise reach: ?installed=1 starts with both agents
+ * fresh machine cannot otherwise reach: ?installed=1 starts with every agent
  * present so the welcome modal stays closed, ?loggedIn=1 starts them
  * authorized so the workflow gate opens, and ?installFail=open_code fails that
- * agent's first attempt so the retry path is reachable.
+ * agent's first attempt so the retry path is reachable. Each also takes a
+ * comma-separated list of agent ids, so ?loggedIn=codex authorizes that one
+ * alone.
  */
 
 import {InstallStage} from '@/shared/lib/enums'
@@ -28,6 +30,14 @@ const MOCK_AGENTS: Agent[] = [
         instanceCount: 0,
     },
     {
+        id: 'codex',
+        name: 'Codex',
+        version: '0.9.7',
+        installed: false,
+        loggedIn: false,
+        instanceCount: 0,
+    },
+    {
         id: 'open_code',
         name: 'Open Code',
         version: '0.4.18',
@@ -39,15 +49,30 @@ const MOCK_AGENTS: Agent[] = [
 
 const DOWNLOAD_BYTES: Record<string, number> = {
     claude_code: 71_303_168,
+    codex: 58_720_256,
     open_code: 44_040_192,
+}
+
+function flagCovers(value: string | null, agentId: string) {
+    if (!value) return false
+    if (value === '1' || value === 'all') return true
+
+    return value.split(',').includes(agentId)
 }
 
 function initialAgents() {
     const flags = new URLSearchParams(window.location.search)
-    const loggedIn = flags.get('loggedIn') === '1'
-    const preinstalled = loggedIn || flags.get('installed') === '1'
+    const installed = flags.get('installed')
+    const loggedIn = flags.get('loggedIn')
 
-    return MOCK_AGENTS.map((agent) => ({...agent, installed: preinstalled, loggedIn}))
+    return MOCK_AGENTS.map((agent) => {
+        const authorized = flagCovers(loggedIn, agent.id)
+        return {
+            ...agent,
+            installed: authorized || flagCovers(installed, agent.id),
+            loggedIn: authorized,
+        }
+    })
 }
 
 let agents = initialAgents()
@@ -58,7 +83,7 @@ const failed = new Set<string>()
 
 function shouldFail(agentId: string) {
     const forced = new URLSearchParams(window.location.search).get('installFail')
-    if (forced !== agentId && forced !== 'all') return false
+    if (!flagCovers(forced, agentId)) return false
     if (failed.has(agentId)) return false
 
     failed.add(agentId)
@@ -67,6 +92,10 @@ function shouldFail(agentId: string) {
 
 export async function mockListAgents(): Promise<Agent[]> {
     return structuredClone(agents)
+}
+
+export function mockLoggedInAgentIds(): string[] {
+    return agents.filter((agent) => agent.loggedIn).map((agent) => agent.id)
 }
 
 function markLoggedIn(agentId: string) {
@@ -92,6 +121,12 @@ export async function mockSubmitAuthCode(agentId: string, code: string): Promise
         throw new Error('That code looks incomplete. Copy the whole value from the login page.')
 
     markLoggedIn(agentId)
+}
+
+export async function mockLogoutAgent(agentId: string): Promise<void> {
+    await wait(RESOLVE_MS)
+
+    agents = agents.map((agent) => (agent.id === agentId ? {...agent, loggedIn: false} : agent))
 }
 
 export async function mockInstallAgent(

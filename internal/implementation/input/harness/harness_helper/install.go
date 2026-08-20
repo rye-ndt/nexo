@@ -153,3 +153,11 @@ func exists(path string) bool {
 
 	return err == nil
 }
+
+func Logout(label, credPath string) error {
+	if err := os.Remove(credPath); err != nil && !os.IsNotExist(err) {
+		return custom_error.Critical("remove %s credentials: %v", label, err)
+	}
+
+	return nil
+}

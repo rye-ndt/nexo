@@ -12,6 +12,7 @@ import {bridge, hasWailsRuntime} from '@/shared/api/bridge'
 import {
     mockInstallAgent,
     mockListAgents,
+    mockLogoutAgent,
     mockStartLogin,
     mockSubmitAuthCode,
     mockUninstallAgent,
@@ -21,6 +22,7 @@ import {
     AgentStatuses,
     AuthAgent,
     InstallAgent,
+    LogoutAgent,
     SubmitAuthCode,
     UninstallAgent,
 } from '@wailsjs/go/wails_api/API'
@@ -68,6 +70,12 @@ export async function startAgentLogin(agentId: string): Promise<string> {
     if (!hasWailsRuntime()) return mockStartLogin(agentId)
 
     return bridge(() => AuthAgent(agentId))
+}
+
+export async function logoutAgent(agentId: string): Promise<void> {
+    if (!hasWailsRuntime()) return mockLogoutAgent(agentId)
+
+    await bridge(() => LogoutAgent(agentId))
 }
 
 export async function submitAgentAuthCode(agentId: string, code: string): Promise<void> {

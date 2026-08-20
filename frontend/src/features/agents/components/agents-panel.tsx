@@ -1,7 +1,6 @@
 import {AgentActionButton} from '@/features/agents/components/agent-action-button'
 import {AgentLogin} from '@/features/agents/components/agent-login'
 import {HelpTip} from '@/shared/components/help-tip'
-import {StatusChip} from '@/shared/components/status-chip'
 import {AgentAction} from '@/shared/lib/enums'
 import {useAgents} from '@/features/agents/use-agents'
 import type {Agent} from '@/features/agents/types'
@@ -50,16 +49,7 @@ function AgentRow({agent, controls}: {agent: Agent; controls: AgentControls}) {
         <div className="flex flex-col gap-3 px-4 py-3">
             <div className="flex items-center gap-3">
                 <div className="flex min-w-0 flex-1 flex-col gap-1">
-                    <p className="flex items-center gap-2">
-                        <span className="truncate font-mono text-base font-medium">
-                            {agent.name}
-                        </span>
-                        {agent.installed && (
-                            <StatusChip tone={agent.loggedIn ? 'done' : 'muted'}>
-                                {agent.loggedIn ? 'Logged in' : 'Not logged in'}
-                            </StatusChip>
-                        )}
-                    </p>
+                    <p className="truncate font-mono text-base font-medium">{agent.name}</p>
                     <p className="truncate font-mono text-sm text-muted-foreground">
                         {metaLine(agent)}
                     </p>
@@ -67,13 +57,12 @@ function AgentRow({agent, controls}: {agent: Agent; controls: AgentControls}) {
 
                 {agent.installed ? (
                     <div className="flex shrink-0 gap-2">
-                        {!agent.loggedIn && (
-                            <AgentActionButton
-                                action={AgentAction.LogIn}
-                                agentId={agent.id}
-                                controls={controls}
-                            />
-                        )}
+                        <AgentActionButton
+                            action={agent.loggedIn ? AgentAction.LogOut : AgentAction.LogIn}
+                            agentId={agent.id}
+                            controls={controls}
+                            variant={agent.loggedIn ? 'ghost' : undefined}
+                        />
                         <AgentActionButton
                             action={AgentAction.Uninstall}
                             agentId={agent.id}

@@ -175,6 +175,8 @@ var migrations = []string{
 	`UPDATE workflow_drafts SET doc = REPLACE(doc, '"heavy_task"', '"deep"')`,
 	`UPDATE workflow_drafts SET doc = REPLACE(doc, '"maximum_effort_task"', '"exhaustive"')`,
 	`UPDATE workflow_drafts SET doc = REPLACE(doc, '"awaiting_accept"', '"awaiting_review"')`,
+	seedRoles,
+	seedWorkflow,
 }
 
 const roleColumns = `id, name, description, effort, retryable, pause_for_review, inputs, instructions, output_structure, created_at, updated_at`

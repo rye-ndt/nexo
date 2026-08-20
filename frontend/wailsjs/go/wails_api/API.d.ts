@@ -42,6 +42,8 @@ export function ImportWorkflow(arg1:string):Promise<string>;
 
 export function InstallAgent(arg1:string):Promise<void>;
 
+export function LogoutAgent(arg1:string):Promise<void>;
+
 export function MCPServers():Promise<Array<output_itf.MCPServerInfo>>;
 
 export function ModelPrices():Promise<Array<output_itf.ModelPriceInfo>>;

@@ -105,6 +105,7 @@ export function WorkflowWorkspace({
                         onConnect={active.connectSteps}
                         onDisconnect={active.disconnectSteps}
                         onNewStep={setNewStepAt}
+                        onDuplicateStep={active.duplicateStep}
                         onDeleteStep={setDeletingStepId}
                     />
                 ) : (

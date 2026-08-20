@@ -51,6 +51,7 @@ type StepResult struct {
 	Name         string
 	AgentID      uuid.UUID
 	Effort       enums.Effort
+	Model        enums.ModelName
 	Status       enums.StepStatus
 	Handoffs     []*Handoff
 	ContextUsage *input_itf.ContextUsage

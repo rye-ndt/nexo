@@ -17,6 +17,7 @@ leaves a **handoff** for the next step.
 | **Step** | One scoped unit of work in the graph. What the canvas draws as a box. | Not "node" (graph jargon), not "task" (was the internal name). |
 | **Role** | A reusable definition of a kind of worker: what it does, its inputs, its effort, its report format. A step starts from one. | Not "template", not "preset". |
 | **Agent** | The vendor CLI that executes a step — Claude Code, OpenCode, Codex. Installed and logged in under Settings › Agents. | Never the step, never the role. This is the only meaning of "agent". |
+| **Agent defaults** | The ordered `agent_defaults:` list in `config.yaml` — per harness, the model and thinking level for each effort. Its order *is* the priority: a step with no explicit model runs on the first listed harness that is logged in. | Not "fallback chain", not "ranking". There is no separate priority field to add — reorder the list. |
 | **Handoff** | What a finished step writes down for the steps after it. The product of a step. | Not "handover doc", not "report". |
 | **Result** | Everything a finished step produced: its status, its handoffs, its context usage, its activity. Contains handoffs. | Not "report". |
 | **Lock** | Freezing a workflow's graph and folder so it can run. Reversible only by duplicating. | Not "finalize". |

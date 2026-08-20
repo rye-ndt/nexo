@@ -910,6 +910,7 @@ func (s *v1) Status(id uuid.UUID) (*core_itf.WorkflowStatus, error) {
 			StepID:   stepID,
 			Name:     step.Name,
 			Effort:   step.Effort,
+			Model:    step.PreferredModel,
 			Status:   step.Status,
 			Handoffs: []*core_itf.Handoff{},
 			Spent:    &spent,

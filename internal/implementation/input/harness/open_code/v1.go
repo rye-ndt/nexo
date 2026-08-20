@@ -343,6 +343,10 @@ func (o *openCode) SubmitAuthCode(code string) error {
 	return custom_error.Critical("open code login does not use an auth code")
 }
 
+func (o *openCode) Logout() error {
+	return harness_helper.Logout(openCodeLabel, o.authPath)
+}
+
 func (o *openCode) Status() (*input_itf.AgentStatus, error) {
 	return harness_helper.Status(openCodeName, o.cfg.Name, o.authPath, o.storage, o.agents.Count())
 }

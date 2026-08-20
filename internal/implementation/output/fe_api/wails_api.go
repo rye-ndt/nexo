@@ -213,6 +213,15 @@ func (a *API) SubmitAuthCode(id string, code string) error {
 	return h.SubmitAuthCode(code)
 }
 
+func (a *API) LogoutAgent(id string) error {
+	h, err := a.admin(id)
+	if err != nil {
+		return err
+	}
+
+	return h.Logout()
+}
+
 func (a *API) PendingApprovals() ([]*output_itf.ApprovalInfo, error) {
 	pending := a.approvals.Pending()
 
@@ -648,14 +657,45 @@ func (a *API) SetAutopilot(on bool) error {
 }
 
 func (a *API) AgentDefaultOptions() (*output_itf.AgentDefaultOptionsInfo, error) {
-	names := enums.ModelNames()
-	models := make([]*output_itf.ModelOptionInfo, 0, len(names))
+	agents, err := a.agentManager.SupportedAgents()
+	if err != nil {
+		return nil, err
+	}
 
-	for _, name := range names {
+	harnessOf := map[enums.ModelName]enums.AgentHarness{}
+
+	for agent, names := range agents {
+		h, err := a.agentManager.Admin(agent)
+		if err != nil {
+			return nil, err
+		}
+
+		status, err := h.Status()
+		if err != nil {
+			return nil, err
+		}
+
+		if !status.LoggedIn {
+			continue
+		}
+
+		for _, name := range names {
+			harnessOf[name] = agent
+		}
+	}
+
+	models := make([]*output_itf.ModelOptionInfo, 0, len(harnessOf))
+
+	for _, name := range enums.ModelNames() {
+		agent, ready := harnessOf[name]
+		if !ready {
+			continue
+		}
+
 		models = append(models, &output_itf.ModelOptionInfo{
 			Model:   name.String(),
 			Label:   name.DisplayName(),
-			Harness: name.HarnessTool().String(),
+			Harness: agent.String(),
 		})
 	}
 
@@ -863,17 +903,12 @@ func spentAnything(spent *input_itf.ContextUsage) bool {
 	return spent != nil && (spent.Input > 0 || spent.Cached > 0 || spent.Billed > 0)
 }
 
-func (a *API) stepCost(level enums.Effort, spent *input_itf.ContextUsage) (float64, bool) {
+func (a *API) stepCost(model enums.ModelName, spent *input_itf.ContextUsage) (float64, bool) {
 	if spent == nil {
 		return 0, false
 	}
 
-	agentDefault, err := a.userConfig.AgentDefault(level)
-	if err != nil {
-		return 0, false
-	}
-
-	prices := a.userConfig.ModelPrice(agentDefault.Model)
+	prices := a.userConfig.ModelPrice(model)
 	if prices == nil {
 		return 0, false
 	}
@@ -901,7 +936,7 @@ func (a *API) workflowStepInfo(stepID uuid.UUID, report *core_itf.StepResult) *o
 	info.ContextUsage = report.ContextUsage
 	info.Effort = report.Effort.String()
 	info.Spent = report.Spent
-	info.CostUSD, info.Priced = a.stepCost(report.Effort, report.Spent)
+	info.CostUSD, info.Priced = a.stepCost(report.Model, report.Spent)
 
 	if report.AgentID != uuid.Nil {
 		info.AgentID = report.AgentID.String()

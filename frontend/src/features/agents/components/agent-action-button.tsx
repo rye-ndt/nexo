@@ -6,6 +6,7 @@ const RUN: Record<AgentAction, (controls: AgentControls, agentId: string) => voi
     [AgentAction.Install]: (controls, agentId) => controls.install(agentId),
     [AgentAction.Uninstall]: (controls, agentId) => controls.uninstall(agentId),
     [AgentAction.LogIn]: (controls, agentId) => controls.logIn(agentId),
+    [AgentAction.LogOut]: (controls, agentId) => controls.logOut(agentId),
     [AgentAction.Verify]: () => {},
 }
 

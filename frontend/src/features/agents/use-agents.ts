@@ -1,7 +1,8 @@
-import {useEffect, useState} from 'react'
+import {useEffect, useRef, useState} from 'react'
 import {useMutation, useQuery, useQueryClient} from '@tanstack/react-query'
 
 import * as api from '@/features/agents/api'
+import {AGENT_DEFAULTS_KEY, AGENT_DEFAULT_OPTIONS_KEY} from '@/features/settings/use-agent-defaults'
 import {AGENT_ACTION_FAILURES, AgentAction, InstallStage} from '@/shared/lib/enums'
 import {formatAgentName} from '@/shared/lib/format'
 import type {InstallProgress} from '@/features/agents/types'
@@ -64,6 +65,26 @@ export function useAgents() {
         [],
     )
 
+    const loggedIn = agentsQuery.data
+        ? agentsQuery.data
+              .filter((agent) => agent.loggedIn)
+              .map((agent) => agent.id)
+              .join(' ')
+        : null
+
+    const knownLoggedIn = useRef<string | null>(null)
+
+    useEffect(() => {
+        if (loggedIn === null || loggedIn === knownLoggedIn.current) return
+
+        const first = knownLoggedIn.current === null
+        knownLoggedIn.current = loggedIn
+        if (first) return
+
+        queryClient.invalidateQueries({queryKey: AGENT_DEFAULTS_KEY})
+        queryClient.invalidateQueries({queryKey: AGENT_DEFAULT_OPTIONS_KEY})
+    }, [loggedIn, queryClient])
+
     const pending = mutation.isPending ? mutation.variables : null
 
     const start = (agentId: string, kind: AgentAction, run: () => Promise<void>) =>
@@ -86,6 +107,12 @@ export function useAgents() {
             if (url) setAuthUrls((current) => ({...current, [agentId]: url}))
         })
 
+    const logOut = (agentId: string) =>
+        start(agentId, AgentAction.LogOut, async () => {
+            await api.logoutAgent(agentId)
+            setAuthUrls((current) => withoutKey(current, agentId))
+        })
+
     const submitAuthCode = (agentId: string, code: string) =>
         start(agentId, AgentAction.Verify, async () => {
             await api.submitAgentAuthCode(agentId, code)
@@ -103,6 +130,7 @@ export function useAgents() {
         install,
         uninstall,
         logIn,
+        logOut,
         submitAuthCode,
         openAuthUrl: api.openExternalURL,
     }

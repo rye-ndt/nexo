@@ -2,8 +2,11 @@ package claude_code
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 
 	core_itf "hexago/internal/interface/core"
@@ -252,5 +255,35 @@ func TestAllowedToolsWithoutAGatewayKeepsTheBaseTools(t *testing.T) {
 
 	if len(allowed) != len(baseTools) {
 		t.Fatalf("want only the base tools, got %v", allowed)
+	}
+}
+
+func TestLogoutBeatsAPendingTokenWrite(t *testing.T) {
+	for attempt := range 200 {
+		c := &claudeCode{tokenPath: filepath.Join(t.TempDir(), "credentials")}
+		s := &authSession{done: make(chan struct{})}
+		c.auth = s
+
+		var wg sync.WaitGroup
+		wg.Add(2)
+
+		go func() {
+			defer wg.Done()
+			c.storeToken(s, "sk-ant-oat01-token")
+		}()
+
+		go func() {
+			defer wg.Done()
+			c.authMu.Lock()
+			c.auth = nil
+			os.Remove(c.tokenPath)
+			c.authMu.Unlock()
+		}()
+
+		wg.Wait()
+
+		if _, err := os.Stat(c.tokenPath); err == nil {
+			t.Fatalf("attempt %d: logging out left a credential behind", attempt)
+		}
 	}
 }

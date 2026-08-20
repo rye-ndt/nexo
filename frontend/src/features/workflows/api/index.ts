@@ -13,6 +13,7 @@ import {
     createWorkflow as buildWorkflow,
     createStep as buildStep,
     cancelRun,
+    copyStep,
     createsCycle,
     duplicateWorkflow as duplicateGraph,
     moveWorkflow,
@@ -111,6 +112,9 @@ export async function updateWorkflow(
 
     const locking = patch.locked || patch.started
     const workflow = locking ? findWorkflow(workflowId) : findOpenWorkflow(workflowId)
+
+    if (patch.locked && !workflow.projectDir.trim())
+        throw new Error('Choose a project folder before locking this workflow.')
 
     if (patch.started && !workflow.locked) throw new Error('Lock the workflow before running it.')
 
@@ -256,6 +260,21 @@ export async function createStep(
     const step = {...buildStep(draft, position), id: stepId}
     replaceWorkflow(withStep(workflow, step))
     return structuredClone(step)
+}
+
+export async function duplicateStep(
+    workflowId: string,
+    stepId: string,
+    copyId: string,
+    position: Point,
+): Promise<Step> {
+    await hydrate()
+
+    const workflow = findOpenWorkflow(workflowId)
+    const copy = copyStep(findStep(workflow, stepId), copyId, position)
+    replaceWorkflow(withStep(workflow, copy))
+
+    return structuredClone(copy)
 }
 
 export async function updateStep(

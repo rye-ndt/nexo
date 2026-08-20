@@ -3,8 +3,8 @@ import {useMutation, useQuery, useQueryClient} from '@tanstack/react-query'
 import * as api from '@/features/settings/api/preferences'
 import type {Effort, ThinkingLevel} from '@/shared/lib/enums'
 
-const AGENT_DEFAULTS_KEY = ['agent-defaults']
-const AGENT_DEFAULT_OPTIONS_KEY = ['agent-default-options']
+export const AGENT_DEFAULTS_KEY = ['agent-defaults']
+export const AGENT_DEFAULT_OPTIONS_KEY = ['agent-default-options']
 
 type AgentDefaultEdit = {
     effort: Effort

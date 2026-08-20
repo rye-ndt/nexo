@@ -2,7 +2,6 @@ import type {MouseEvent} from 'react'
 import {CircleStop, Lock, MoreHorizontal, Pause} from 'lucide-react'
 import type {LucideIcon} from 'lucide-react'
 
-import {WorkflowSpine} from '@/features/workflows/components/workflow-spine'
 import {WORKFLOW_TITLE_CLASSES} from '@/features/workflows/workflow-status'
 import {CANCELLED_HINT, LOCKED_HINT, PAUSED_HINT} from '@/features/workflows/workflow-copy'
 import {
@@ -20,8 +19,9 @@ import {
 } from '@/shared/ui/dropdown-menu'
 import {Tooltip, TooltipContent, TooltipTrigger} from '@/shared/ui/tooltip'
 import {WorkflowStatus} from '@/shared/lib/enums'
-import {formatRelative} from '@/shared/lib/format'
-import {workflowProgress, workflowStatus} from '@/features/workflows/graph'
+import {formatRelative, formatTokens, formatUSD} from '@/shared/lib/format'
+import {hasActiveStep, workflowRunWindow, workflowStatus} from '@/features/workflows/graph'
+import {useElapsed} from '@/shared/hooks/use-elapsed'
 import {cn} from '@/shared/lib/utils'
 import type {Workflow} from '@/features/workflows/types'
 
@@ -91,11 +91,12 @@ export function WorkflowRow({
                         onClick={select}
                         aria-current={active}
                         className={cn(
-                            'flex w-full min-w-0 flex-col gap-2 rounded-xl px-3 py-3 pr-8 text-left transition-colors duration-[120ms] outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/50',
-                            active && 'bg-live-tint hover:bg-live-tint',
+                            'flex w-full min-w-0 flex-col gap-2 rounded-xl px-3 py-3 text-left ring-1 ring-border transition-colors duration-[120ms] outline-none hover:bg-muted hover:ring-border-strong focus-visible:ring-2 focus-visible:ring-ring/50',
+                            active &&
+                                'bg-live-tint ring-live/35 hover:bg-live-tint hover:ring-live/35',
                         )}
                     >
-                        <span className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
+                        <span className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-2 pr-5">
                             <span
                                 className={cn(
                                     'truncate text-base font-medium',
@@ -107,7 +108,7 @@ export function WorkflowRow({
                             {marker && <LockMarker marker={marker} />}
                         </span>
 
-                        <WorkflowSpine workflow={workflow} />
+                        <WorkflowTelemetry workflow={workflow} />
 
                         <WorkflowMeta workflow={workflow} />
                     </button>
@@ -179,28 +180,40 @@ function LockMarker({marker}: {marker: Marker}) {
     )
 }
 
-function WorkflowMeta({workflow}: {workflow: Workflow}) {
-    const {done, total} = workflowProgress(workflow)
-    const relative = formatRelative(workflow.createdAt)
+function WorkflowTelemetry({workflow}: {workflow: Workflow}) {
+    const {startedAt, finishedAt} = workflowRunWindow(workflow)
+    const timed = hasActiveStep(workflow) || Boolean(finishedAt)
+    const elapsed = useElapsed(timed ? startedAt : undefined, finishedAt)
+
+    if (!workflow.startedAt)
+        return <span className="text-sm text-muted-foreground">Not run yet</span>
+
+    const spent = workflow.spent
+    const tokens = spent ? spent.input + spent.cached + spent.output : 0
 
     return (
-        <span className="flex items-center gap-1 text-sm text-muted-foreground">
-            {total === 0 ? (
-                <span>No steps</span>
-            ) : (
-                <span>
-                    <span className="font-mono">
-                        {done}/{total}
-                    </span>{' '}
-                    done
-                </span>
-            )}
-            {relative && (
-                <>
-                    <span aria-hidden>·</span>
-                    <span className="font-mono">{relative}</span>
-                </>
-            )}
+        <span className="flex items-center gap-1.5 font-mono text-sm tabular-nums text-muted-foreground">
+            <span aria-label={`${formatTokens(tokens)} tokens`}>{formatTokens(tokens)}</span>
+            <span aria-hidden>·</span>
+            <span aria-label={elapsed ? `ran for ${elapsed}` : 'run time unknown'}>
+                {elapsed ?? '—'}
+            </span>
+            <span aria-hidden>·</span>
+            <span className="text-foreground" aria-label={workflow.priced ? 'cost' : 'not priced'}>
+                {workflow.priced ? formatUSD(workflow.costUsd ?? 0) : '—'}
+            </span>
+        </span>
+    )
+}
+
+function WorkflowMeta({workflow}: {workflow: Workflow}) {
+    const relative = formatRelative(workflow.createdAt)
+
+    if (!relative) return null
+
+    return (
+        <span className="w-full border-t border-border pt-2 font-mono text-sm text-muted-foreground">
+            {relative}
         </span>
     )
 }

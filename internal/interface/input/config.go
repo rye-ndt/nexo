@@ -82,6 +82,16 @@ type ControlConfig struct {
 	AutostartDefault    bool     `mapstructure:"autostart_default"`
 }
 
+type EffortDefault struct {
+	Model         enums.ModelName     `mapstructure:"model" validate:"required,model_name"`
+	ThinkingLevel enums.ThinkingLevel `mapstructure:"thinking_level" validate:"required,thinking_level"`
+}
+
+type HarnessDefaults struct {
+	Harness enums.AgentHarness              `mapstructure:"harness" validate:"required"`
+	Models  map[enums.Effort]*EffortDefault `mapstructure:"models" validate:"required,gt=0,dive,keys,effort,endkeys,required"`
+}
+
 type ConfigStruct struct {
 	App            *AppConfig                            `mapstructure:"app" validate:"required"`
 	Version        string                                `mapstructure:"version" validate:"required"`
@@ -91,6 +101,7 @@ type ConfigStruct struct {
 	AgentManager   *AgentManagerConfig                   `mapstructure:"agent_manager" validate:"required"`
 	MCPServers     *MCPServersConfig                     `mapstructure:"mcp_servers" validate:"required"`
 	AgentHarness   map[enums.AgentHarness]map[string]any `mapstructure:"agent_harness" validate:"required,gt=0"`
+	AgentDefaults  []*HarnessDefaults                    `mapstructure:"agent_defaults" validate:"required,gt=0,dive,required"`
 }
 
 type Config interface {

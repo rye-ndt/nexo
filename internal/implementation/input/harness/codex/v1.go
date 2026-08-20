@@ -3,7 +3,6 @@ package codex
 import (
 	"bytes"
 	"context"
-	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -40,6 +39,7 @@ type codex struct {
 	dir           string
 	binPath       string
 	configDir     string
+	authPath      string
 	workspacesDir string
 
 	agents       *harness_helper.Registry[*agentProc]
@@ -88,6 +88,7 @@ func New(
 		dir:           dir,
 		binPath:       harness_helper.BinPath(dir, codexCfg.BinName),
 		configDir:     configDir,
+		authPath:      filepath.Join(configDir, "auth.json"),
 		workspacesDir: filepath.Join(dir, "workspaces"),
 		agents:        harness_helper.NewRegistry[*agentProc](codexName, codexCfg.MaxInstance),
 		cfg:           codexCfg,
@@ -175,6 +176,10 @@ func (c *codex) SubmitAuthCode(code string) error {
 	return custom_error.Critical("codex login does not use an auth code")
 }
 
+func (c *codex) Logout() error {
+	return harness_helper.Logout(codexName, c.authPath)
+}
+
 func (c *codex) Status() (*input_itf.AgentStatus, error) {
 	status := &input_itf.AgentStatus{Name: c.cfg.Name, InstanceCount: c.agents.Count()}
 
@@ -195,15 +200,9 @@ func (c *codex) Status() (*input_itf.AgentStatus, error) {
 }
 
 func (c *codex) loggedIn() bool {
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-	defer cancel()
+	_, err := os.Stat(c.authPath)
 
-	cmd := exec.CommandContext(ctx, c.binPath, "login", "status")
-	cmd.Env = slices.Clone(c.baseEnv)
-	cmd.Stdout = io.Discard
-	cmd.Stderr = io.Discard
-
-	return cmd.Run() == nil
+	return err == nil
 }
 
 func (c *codex) Spawn(

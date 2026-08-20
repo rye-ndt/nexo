@@ -83,8 +83,15 @@ func TestRoleRoundTripsPauseForReview(t *testing.T) {
 		t.Fatalf("list roles: %v", err)
 	}
 
-	if len(listed) != 2 {
-		t.Fatalf("listed %d roles, want 2", len(listed))
+	own := 0
+	for _, role := range listed {
+		if role.ID == gated.ID || role.ID == plain.ID {
+			own++
+		}
+	}
+
+	if own != 2 {
+		t.Fatalf("listed %d of the two roles this test wrote, want 2", own)
 	}
 }
 

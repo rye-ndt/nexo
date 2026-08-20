@@ -59,7 +59,7 @@ func (s *v1) Blocked() string {
 func (s *v1) heavyAgent() (*output_itf.AgentDefault, string) {
 	agentDefault, err := s.userCfg.AgentDefault(enums.EffortDeep)
 	if err != nil || agentDefault == nil {
-		return nil, "No model is set for heavy steps yet. Pick one in Settings."
+		return nil, "No model runs heavy steps yet. Log in to a coding tool, or pick one in Settings."
 	}
 
 	harness := agentDefault.Model.HarnessTool()
