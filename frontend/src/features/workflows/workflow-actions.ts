@@ -31,6 +31,7 @@ export type WorkflowAction = {
     icon: LucideIcon
     emphasis: ActionEmphasis
     term?: GlossaryTerm
+    disabledReason?: string
 }
 
 export type WorkflowActionHandlers = Record<WorkflowActionId, () => void>
@@ -78,5 +79,12 @@ export function workflowActions(workflow: Workflow | null): WorkflowAction[] {
         isCancellable(workflow) && WorkflowActionId.Cancel,
     ].filter((id): id is WorkflowActionId => Boolean(id))
 
-    return ids.map((id) => ({id, ...ACTIONS[id]}))
+    return ids.map((id) => ({id, ...ACTIONS[id], disabledReason: reasonToWait(workflow, id)}))
+}
+
+function reasonToWait(workflow: Workflow, id: WorkflowActionId) {
+    if (id === WorkflowActionId.Lock && !workflow.projectDir.trim())
+        return 'Choose a project folder before locking this workflow.'
+
+    return undefined
 }

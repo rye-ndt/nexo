@@ -2,6 +2,7 @@ import {Button} from '@/shared/ui/button'
 import {HelpTip} from '@/shared/components/help-tip'
 import {Tooltip, TooltipContent, TooltipTrigger} from '@/shared/ui/tooltip'
 import {ActionEmphasis, type WorkflowAction} from '@/features/workflows/workflow-actions'
+import {cn} from '@/shared/lib/utils'
 
 const VARIANTS: Record<ActionEmphasis, 'default' | 'outline' | 'ghost'> = {
     [ActionEmphasis.Primary]: 'default',
@@ -10,7 +11,7 @@ const VARIANTS: Record<ActionEmphasis, 'default' | 'outline' | 'ghost'> = {
 }
 
 export function HeaderAction({action, onClick}: {action: WorkflowAction; onClick: () => void}) {
-    const {label, icon: Icon, emphasis, term} = action
+    const {label, icon: Icon, emphasis, term, disabledReason} = action
     const alwaysLabelled = emphasis === ActionEmphasis.Primary
 
     return (
@@ -21,7 +22,9 @@ export function HeaderAction({action, onClick}: {action: WorkflowAction; onClick
                         variant={VARIANTS[emphasis]}
                         size="sm"
                         aria-label={label}
-                        onClick={onClick}
+                        aria-disabled={disabledReason ? true : undefined}
+                        className={cn(disabledReason && 'opacity-50')}
+                        onClick={disabledReason ? undefined : onClick}
                     >
                         <Icon />
                         <span className={alwaysLabelled ? 'inline' : 'hidden xl:inline'}>
@@ -29,8 +32,11 @@ export function HeaderAction({action, onClick}: {action: WorkflowAction; onClick
                         </span>
                     </Button>
                 </TooltipTrigger>
-                <TooltipContent side="bottom" className={alwaysLabelled ? 'hidden' : 'xl:hidden'}>
-                    {label}
+                <TooltipContent
+                    side="bottom"
+                    className={cn(!disabledReason && (alwaysLabelled ? 'hidden' : 'xl:hidden'))}
+                >
+                    {disabledReason ?? label}
                 </TooltipContent>
             </Tooltip>
 

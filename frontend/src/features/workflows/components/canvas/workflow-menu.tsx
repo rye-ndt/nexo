@@ -13,6 +13,7 @@ import {
 import {workflowProgress} from '@/features/workflows/graph'
 import {useToggle} from '@/shared/hooks/use-toggle'
 import type {WorkflowAction, WorkflowActionHandlers} from '@/features/workflows/workflow-actions'
+import {cn} from '@/shared/lib/utils'
 import type {Workflow} from '@/features/workflows/types'
 
 export function WorkflowMenu({
@@ -70,6 +71,7 @@ export function WorkflowMenu({
                                     key={action.id}
                                     label={action.label}
                                     icon={action.icon}
+                                    disabledReason={action.disabledReason}
                                     onClick={pick(handlers[action.id])}
                                 />
                             ))}
@@ -92,17 +94,30 @@ function Divider() {
 function MenuAction({
     label,
     icon: Icon,
+    disabledReason,
     onClick,
 }: {
     label: string
     icon: ComponentType<{className?: string}>
+    disabledReason?: string
     onClick: () => void
 }) {
     return (
-        <Button variant="ghost" className="w-full justify-start" onClick={onClick}>
-            <Icon />
-            {label}
-        </Button>
+        <span className="flex flex-col">
+            <Button
+                variant="ghost"
+                className={cn('w-full justify-start', disabledReason && 'opacity-50')}
+                aria-disabled={disabledReason ? true : undefined}
+                onClick={disabledReason ? undefined : onClick}
+            >
+                <Icon />
+                {label}
+            </Button>
+
+            {disabledReason && (
+                <span className="px-3 pb-1 text-sm text-muted-foreground">{disabledReason}</span>
+            )}
+        </span>
     )
 }
 
