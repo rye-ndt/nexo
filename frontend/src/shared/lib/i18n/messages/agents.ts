@@ -20,7 +20,7 @@ export const AGENT_MESSAGES = {
 
     'agent.login.body': {
         en: 'A login page opened in your browser. Most logins finish on their own once you approve, so paste a code below only if the page shows you one.',
-        vi: 'Trang đăng nhập đã mở trong trình duyệt. Nếu đăng nhập không tự chuyển hướng, dán code trên màn hình vào đây.',
+        vi: 'Nếu đăng nhập không tự chuyển hướng, dán code trên màn hình vào đây.',
     },
     'agent.login.reopen': {en: 'Open the login page again', vi: 'Mở lại trang đăng nhập'},
     'agent.login.code': {en: 'Authorization code', vi: 'Mã ủy quyền'},

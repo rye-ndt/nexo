@@ -1,14 +1,14 @@
 import {AgentActionButton} from '@/features/agents/components/agent-action-button'
 import {AgentLogin} from '@/features/agents/components/agent-login'
+import {useAgents} from '@/features/agents/use-agents'
 import {OnboardingStep} from '@/features/onboarding/components/onboarding-step'
 import {OnboardingPhase} from '@/features/onboarding/types'
+import type {Onboarding} from '@/features/onboarding/use-onboarding'
 import {StatusChip} from '@/shared/components/status-chip'
 import {AgentAction} from '@/shared/lib/enums'
-import {useAgents} from '@/features/agents/use-agents'
 import {t} from '@/shared/lib/i18n'
 import {Button} from '@/shared/ui/button'
 import {DialogFooter} from '@/shared/ui/dialog'
-import type {Onboarding} from '@/features/onboarding/use-onboarding'
 
 export function LoginStep({onboarding}: {onboarding: Onboarding}) {
     const controls = useAgents()
@@ -62,11 +62,7 @@ export function LoginStep({onboarding}: {onboarding: Onboarding}) {
             </div>
 
             <DialogFooter className="justify-between">
-                {ready ? (
-                    <span />
-                ) : (
-                    <p className="text-sm text-muted-foreground">{t('onboarding.login.hint')}</p>
-                )}
+                <span />
 
                 <span className="flex gap-2">
                     <Button variant="ghost" onClick={onboarding.toAgent}>
