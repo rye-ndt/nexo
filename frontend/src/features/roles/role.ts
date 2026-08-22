@@ -1,5 +1,6 @@
 import {InputType, Effort} from '@/shared/lib/enums'
 import {t} from '@/shared/lib/i18n'
+import {withConflictAwareness} from '@/features/roles/conflict-awareness'
 import {structureIssues} from '@/features/roles/output-structure'
 import type {FieldValue, InputValue, Role, RoleDraft, RoleInput} from '@/features/roles/types'
 
@@ -8,16 +9,19 @@ export function emptyInput(): RoleInput {
 }
 
 export function emptyRole(): RoleDraft {
-    return {
-        name: '',
-        description: '',
-        effort: Effort.Standard,
-        retryable: true,
-        pauseForReview: false,
-        inputs: [],
-        instructions: [{key: 'base', value: ''}],
-        outputStructure: '',
-    }
+    return withConflictAwareness(
+        {
+            name: '',
+            description: '',
+            effort: Effort.Standard,
+            retryable: true,
+            pauseForReview: false,
+            inputs: [],
+            instructions: [{key: 'base', value: ''}],
+            outputStructure: '',
+        },
+        true,
+    )
 }
 
 export function chosenOptions(value: FieldValue | undefined): string[] {

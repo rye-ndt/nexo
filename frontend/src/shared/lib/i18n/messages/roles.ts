@@ -97,6 +97,7 @@ export const ROLE_MESSAGES = {
     'role.form.inputCountOne': {en: '{count} input', vi: '{count} đầu vào'},
     'role.form.inputCountOther': {en: '{count} inputs', vi: '{count} đầu vào'},
     'role.form.reviewTag': {en: 'pauses for review', vi: 'dừng chờ kiểm duyệt'},
+    'role.form.conflictAware': {en: 'Conflict aware', vi: 'Tránh xung đột'},
     'role.form.instructions': {en: 'Instructions', vi: 'Chỉ dẫn'},
     'role.form.addInstruction': {en: 'Add instruction', vi: 'Thêm chỉ dẫn'},
 

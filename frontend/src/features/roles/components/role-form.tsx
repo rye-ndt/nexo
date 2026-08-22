@@ -15,6 +15,7 @@ import type {GlossaryTerm} from '@/shared/lib/glossary'
 import {t, tn} from '@/shared/lib/i18n'
 import {cn} from '@/shared/lib/utils'
 import {EFFORTS, EFFORT_LABELS, Effort} from '@/shared/lib/enums'
+import {isConflictAware, withConflictAwareness} from '@/features/roles/conflict-awareness'
 import {advancedIssues, emptyInput, hasAdvancedSettings} from '@/features/roles/role'
 import {INPUT_REF_HINT} from '@/features/roles/input-refs'
 import type {Instruction, RoleDraft, RoleInput} from '@/features/roles/types'
@@ -68,6 +69,7 @@ export function RoleForm({
     const changeLevel = (value: string) => patch({effort: value as Effort})
     const changeRetryable = (retryable: boolean) => patch({retryable})
     const changeManualAccept = (pauseForReview: boolean) => patch({pauseForReview})
+    const changeConflictAware = (on: boolean) => onChange(withConflictAwareness(draft, on))
     const changeStructure = (event: ChangeEvent<HTMLTextAreaElement>) =>
         patch({outputStructure: event.target.value})
 
@@ -224,6 +226,18 @@ export function RoleForm({
             </div>
 
             <div className="flex min-h-0 flex-col gap-6">
+                <label
+                    htmlFor="role-conflict-aware"
+                    className="flex h-11 items-center justify-between gap-3 rounded-lg border border-border px-3"
+                >
+                    <span className="text-base font-medium">{t('role.form.conflictAware')}</span>
+                    <Switch
+                        id="role-conflict-aware"
+                        checked={isConflictAware(draft)}
+                        onCheckedChange={changeConflictAware}
+                    />
+                </label>
+
                 <Section
                     className="min-h-0 flex-1"
                     title={t('role.form.instructions')}
