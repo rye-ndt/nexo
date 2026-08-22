@@ -90,10 +90,17 @@ export async function createWorkflow(workflowId: string, draft: WorkflowDraft): 
     return structuredClone(workflow)
 }
 
-export async function duplicateWorkflow(sourceId: string, workflowId: string): Promise<Workflow> {
+export async function duplicateWorkflow(
+    sourceId: string,
+    workflowId: string,
+    copyInputs: boolean,
+): Promise<Workflow> {
     await hydrate()
 
-    const copy = prependWorkflow({...duplicateGraph(findWorkflow(sourceId)), id: workflowId})
+    const copy = prependWorkflow({
+        ...duplicateGraph(findWorkflow(sourceId), copyInputs),
+        id: workflowId,
+    })
     await saveDraft(copy)
 
     return structuredClone(copy)

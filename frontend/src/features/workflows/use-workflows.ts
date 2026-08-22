@@ -78,13 +78,13 @@ export function useWorkflows() {
 
     const duplicate = useWorkflowMutation(
         'workflow.error.duplicate',
-        (args: {sourceId: string; workflowId: string}) =>
-            api.duplicateWorkflow(args.sourceId, args.workflowId),
-        (workflows, {sourceId, workflowId}) => {
+        (args: {sourceId: string; workflowId: string; copyInputs: boolean}) =>
+            api.duplicateWorkflow(args.sourceId, args.workflowId, args.copyInputs),
+        (workflows, {sourceId, workflowId, copyInputs}) => {
             const source = graph.findWorkflow(workflows, sourceId)
             if (!source) return workflows
 
-            return [{...graph.duplicateWorkflow(source), id: workflowId}, ...workflows]
+            return [{...graph.duplicateWorkflow(source, copyInputs), id: workflowId}, ...workflows]
         },
     )
 

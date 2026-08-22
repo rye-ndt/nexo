@@ -105,16 +105,17 @@ export function copyWorkflow(
 
 /**
  * A duplicate takes the graph and nothing the graph was pointed at: the steps,
- * their roles and their edges come across, while the project folder and every
- * input typed into a step start over empty.
+ * their roles and their edges come across, while the project folder starts over
+ * empty. The values typed into each step come across only if the operator asked
+ * for them when they duplicated.
  */
-export function duplicateWorkflow(workflow: Workflow, name?: string): Workflow {
-    const copy = copyWorkflow(workflow, name)
+export function duplicateWorkflow(workflow: Workflow, copyInputs: boolean): Workflow {
+    const copy = copyWorkflow(workflow)
 
     return {
         ...copy,
         projectDir: '',
-        steps: copy.steps.map((step) => ({...step, values: undefined})),
+        steps: copyInputs ? copy.steps : copy.steps.map((step) => ({...step, values: undefined})),
     }
 }
 

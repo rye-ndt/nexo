@@ -211,6 +211,15 @@ export const WORKFLOW_MESSAGES = {
     },
 
     'workflow.duplicate.name': {en: '{name} copy', vi: '{name} - bản sao'},
+    'workflow.duplicate.title': {en: 'Duplicate “{name}”?', vi: 'Nhân bản “{name}”?'},
+    'workflow.duplicate.description': {
+        en: 'The copy is a draft with the same graph and the same steps; its project folder starts empty and it has no run history.',
+        vi: 'Bản sao là một bản nháp với cùng sơ đồ và cùng các bước; thư mục dự án của nó để trống và chưa có lịch sử chạy.',
+    },
+    'workflow.duplicate.copyInputs': {
+        en: 'Copy input values',
+        vi: 'Chép giá trị đầu vào',
+    },
 
     'workflow.error.load': {
         en: 'Could not load your workflows',

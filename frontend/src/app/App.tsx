@@ -1,6 +1,7 @@
 import {useState} from 'react'
 
 import {DeleteWorkflowDialog} from '@/features/workflows/components/delete-workflow-dialog'
+import {DuplicateWorkflowDialog} from '@/features/workflows/components/duplicate-workflow-dialog'
 import {ImportWorkflowDialog} from '@/features/workflows/components/import-workflow-dialog'
 import {NewWorkflowDialog} from '@/features/workflows/components/new-workflow-dialog'
 import {NoticeDialog} from '@/shared/components/notice-dialog'
@@ -60,7 +61,7 @@ function App() {
                         onSelect={store.selectWorkflow}
                         onCreate={newWorkflow.open}
                         onImport={transfer.beginImport}
-                        onDuplicate={store.duplicateWorkflow}
+                        onDuplicate={store.requestDuplicate}
                         onExport={transfer.exportWorkflow}
                         onDelete={setPendingDeleteId}
                         onReorder={store.reorderWorkflow}
@@ -80,6 +81,15 @@ function App() {
                         workflow={pendingDelete}
                         onConfirm={confirmDelete}
                         onClose={cancelDelete}
+                    />
+                )}
+
+                {store.duplicating && (
+                    <DuplicateWorkflowDialog
+                        key={store.duplicating.id}
+                        workflow={store.duplicating}
+                        onConfirm={store.confirmDuplicate}
+                        onClose={store.cancelDuplicate}
                     />
                 )}
 

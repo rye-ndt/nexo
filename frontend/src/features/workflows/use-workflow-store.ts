@@ -27,6 +27,7 @@ export function useWorkflowStore() {
 
     const [selectedWorkflowId, setSelectedWorkflowId] = useState<string | null>(null)
     const [selectedStepId, setSelectedStepId] = useState<string | null>(null)
+    const [duplicatingId, setDuplicatingId] = useState<string | null>(null)
 
     const activeWorkflow = graph.findWorkflow(workflows, selectedWorkflowId) ?? workflows[0] ?? null
     const activeWorkflowId = activeWorkflow?.id ?? null
@@ -55,10 +56,21 @@ export function useWorkflowStore() {
         selectWorkflow(workflowId)
     }
 
-    const duplicateWorkflow = (sourceId: string) => {
+    const duplicateWorkflow = (sourceId: string, copyInputs: boolean) => {
         const workflowId = crypto.randomUUID()
-        store.duplicateWorkflow({sourceId, workflowId})
+        store.duplicateWorkflow({sourceId, workflowId, copyInputs})
         selectWorkflow(workflowId)
+    }
+
+    const duplicating = graph.findWorkflow(workflows, duplicatingId) ?? null
+
+    const requestDuplicate = (workflowId: string) => setDuplicatingId(workflowId)
+
+    const cancelDuplicate = () => setDuplicatingId(null)
+
+    const confirmDuplicate = (copyInputs: boolean) => {
+        if (duplicating) duplicateWorkflow(duplicating.id, copyInputs)
+        setDuplicatingId(null)
     }
 
     const importWorkflow = (workflow: Workflow, locations: WorkflowLocations) => {
@@ -134,7 +146,7 @@ export function useWorkflowStore() {
         cancel: onActive((workflowId, onSettled?: () => void) =>
             store.cancelWorkflow({workflowId}, {onSettled}),
         ),
-        duplicate: onActive((workflowId) => duplicateWorkflow(workflowId)),
+        duplicate: onActive((workflowId) => requestDuplicate(workflowId)),
 
         addStep: onActive((workflowId, draft: StepDraft, position: Point) =>
             addStep(workflowId, draft, position),
@@ -181,6 +193,10 @@ export function useWorkflowStore() {
 
         addWorkflow,
         duplicateWorkflow,
+        duplicating,
+        requestDuplicate,
+        confirmDuplicate,
+        cancelDuplicate,
         importWorkflow,
         reorderWorkflow,
         deleteWorkflow,
