@@ -13,7 +13,7 @@
   "info": {
     "companyName": "akai-rothschild",
     "productName": "Nexo",
-    "productVersion": "1.0.0",
+    "productVersion": "1.1.0",
     "copyright": "Copyright © 2026 akai-rothschild",
     "comments": "A desktop control plane for orchestrating a fleet of coding agents"
   }

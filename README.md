@@ -170,4 +170,4 @@ Buy me a coffee:
 
 ## License
 
-[MIT](LICENSE), v1.0.0
+[MIT](LICENSE), v1.1.0
