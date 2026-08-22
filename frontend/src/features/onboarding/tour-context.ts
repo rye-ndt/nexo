@@ -18,7 +18,7 @@ export type Tour = {
     skip: () => void
 }
 
-export const IDLE_TOUR: Tour = {
+const IDLE_TOUR: Tour = {
     stop: null,
     index: 0,
     total: TOUR_STOPS.length,

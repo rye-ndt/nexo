@@ -11,10 +11,6 @@ const (
 
 var languages = []Language{English, Vietnamese}
 
-func Languages() []Language {
-	return slices.Clone(languages)
-}
-
 func (l Language) String() string {
 	return string(l)
 }

@@ -26,6 +26,24 @@ export const STEP_STATE_LABELS: Record<StepState, MessageKey> = {
     [StepState.Cancelled]: 'enum.stepState.cancelled',
 }
 
+export const WorkflowLifecycle = {
+    Draft: 'draft',
+    Ready: 'ready',
+    Running: 'running',
+    Paused: 'paused',
+    Cancelled: 'cancelled',
+} as const
+
+export type WorkflowLifecycle = (typeof WorkflowLifecycle)[keyof typeof WorkflowLifecycle]
+
+export const WORKFLOW_LIFECYCLES: WorkflowLifecycle[] = [
+    WorkflowLifecycle.Draft,
+    WorkflowLifecycle.Ready,
+    WorkflowLifecycle.Running,
+    WorkflowLifecycle.Paused,
+    WorkflowLifecycle.Cancelled,
+]
+
 export const WorkflowStatus = {
     Empty: 'empty',
     Draft: 'draft',

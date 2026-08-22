@@ -151,15 +151,6 @@ func (m *agentManagerV1) Send(agentID uuid.UUID, message string) error {
 	return harness.Send(agentID.String(), message)
 }
 
-func (m *agentManagerV1) Listen(agentID uuid.UUID) (<-chan string, error) {
-	harness, err := m.harnessOf(agentID)
-	if err != nil {
-		return nil, err
-	}
-
-	return harness.Listen(agentID.String())
-}
-
 func (m *agentManagerV1) ContextUsage(agentID uuid.UUID) (*input_itf.ContextUsage, error) {
 	harness, err := m.harnessOf(agentID)
 	if err != nil {

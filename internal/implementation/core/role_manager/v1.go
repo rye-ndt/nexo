@@ -268,18 +268,7 @@ func inputEntities(inputs map[string]*core_itf.RoleInputs) map[string]*input_itf
 	entities := map[string]*input_itf.RoleInputEntity{}
 
 	for key, input := range inputs {
-		if input == nil {
-			entities[strings.TrimSpace(key)] = nil
-			continue
-		}
-
-		entities[strings.TrimSpace(key)] = &input_itf.RoleInputEntity{
-			Description: input.Description,
-			Required:    input.Required,
-			Type:        input.Type,
-			Default:     input.Default,
-			Options:     input.Options,
-		}
+		entities[strings.TrimSpace(key)] = (*input_itf.RoleInputEntity)(input)
 	}
 
 	return entities
@@ -303,13 +292,7 @@ func record(stored *input_itf.RoleEntity) *input_itf.RoleRecord {
 			continue
 		}
 
-		inputs[key] = &input_itf.RoleInputRecord{
-			Description: input.Description,
-			Required:    input.Required,
-			Type:        input.Type,
-			Default:     input.Default,
-			Options:     input.Options,
-		}
+		inputs[key] = (*input_itf.RoleInputRecord)(input)
 	}
 
 	return &input_itf.RoleRecord{
@@ -333,13 +316,7 @@ func importedEntity(imported *input_itf.RoleRecord, now time.Time) *input_itf.Ro
 			continue
 		}
 
-		inputs[strings.TrimSpace(key)] = &input_itf.RoleInputEntity{
-			Description: input.Description,
-			Required:    input.Required,
-			Type:        input.Type,
-			Default:     input.Default,
-			Options:     input.Options,
-		}
+		inputs[strings.TrimSpace(key)] = (*input_itf.RoleInputEntity)(input)
 	}
 
 	return &input_itf.RoleEntity{
@@ -361,13 +338,7 @@ func role(entity *input_itf.RoleEntity) *core_itf.Role {
 	inputs := map[string]*core_itf.RoleInputs{}
 
 	for key, input := range entity.Inputs {
-		inputs[key] = &core_itf.RoleInputs{
-			Description: input.Description,
-			Required:    input.Required,
-			Type:        input.Type,
-			Default:     input.Default,
-			Options:     input.Options,
-		}
+		inputs[key] = (*core_itf.RoleInputs)(input)
 	}
 
 	return &core_itf.Role{

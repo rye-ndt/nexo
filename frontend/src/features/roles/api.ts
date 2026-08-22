@@ -105,9 +105,95 @@ function toInfo(draft: RoleDraft): output_itf.RoleInfo {
     })
 }
 
+type RolesBackend = {
+    list(): Promise<Role[]>
+    upsert(draft: RoleDraft): Promise<Role>
+    export(roleIds: string[], path: string): Promise<number>
+    import(path: string): Promise<number>
+    helperBlocked(): Promise<string>
+    refine(draft: RoleDraft, context?: DraftContext): Promise<RoleDraft>
+    remove(roleId: string): Promise<void>
+}
+
+const wailsRoles: RolesBackend = {
+    list: async () => {
+        roles = (await bridge(FetchRoles)).map(toRole)
+        return roles
+    },
+    upsert: async (draft) => {
+        const id = await bridge(() => UpsertRole(toInfo(draft)))
+        return toRole(await bridge(() => FetchRole(id)))
+    },
+    export: async (roleIds, path) => bridge(() => ExportRoles(roleIds, path)),
+    import: async (path) => bridge(() => ImportRoles(path)),
+    helperBlocked: async () => bridge(RoleHelperBlocked),
+    refine: async (draft, context) => {
+        const request = new core_itf.DraftRequest({
+            name: draft.name.trim(),
+            description: draft.description.trim(),
+            ...context,
+        })
+        const filled = toRole(await bridge(() => RefineRole(request)))
+
+        return {...filled, id: draft.id}
+    },
+    remove: async (roleId) => {
+        await bridge(() => RemoveRole(roleId))
+    },
+}
+
+const mockRolesBackend: RolesBackend = {
+    list: async () => roles,
+    upsert: async (draft) => {
+        await roundtrip()
+
+        const next: Role = {...draft, id: draft.id ?? crypto.randomUUID()}
+        roles = roles.some((role) => role.id === next.id)
+            ? roles.map((role) => (role.id === next.id ? next : role))
+            : [...roles, next]
+
+        return next
+    },
+    export: async (roleIds, path) => {
+        await roundtrip()
+
+        const picked = roles.filter((role) => roleIds.includes(role.id))
+        if (picked.length !== roleIds.length) throw new Error(t('role.error.roleGone'))
+
+        mockWriteFile(path, mockArchive(picked))
+
+        return picked.length
+    },
+    import: async (path) => {
+        await roundtrip()
+
+        const imported = mockImported(roles, mockReadFile(path), path)
+        roles = [...roles, ...imported]
+
+        return imported.length
+    },
+    helperBlocked: async () => mockHelperBlocked(await listAgents()),
+    refine: async (draft, context) => {
+        const blocked = mockHelperBlocked(await listAgents())
+        if (blocked) throw new Error(blocked)
+
+        await new Promise((resolve) => setTimeout(resolve, REFINE_MS))
+
+        return {
+            ...mockRefined(draft.name.trim(), draft.description.trim(), context),
+            id: draft.id,
+        }
+    },
+    remove: async (roleId) => {
+        await roundtrip()
+        roles = roles.filter((role) => role.id !== roleId)
+    },
+}
+
+const backend: RolesBackend = hasWailsRuntime() ? wailsRoles : mockRolesBackend
+
 export async function listRoles(): Promise<Role[]> {
-    if (hasWailsRuntime()) roles = (await bridge(FetchRoles)).map(toRole)
-    return structuredClone(roles)
+    return structuredClone(await backend.list())
 }
 
 /** The last fetched roles, for the run loop, which cannot await. */
@@ -118,45 +204,17 @@ export function cachedRoles(): Role[] {
 export async function upsertRole(draft: RoleDraft): Promise<Role> {
     if (!draft.name.trim()) throw new Error(t('role.error.nameRequired'))
 
-    if (hasWailsRuntime()) {
-        const id = await bridge(() => UpsertRole(toInfo(draft)))
-        return toRole(await bridge(() => FetchRole(id)))
-    }
-
-    await roundtrip()
-
-    const next: Role = {...draft, id: draft.id ?? crypto.randomUUID()}
-    roles = roles.some((role) => role.id === next.id)
-        ? roles.map((role) => (role.id === next.id ? next : role))
-        : [...roles, next]
-
-    return structuredClone(next)
+    return structuredClone(await backend.upsert(draft))
 }
 
 export async function exportRoles(roleIds: string[], path: string): Promise<number> {
     if (roleIds.length === 0) throw new Error(t('role.error.pickToExport'))
 
-    if (hasWailsRuntime()) return bridge(() => ExportRoles(roleIds, path))
-
-    await roundtrip()
-
-    const picked = roles.filter((role) => roleIds.includes(role.id))
-    if (picked.length !== roleIds.length) throw new Error(t('role.error.roleGone'))
-
-    mockWriteFile(path, mockArchive(picked))
-
-    return picked.length
+    return backend.export(roleIds, path)
 }
 
 export async function importRoles(path: string): Promise<number> {
-    if (hasWailsRuntime()) return bridge(() => ImportRoles(path))
-
-    await roundtrip()
-
-    const imported = mockImported(roles, mockReadFile(path), path)
-    roles = [...roles, ...imported]
-
-    return imported.length
+    return backend.import(path)
 }
 
 /**
@@ -165,9 +223,7 @@ export async function importRoles(path: string): Promise<number> {
  * Agents actually opens and closes this.
  */
 export async function roleHelperBlocked(): Promise<string> {
-    if (hasWailsRuntime()) return bridge(RoleHelperBlocked)
-
-    return mockHelperBlocked(await listAgents())
+    return backend.helperBlocked()
 }
 
 /**
@@ -177,29 +233,9 @@ export async function roleHelperBlocked(): Promise<string> {
  * here is either a complete role or an error.
  */
 export async function refineRole(draft: RoleDraft, context?: DraftContext): Promise<RoleDraft> {
-    const name = draft.name.trim()
-    const description = draft.description.trim()
-
-    if (hasWailsRuntime()) {
-        const request = new core_itf.DraftRequest({name, description, ...context})
-        const filled = toRole(await bridge(() => RefineRole(request)))
-        return {...filled, id: draft.id}
-    }
-
-    const blocked = mockHelperBlocked(await listAgents())
-    if (blocked) throw new Error(blocked)
-
-    await new Promise((resolve) => setTimeout(resolve, REFINE_MS))
-
-    return {...mockRefined(name, description, context), id: draft.id}
+    return backend.refine(draft, context)
 }
 
 export async function removeRole(roleId: string): Promise<void> {
-    if (hasWailsRuntime()) {
-        await bridge(() => RemoveRole(roleId))
-        return
-    }
-
-    await roundtrip()
-    roles = roles.filter((role) => role.id !== roleId)
+    return backend.remove(roleId)
 }

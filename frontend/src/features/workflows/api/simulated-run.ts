@@ -10,7 +10,7 @@
  * the unpriced state.
  */
 
-import {ApprovalKind, StepState, type Effort} from '@/shared/lib/enums'
+import {ApprovalKind, StepState, WorkflowLifecycle, type Effort} from '@/shared/lib/enums'
 import {mockOutcome} from '@/features/workflows/mock-workflows'
 import {hasRunningStep, isRunnable, label, withStepPatch} from '@/features/workflows/graph'
 import {specOf} from '@/features/workflows/step-spec'
@@ -23,6 +23,7 @@ import {
 import {cachedRoles} from '@/features/roles/api'
 import type {ApprovalOption} from '@/features/approvals/types'
 import {
+    forgetMockApprovals,
     isMockApprovalPending,
     mockApprovalAnswer,
     raiseMockApproval,
@@ -328,16 +329,25 @@ function narrate(workflow: Workflow) {
         if (step.state === StepState.Running) mergeActivity(step.id, mockActivity(step, now))
 }
 
-export function tick(workflowId: string) {
+export async function startSimulatedRun(workflow: Workflow) {
+    replaceWorkflow(workflow)
+    tick(workflow.id)
+}
+
+function tick(workflowId: string) {
     const workflow = workflows.find((workflow) => workflow.id === workflowId)
-    if (!workflow?.started || workflow.cancelled || workflow.paused) return
+    if (workflow?.lifecycle !== WorkflowLifecycle.Running) return
 
     const next = replaceWorkflow(advance(workflow))
     narrate(next)
     if (hasRunningStep(next)) schedule(workflowId)
 }
 
-export function resolveAcceptance(workflowId: string, stepId: string, accepted: boolean) {
+export async function resolveSimulatedAcceptance(
+    workflowId: string,
+    stepId: string,
+    accepted: boolean,
+) {
     const workflow = workflows.find((workflow) => workflow.id === workflowId)
     const step = workflow?.steps.find((step) => step.id === stepId)
     if (!workflow || !step) return
@@ -366,11 +376,20 @@ function schedule(workflowId: string) {
     )
 }
 
-export function forgetWorkflowForks(workflow: Workflow) {
+export async function haltSimulatedRun(workflow: Workflow) {
+    stopTicking(workflow.id)
+
+    forgetMockApprovals(
+        workflow.steps.map((step) => step.agentId).filter((id): id is string => Boolean(id)),
+    )
+}
+
+export async function discardSimulatedRun(workflow: Workflow) {
+    await haltSimulatedRun(workflow)
     for (const step of workflow.steps) asked.delete(step.id)
 }
 
-export function stopRun(workflowId: string) {
+export function stopTicking(workflowId: string) {
     const timer = timers.get(workflowId)
     if (timer === undefined) return
 
@@ -382,4 +401,5 @@ export function stopRun(workflowId: string) {
 setWorkflows(workflows.map(withRunTotals))
 
 for (const workflow of workflows)
-    if (!workflow.cancelled && hasRunningStep(workflow)) schedule(workflow.id)
+    if (workflow.lifecycle === WorkflowLifecycle.Running && hasRunningStep(workflow))
+        schedule(workflow.id)

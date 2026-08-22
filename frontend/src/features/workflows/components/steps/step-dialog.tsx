@@ -1,6 +1,7 @@
 import {StepStatusDialog} from '@/features/workflows/components/inspector/step-status-dialog'
 import {EditStepDialog} from '@/features/workflows/components/steps/edit-step-dialog'
 import {StepInputsDialog} from '@/features/workflows/components/steps/step-inputs-dialog'
+import {hasStarted, isLocked} from '@/features/workflows/graph'
 import type {Workflow, Step} from '@/features/workflows/types'
 import type {InputValue} from '@/features/roles/types'
 
@@ -25,7 +26,7 @@ export function StepDialog({
     onDelete: () => void
     onClose: () => void
 }) {
-    if (workflow.started)
+    if (hasStarted(workflow))
         return (
             <StepStatusDialog
                 workflow={workflow}
@@ -36,7 +37,7 @@ export function StepDialog({
             />
         )
 
-    if (workflow.locked)
+    if (isLocked(workflow))
         return (
             <StepInputsDialog
                 step={step}

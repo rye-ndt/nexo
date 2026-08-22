@@ -73,30 +73,12 @@ func (h WorkflowHalt) Park(s StepStatus) (StepStatus, bool) {
 type WorkflowEvent string
 
 const (
-	WorkflowCreated           WorkflowEvent = "workflow_created"
 	WorkflowDrained           WorkflowEvent = "workflow_drained"
 	WorkflowStepCreated       WorkflowEvent = "step_created"
 	WorkflowStepStatusChanged WorkflowEvent = "step_status_changed"
 	WorkflowStepResulted      WorkflowEvent = "step_reported"
 	WorkflowStepDropped       WorkflowEvent = "step_dropped"
 )
-
-var workflowEvents = []WorkflowEvent{
-	WorkflowCreated,
-	WorkflowDrained,
-	WorkflowStepCreated,
-	WorkflowStepStatusChanged,
-	WorkflowStepResulted,
-	WorkflowStepDropped,
-}
-
-func WorkflowEvents() []WorkflowEvent {
-	return slices.Clone(workflowEvents)
-}
-
-func (se WorkflowEvent) Event() string {
-	return string(se)
-}
 
 type WorkflowStatus string
 

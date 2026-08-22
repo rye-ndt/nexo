@@ -28,7 +28,7 @@ var (
 	stepReview  = uuid.MustParse("00000000-0000-7000-8000-000000000005")
 )
 
-type fakeWorkflowControl struct {
+type fakeControl struct {
 	mu        sync.Mutex
 	spec      *core_itf.ControlWorkflowSpec
 	started   []uuid.UUID
@@ -39,11 +39,51 @@ type fakeWorkflowControl struct {
 	err       error
 }
 
-func newFakeWorkflowControl() *fakeWorkflowControl {
-	return &fakeWorkflowControl{answered: map[uuid.UUID]bool{}}
+type fakeControlPort struct {
+	fake *fakeControl
 }
 
-func (c *fakeWorkflowControl) CreateWorkflow(spec *core_itf.ControlWorkflowSpec) (*core_itf.ControlWorkflowRef, error) {
+type fakeControlRunner struct {
+	fake *fakeControl
+}
+
+type fakeControlRoles struct {
+	core_itf.RoleManager
+	fake *fakeControl
+}
+
+type fakeControlWorkflows struct {
+	core_itf.WorkflowManager
+	fake *fakeControl
+}
+
+func newFakeControl() *fakeControl {
+	return &fakeControl{answered: map[uuid.UUID]bool{}}
+}
+
+func failingControl(err error) *fakeControl {
+	return &fakeControl{answered: map[uuid.UUID]bool{}, err: err}
+}
+
+func (c *fakeControl) ports() *core_itf.ControlPorts {
+	return &core_itf.ControlPorts{
+		Control:     &fakeControlPort{fake: c},
+		Workflows:   &fakeControlWorkflows{fake: c},
+		Coordinator: &fakeControlRunner{fake: c},
+		Roles:       &fakeControlRoles{fake: c},
+	}
+}
+
+func (c *fakeControl) createdSpec() *core_itf.ControlWorkflowSpec {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	return c.spec
+}
+
+func (p *fakeControlPort) CreateWorkflow(spec *core_itf.ControlWorkflowSpec) (*core_itf.ControlWorkflowRef, error) {
+	c := p.fake
+
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -61,7 +101,34 @@ func (c *fakeWorkflowControl) CreateWorkflow(spec *core_itf.ControlWorkflowSpec)
 	return &core_itf.ControlWorkflowRef{WorkflowID: workflowOne, StepIDs: ids}, nil
 }
 
-func (c *fakeWorkflowControl) StartWorkflow(workflowID uuid.UUID) error {
+func (p *fakeControlPort) ListWorkflows(limit int) ([]*core_itf.WorkflowStatus, error) {
+	c := p.fake
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.err != nil {
+		return nil, c.err
+	}
+
+	c.limit = limit
+
+	return []*core_itf.WorkflowStatus{
+		{
+			ID:             workflowOne,
+			Status:         enums.WorkflowCompleted,
+			ProjectDirPath: "/tmp/work",
+			Steps: map[uuid.UUID]*core_itf.StepResult{
+				stepExplore: {},
+				stepFix:     {},
+			},
+		},
+	}, nil
+}
+
+func (r *fakeControlRunner) Run(workflowID uuid.UUID) error {
+	c := r.fake
+
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -74,7 +141,9 @@ func (c *fakeWorkflowControl) StartWorkflow(workflowID uuid.UUID) error {
 	return nil
 }
 
-func (c *fakeWorkflowControl) PauseWorkflow(workflowID uuid.UUID) error {
+func (r *fakeControlRunner) Pause(workflowID uuid.UUID) error {
+	c := r.fake
+
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -87,7 +156,9 @@ func (c *fakeWorkflowControl) PauseWorkflow(workflowID uuid.UUID) error {
 	return nil
 }
 
-func (c *fakeWorkflowControl) CancelWorkflow(workflowID uuid.UUID) error {
+func (r *fakeControlRunner) Cancel(workflowID uuid.UUID) error {
+	c := r.fake
+
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -100,7 +171,19 @@ func (c *fakeWorkflowControl) CancelWorkflow(workflowID uuid.UUID) error {
 	return nil
 }
 
-func (c *fakeWorkflowControl) WorkflowState(workflowID uuid.UUID) (*core_itf.WorkflowStatus, error) {
+func (r *fakeControlRunner) RevertTo(_, _ uuid.UUID) error {
+	return nil
+}
+
+func (r *fakeControlRunner) DiscardRun(_ uuid.UUID) error {
+	return nil
+}
+
+func (r *fakeControlRunner) Stop() {}
+
+func (w *fakeControlWorkflows) Status(workflowID uuid.UUID) (*core_itf.WorkflowStatus, error) {
+	c := w.fake
+
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -126,30 +209,24 @@ func (c *fakeWorkflowControl) WorkflowState(workflowID uuid.UUID) (*core_itf.Wor
 	}, nil
 }
 
-func (c *fakeWorkflowControl) ListWorkflows(limit int) ([]*core_itf.WorkflowStatus, error) {
+func (w *fakeControlWorkflows) AnswerReview(stepID uuid.UUID, accepted bool) error {
+	c := w.fake
+
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	if c.err != nil {
-		return nil, c.err
+		return c.err
 	}
 
-	c.limit = limit
+	c.answered[stepID] = accepted
 
-	return []*core_itf.WorkflowStatus{
-		{
-			ID:             workflowOne,
-			Status:         enums.WorkflowCompleted,
-			ProjectDirPath: "/tmp/work",
-			Steps: map[uuid.UUID]*core_itf.StepResult{
-				stepExplore: {},
-				stepFix:     {},
-			},
-		},
-	}, nil
+	return nil
 }
 
-func (c *fakeWorkflowControl) ListRoles() ([]*core_itf.Role, error) {
+func (r *fakeControlRoles) List() ([]*core_itf.Role, error) {
+	c := r.fake
+
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -168,26 +245,6 @@ func (c *fakeWorkflowControl) ListRoles() ([]*core_itf.Role, error) {
 			},
 		},
 	}, nil
-}
-
-func (c *fakeWorkflowControl) AnswerReview(stepID uuid.UUID, accepted bool) error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	if c.err != nil {
-		return c.err
-	}
-
-	c.answered[stepID] = accepted
-
-	return nil
-}
-
-func (c *fakeWorkflowControl) createdSpec() *core_itf.ControlWorkflowSpec {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	return c.spec
 }
 
 type rpcAnswer struct {
@@ -270,7 +327,7 @@ func callControl(t *testing.T, srv *httptest.Server, token, method string, param
 
 func TestControlServerExposesEveryControlTool(t *testing.T) {
 	proxy := newTestProxy(t, newFakeMCPStore(), &fakeHttpCli{})
-	proxy.TrackWorkflowControl(newFakeWorkflowControl())
+	proxy.TrackWorkflowControl(newFakeControl().ports())
 
 	srv, _ := servedControl(t, proxy)
 
@@ -302,7 +359,7 @@ func TestControlServerExposesEveryControlTool(t *testing.T) {
 
 func TestControlEndpointRejectsTheHarnessGatewayToken(t *testing.T) {
 	proxy := newTestProxy(t, newFakeMCPStore(), &fakeHttpCli{})
-	proxy.TrackWorkflowControl(newFakeWorkflowControl())
+	proxy.TrackWorkflowControl(newFakeControl().ports())
 
 	srv, gateway := servedControl(t, proxy)
 
@@ -326,7 +383,7 @@ func TestControlEndpointRejectsTheHarnessGatewayToken(t *testing.T) {
 
 func TestControlToolsAreNotOfferedOnTheHarnessGateway(t *testing.T) {
 	proxy := newTestProxy(t, newFakeMCPStore(), &fakeHttpCli{})
-	proxy.TrackWorkflowControl(newFakeWorkflowControl())
+	proxy.TrackWorkflowControl(newFakeControl().ports())
 
 	_, gateway := servedControl(t, proxy)
 
@@ -339,8 +396,8 @@ func TestControlToolsAreNotOfferedOnTheHarnessGateway(t *testing.T) {
 
 func TestCreateWorkflowHandsTheParsedSpecToTheControlPort(t *testing.T) {
 	proxy := newTestProxy(t, newFakeMCPStore(), &fakeHttpCli{})
-	control := newFakeWorkflowControl()
-	proxy.TrackWorkflowControl(control)
+	control := newFakeControl()
+	proxy.TrackWorkflowControl(control.ports())
 
 	srv, _ := servedControl(t, proxy)
 
@@ -428,8 +485,8 @@ func TestCreateWorkflowHandsTheParsedSpecToTheControlPort(t *testing.T) {
 
 func TestCreateWorkflowIgnoresARetiredContextDirArgument(t *testing.T) {
 	proxy := newTestProxy(t, newFakeMCPStore(), &fakeHttpCli{})
-	control := newFakeWorkflowControl()
-	proxy.TrackWorkflowControl(control)
+	control := newFakeControl()
+	proxy.TrackWorkflowControl(control.ports())
 
 	srv, _ := servedControl(t, proxy)
 
@@ -455,8 +512,8 @@ func TestCreateWorkflowIgnoresARetiredContextDirArgument(t *testing.T) {
 
 func TestCreateWorkflowKeepsAnExplicitAutostartFalse(t *testing.T) {
 	proxy := newTestProxy(t, newFakeMCPStore(), &fakeHttpCli{})
-	control := newFakeWorkflowControl()
-	proxy.TrackWorkflowControl(control)
+	control := newFakeControl()
+	proxy.TrackWorkflowControl(control.ports())
 
 	arguments, err := json.Marshal(map[string]any{
 		"project_dir_path": "/tmp/work",
@@ -503,7 +560,7 @@ func TestControlToolsFailWhenNoWorkflowControlIsTracked(t *testing.T) {
 
 func TestControlToolsSurfaceThePortsErrorAsAToolError(t *testing.T) {
 	proxy := newTestProxy(t, newFakeMCPStore(), &fakeHttpCli{})
-	proxy.TrackWorkflowControl(&fakeWorkflowControl{err: errPortRefused, answered: map[uuid.UUID]bool{}})
+	proxy.TrackWorkflowControl(failingControl(errPortRefused).ports())
 
 	srv, _ := servedControl(t, proxy)
 
@@ -531,8 +588,8 @@ func TestControlToolsSurfaceThePortsErrorAsAToolError(t *testing.T) {
 
 func TestControlToolsReadTheWorkflowAndTheAcceptGate(t *testing.T) {
 	proxy := newTestProxy(t, newFakeMCPStore(), &fakeHttpCli{})
-	control := newFakeWorkflowControl()
-	proxy.TrackWorkflowControl(control)
+	control := newFakeControl()
+	proxy.TrackWorkflowControl(control.ports())
 
 	srv, _ := servedControl(t, proxy)
 
@@ -588,8 +645,8 @@ func TestControlToolsReadTheWorkflowAndTheAcceptGate(t *testing.T) {
 
 func TestListWorkflowsTakesNoArgumentsAtAll(t *testing.T) {
 	proxy := newTestProxy(t, newFakeMCPStore(), &fakeHttpCli{})
-	control := newFakeWorkflowControl()
-	proxy.TrackWorkflowControl(control)
+	control := newFakeControl()
+	proxy.TrackWorkflowControl(control.ports())
 
 	srv, _ := servedControl(t, proxy)
 
@@ -623,7 +680,7 @@ func TestListWorkflowsTakesNoArgumentsAtAll(t *testing.T) {
 
 func TestControlToolsRejectMalformedArguments(t *testing.T) {
 	proxy := newTestProxy(t, newFakeMCPStore(), &fakeHttpCli{})
-	proxy.TrackWorkflowControl(newFakeWorkflowControl())
+	proxy.TrackWorkflowControl(newFakeControl().ports())
 
 	result := proxy.callCreateWorkflow(json.RawMessage(`{"steps": "not an array"}`), uuid.Nil)
 

@@ -30,11 +30,5 @@ type ControlWorkflowRef struct {
 
 type WorkflowControl interface {
 	CreateWorkflow(spec *ControlWorkflowSpec) (*ControlWorkflowRef, error)
-	StartWorkflow(workflowID uuid.UUID) error
-	PauseWorkflow(workflowID uuid.UUID) error
-	CancelWorkflow(workflowID uuid.UUID) error
-	WorkflowState(workflowID uuid.UUID) (*WorkflowStatus, error)
 	ListWorkflows(limit int) ([]*WorkflowStatus, error)
-	ListRoles() ([]*Role, error)
-	AnswerReview(stepID uuid.UUID, accepted bool) error
 }

@@ -35,7 +35,7 @@ import {
     ORIGIN,
 } from '@/features/workflows/components/canvas/view'
 import {useRoles} from '@/features/roles/use-roles'
-import {createsCycle, unlinkableFrom, unlinkableInto} from '@/features/workflows/graph'
+import {createsCycle, isLocked, unlinkableFrom, unlinkableInto} from '@/features/workflows/graph'
 import type {StepNodeType} from '@/features/workflows/components/canvas/step-card'
 import type {Point, Workflow} from '@/features/workflows/types'
 
@@ -90,7 +90,7 @@ function Canvas({
     const gestures = useStepGestures(workflow.steps, onMoveStep)
     const {hoveredEdgeId, hold, release} = useEdgeHover()
 
-    const locked = workflow.locked
+    const locked = isLocked(workflow)
 
     const unlinkable = useMemo(() => {
         if (!connectingFrom) return null

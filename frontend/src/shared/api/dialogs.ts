@@ -37,14 +37,16 @@ export function registerPathChooser(next: PathChooser | null) {
     standIn = next
 }
 
+const native = hasWailsRuntime()
+
 /** True when the OS dialogs answer these, so the stand-in never needs to mount. */
 export function hasNativePathPicker() {
-    return hasWailsRuntime()
+    return native
 }
 
 /** Resolves to the chosen absolute path, or an empty string if the user cancels. */
 async function choosePath(request: PathRequest): Promise<string> {
-    if (hasNativePathPicker()) {
+    if (native) {
         if (request.kind === 'directory') return ChooseDirectory(request.title)
         if (request.kind === 'file') return ChooseFile(request.title, request.pattern)
 

@@ -71,7 +71,6 @@ type agentProc struct {
 	cmd       *exec.Cmd
 	stdin     io.WriteCloser
 	stdout    io.ReadCloser
-	out       chan string
 	done      chan struct{}
 	exited    chan struct{}
 	stopOnce  sync.Once
@@ -102,7 +101,6 @@ func newAgentProc(cmd *exec.Cmd, stdin io.WriteCloser, stdout io.ReadCloser, ctx
 		cmd:       cmd,
 		stdin:     stdin,
 		stdout:    stdout,
-		out:       make(chan string, 64),
 		done:      make(chan struct{}),
 		exited:    make(chan struct{}),
 		ctxWindow: ctxWindow,
@@ -287,12 +285,6 @@ func (p *agentProc) read() {
 		p.lastOut.Store(helpers.NewUTCUnix())
 		line := scanner.Bytes()
 		p.track(line)
-
-		select {
-		case p.out <- scanner.Text():
-		case <-p.done:
-		default:
-		}
 	}
 }
 

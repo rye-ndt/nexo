@@ -6,7 +6,7 @@ import {
     ContextMenuLabel,
     ContextMenuSeparator,
 } from '@/shared/ui/context-menu'
-import {findStep} from '@/features/workflows/graph'
+import {findStep, isLocked} from '@/features/workflows/graph'
 import {t} from '@/shared/lib/i18n'
 import type {Point, Workflow} from '@/features/workflows/types'
 
@@ -34,7 +34,7 @@ export function CanvasMenu({
     onNewStep: (at: Point) => void
     onFitView: () => void
 }) {
-    const locked = workflow.locked
+    const locked = isLocked(workflow)
 
     if (target.kind === 'pane')
         return (

@@ -397,13 +397,7 @@ func roleInfo(role *core_itf.Role) *output_itf.RoleInfo {
 	inputs := map[string]*output_itf.RoleInputInfo{}
 
 	for key, input := range role.Inputs {
-		inputs[key] = &output_itf.RoleInputInfo{
-			Description: input.Description,
-			Required:    input.Required,
-			Type:        input.Type,
-			Default:     input.Default,
-			Options:     input.Options,
-		}
+		inputs[key] = (*output_itf.RoleInputInfo)(input)
 	}
 
 	return &output_itf.RoleInfo{
@@ -790,10 +784,6 @@ func fileChangeInfos(changes []*input_itf.FileChange) []*output_itf.FileChangeIn
 	return infos
 }
 
-func (a *API) RetryWorkflowStep(stepID string) error {
-	return withID(idStep, stepID, a.workflows.RetryStep)
-}
-
 func (a *API) AnswerStepReview(stepID string, accepted bool) error {
 	return withID(idStep, stepID, func(parsed uuid.UUID) error {
 		return a.workflows.AnswerReview(parsed, accepted)
@@ -944,7 +934,7 @@ func (a *API) stepCost(model enums.ModelName, spent *input_itf.ContextUsage) (fl
 func (a *API) workflowStepInfo(stepID uuid.UUID, report *core_itf.StepResult) *output_itf.WorkflowStepInfo {
 	info := &output_itf.WorkflowStepInfo{
 		StepID:   stepID.String(),
-		Handoffs: []*output_itf.HandoffInfo{},
+		Handoffs: []*core_itf.Handoff{},
 		Activity: []*output_itf.StepActivityInfo{},
 	}
 
@@ -962,9 +952,7 @@ func (a *API) workflowStepInfo(stepID uuid.UUID, report *core_itf.StepResult) *o
 		info.AgentID = report.AgentID.String()
 	}
 
-	for _, doc := range report.Handoffs {
-		info.Handoffs = append(info.Handoffs, handoffInfo(doc))
-	}
+	info.Handoffs = append(info.Handoffs, report.Handoffs...)
 
 	for _, line := range report.Activity {
 		info.Activity = append(info.Activity, &output_itf.StepActivityInfo{
@@ -975,24 +963,4 @@ func (a *API) workflowStepInfo(stepID uuid.UUID, report *core_itf.StepResult) *o
 	}
 
 	return info
-}
-
-func handoffInfo(doc *core_itf.Handoff) *output_itf.HandoffInfo {
-	if doc == nil {
-		return nil
-	}
-
-	return &output_itf.HandoffInfo{
-		Step:              doc.Step,
-		TLDR:              doc.TLDR,
-		Outcome:           doc.Outcome,
-		Blockers:          doc.Blockers,
-		ApprovedDecisions: doc.ApprovedDecisions,
-		RejectedDecisions: doc.RejectedDecisions,
-		CurrentBehaviors:  doc.CurrentBehaviors,
-		ChangedBehaviors:  doc.ChangedBehaviors,
-		MustAvoid:         doc.MustAvoid,
-		Nuances:           doc.Nuances,
-		KnownGaps:         doc.KnownGaps,
-	}
 }

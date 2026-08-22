@@ -10,7 +10,7 @@ import {
     SheetTitle,
     SheetTrigger,
 } from '@/shared/ui/sheet'
-import {workflowProgress} from '@/features/workflows/graph'
+import {isLocked, workflowProgress} from '@/features/workflows/graph'
 import {useToggle} from '@/shared/hooks/use-toggle'
 import type {WorkflowAction, WorkflowActionHandlers} from '@/features/workflows/workflow-actions'
 import {cn} from '@/shared/lib/utils'
@@ -128,7 +128,7 @@ function MenuAction({
 
 function WorkflowLocations({workflow, onEdit}: {workflow: Workflow; onEdit: () => void}) {
     if (!workflow.projectDir) {
-        if (workflow.locked)
+        if (isLocked(workflow))
             return (
                 <span className="flex flex-col gap-2 px-3 py-2">
                     <span className="micro-label">{t('canvas.sheet.projectDir')}</span>
@@ -159,7 +159,7 @@ function WorkflowLocations({workflow, onEdit}: {workflow: Workflow; onEdit: () =
         </>
     )
 
-    if (workflow.locked) return <span className="flex flex-col gap-2 px-3 py-2">{body}</span>
+    if (isLocked(workflow)) return <span className="flex flex-col gap-2 px-3 py-2">{body}</span>
 
     return (
         <button

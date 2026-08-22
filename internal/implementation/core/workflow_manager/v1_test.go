@@ -7,10 +7,8 @@ import (
 	"time"
 
 	"hexago/internal/helpers/enums"
-	"hexago/internal/implementation/output/message_queue"
 	core_itf "hexago/internal/interface/core"
 	input_itf "hexago/internal/interface/input"
-	output_itf "hexago/internal/interface/output"
 
 	"github.com/google/uuid"
 )
@@ -136,40 +134,22 @@ func (s *fakeStore) lastReportFor(stepID uuid.UUID) *input_itf.StepResultEntity 
 	return report
 }
 
-type fakeMQ struct{}
-
-func (fakeMQ) Emit(uuid.UUID, output_itf.MQEvent, any) error { return nil }
-
-func (fakeMQ) Subscribe(uuid.UUID, output_itf.MQEvent) (<-chan any, error) {
-	return make(chan any), nil
-}
-
-func (fakeMQ) Unsubscribe(uuid.UUID, output_itf.MQEvent) error {
-	return nil
-}
-
 func newManager(t *testing.T) (core_itf.WorkflowManager, *fakeStore) {
-	t.Helper()
-
-	return newManagerWith(t, fakeMQ{})
-}
-
-func newManagerWith(t *testing.T, mq output_itf.MessageQ) (core_itf.WorkflowManager, *fakeStore) {
 	t.Helper()
 
 	store := &fakeStore{}
 
-	return managerOver(t, store, mq), store
+	return managerOver(t, store), store
 }
 
-func managerOver(t *testing.T, store *fakeStore, mq output_itf.MessageQ) core_itf.WorkflowManager {
+func managerOver(t *testing.T, store *fakeStore) core_itf.WorkflowManager {
 	t.Helper()
 
 	manager, err := InitV1(&input_itf.WorkflowConfig{
 		HeartbeatTimeout:       30 * time.Minute,
 		HeartbeatScanInterval:  time.Minute,
 		AgentHeartbeatInterval: time.Minute,
-	}, store, mq)
+	}, store)
 	if err != nil {
 		t.Fatalf("init workflow manager: %v", err)
 	}
@@ -182,7 +162,7 @@ func managerOver(t *testing.T, store *fakeStore, mq output_itf.MessageQ) core_it
 func restoredManager(t *testing.T, store *fakeStore) core_itf.WorkflowManager {
 	t.Helper()
 
-	manager := managerOver(t, store, fakeMQ{})
+	manager := managerOver(t, store)
 
 	if err := manager.Restore(); err != nil {
 		t.Fatalf("restore: %v", err)
@@ -565,29 +545,6 @@ func TestCancelledWorkflowRunsAgainFromTheRewindPoint(t *testing.T) {
 	}
 }
 
-func TestCancelledWorkflowTakesARetriedStepAgain(t *testing.T) {
-	manager, _ := newManager(t)
-	workflow := newWorkflow(t, manager)
-
-	step := addStep(t, manager, workflow, "implement", false)
-
-	if _, err := manager.Cancel(workflow); err != nil {
-		t.Fatalf("cancel: %v", err)
-	}
-
-	if err := manager.RetryStep(step); err != nil {
-		t.Fatalf("retry: %v", err)
-	}
-
-	if ready := readyIDs(t, manager, workflow); !ready[step] {
-		t.Fatal("a retried step stayed unschedulable after the workflow was cancelled")
-	}
-
-	if err := manager.Assign(step, uuid.New()); err != nil {
-		t.Fatalf("assign after a cancel and retry: %v", err)
-	}
-}
-
 func TestCancelledWorkflowTakesWorkAgainOnTheNextRun(t *testing.T) {
 	manager, _ := newManager(t)
 	workflow := newWorkflow(t, manager)
@@ -866,7 +823,7 @@ func TestRestoreTwiceChangesNothing(t *testing.T) {
 }
 
 func TestExecuteAgainReplacesTheProgressStream(t *testing.T) {
-	manager, _ := newManagerWith(t, message_queue.InitV1())
+	manager, _ := newManager(t)
 	workflow := newWorkflow(t, manager)
 
 	retired, err := manager.Execute(workflow)

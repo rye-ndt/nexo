@@ -65,20 +65,6 @@ type RunWorkflowResult struct {
 	StepIDs    map[string]string `json:"step_ids"`
 }
 
-type HandoffInfo struct {
-	Step              string            `json:"step"`
-	TLDR              string            `json:"tldr"`
-	Outcome           string            `json:"outcome"`
-	Blockers          map[string]string `json:"blockers"`
-	ApprovedDecisions map[string]string `json:"approved_decisions"`
-	RejectedDecisions map[string]string `json:"rejected_decisions"`
-	CurrentBehaviors  map[string]string `json:"current_behaviors"`
-	ChangedBehaviors  map[string]string `json:"changed_behaviors"`
-	MustAvoid         map[string]string `json:"must_avoid"`
-	Nuances           map[string]string `json:"nuances"`
-	KnownGaps         map[string]string `json:"known_gaps"`
-}
-
 type FileChangeInfo struct {
 	Path        string `json:"path"`
 	OldPath     string `json:"old_path"`
@@ -102,7 +88,7 @@ type WorkflowStepInfo struct {
 	AgentID      string                  `json:"agent_id"`
 	Effort       string                  `json:"effort"`
 	Status       string                  `json:"status"`
-	Handoffs     []*HandoffInfo          `json:"handoffs"`
+	Handoffs     []*core_itf.Handoff     `json:"handoffs"`
 	ContextUsage *input_itf.ContextUsage `json:"context_usage"`
 	Spent        *input_itf.ContextUsage `json:"spent"`
 	CostUSD      float64                 `json:"cost_usd"`

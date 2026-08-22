@@ -15,7 +15,6 @@ import (
 	"hexago/internal/helpers/enums"
 	core_itf "hexago/internal/interface/core"
 	input_itf "hexago/internal/interface/input"
-	output_itf "hexago/internal/interface/output"
 
 	"github.com/google/uuid"
 )
@@ -44,20 +43,19 @@ type workflowMetadata struct {
 	stepIDToReport  map[uuid.UUID]*core_itf.StepResult
 	spentByStep     map[uuid.UUID]input_itf.ContextUsage
 	halt            enums.WorkflowHalt
-	run             chan struct{}
+	run             chan *core_itf.WorkflowProgress
 }
 
 type v1 struct {
 	locker    sync.Mutex
 	cfg       *input_itf.WorkflowConfig
 	db        input_itf.StepStorage
-	mq        output_itf.MessageQ
 	live      core_itf.LiveAgentReader
 	workflows map[uuid.UUID]*workflowMetadata
 	stop      chan struct{}
 }
 
-func InitV1(cfg *input_itf.WorkflowConfig, db input_itf.StepStorage, mq output_itf.MessageQ) (core_itf.WorkflowManager, error) {
+func InitV1(cfg *input_itf.WorkflowConfig, db input_itf.StepStorage) (core_itf.WorkflowManager, error) {
 	if err := helpers.ValidateStruct(cfg); err != nil {
 		return nil, custom_error.Critical("invalid workflow manager config: %v", err)
 	}
@@ -65,7 +63,6 @@ func InitV1(cfg *input_itf.WorkflowConfig, db input_itf.StepStorage, mq output_i
 	s := &v1{
 		cfg:       cfg,
 		db:        db,
-		mq:        mq,
 		workflows: map[uuid.UUID]*workflowMetadata{},
 		stop:      make(chan struct{}),
 	}
@@ -77,6 +74,18 @@ func InitV1(cfg *input_itf.WorkflowConfig, db input_itf.StepStorage, mq output_i
 
 func (s *v1) Stop() {
 	close(s.stop)
+
+	s.locker.Lock()
+	defer s.locker.Unlock()
+
+	for _, workflow := range s.workflows {
+		if workflow.run == nil {
+			continue
+		}
+
+		close(workflow.run)
+		workflow.run = nil
+	}
 }
 
 func (s *v1) TrackLiveAgents(reader core_itf.LiveAgentReader) {
@@ -208,7 +217,20 @@ func firstErr(errs ...error) error {
 }
 
 func (s *v1) publish(progress *core_itf.WorkflowProgress) error {
-	return s.mq.Emit(progress.WorkflowID, progress.Event, progress)
+	s.locker.Lock()
+	defer s.locker.Unlock()
+
+	workflow, found := s.workflows[progress.WorkflowID]
+	if !found || workflow.run == nil {
+		return nil
+	}
+
+	select {
+	case workflow.run <- progress:
+		return nil
+	default:
+		return custom_error.Bypass("event %s of workflow %v dropped, channel is full", progress.Event, progress.WorkflowID)
+	}
 }
 
 func (s *v1) NewWorkflow(p *core_itf.InitWorkflow) (uuid.UUID, error) {
@@ -364,31 +386,6 @@ func (s *v1) Assign(stepID, agentID uuid.UUID) error {
 	}
 
 	return s.commit(c, "step assignment")
-}
-
-func (s *v1) RetryStep(stepID uuid.UUID) error {
-	c, err := s.editStep(stepID, uuid.Nil, enums.WorkflowStepStatusChanged,
-		func(workflow *workflowMetadata, step *input_itf.StepEntity) (func(), error) {
-			if !step.Status.Takeable() {
-				return nil, custom_error.Critical("step %v is %s and cannot be retried", stepID, step.Status)
-			}
-
-			step.Status = enums.StepNotTaken
-			workflow.info.CompletedAt = time.Time{}
-
-			return nil, nil
-		})
-	if err != nil {
-		return err
-	}
-
-	if err := s.commit(c, "step retry"); err != nil {
-		return err
-	}
-
-	s.resume(c.workflow)
-
-	return nil
 }
 
 func (s *v1) RewindTo(stepID uuid.UUID) error {
@@ -971,51 +968,18 @@ func (s *v1) Execute(workflowID uuid.UUID) (<-chan *core_itf.WorkflowProgress, e
 		return nil, custom_error.Critical("workflow %v not found", workflowID)
 	}
 
-	s.retireRun(workflowID, workflow)
-
-	events := enums.WorkflowEvents()
-	streams := make([]<-chan any, 0, len(events))
-
-	for i, event := range events {
-		stream, err := s.mq.Subscribe(workflowID, event)
-		if err != nil {
-			for _, subscribed := range events[:i] {
-				s.mq.Unsubscribe(workflowID, subscribed)
-			}
-
-			return nil, custom_error.Critical("cannot watch workflow %v: %v", workflowID, err)
-		}
-
-		streams = append(streams, stream)
-	}
-
+	s.retireRun(workflow)
 	s.resume(workflow)
 
 	running := s.beginRun(workflow)
-
-	out := make(chan *core_itf.WorkflowProgress, progressBufferSize)
-
-	wg := sync.WaitGroup{}
-
-	for _, stream := range streams {
-		wg.Add(1)
-
-		go func(stream <-chan any) {
-			defer wg.Done()
-
-			s.forward(stream, out, running)
-		}(stream)
+	if running == nil {
+		return nil, custom_error.Critical("workflow manager is stopped")
 	}
 
-	go func() {
-		wg.Wait()
-		close(out)
-	}()
-
-	return out, nil
+	return running, nil
 }
 
-func (s *v1) retireRun(workflowID uuid.UUID, workflow *workflowMetadata) {
+func (s *v1) retireRun(workflow *workflowMetadata) {
 	s.locker.Lock()
 	running := workflow.run
 	workflow.run = nil
@@ -1026,47 +990,21 @@ func (s *v1) retireRun(workflowID uuid.UUID, workflow *workflowMetadata) {
 	}
 
 	close(running)
-
-	for _, event := range enums.WorkflowEvents() {
-		s.mq.Unsubscribe(workflowID, event)
-	}
 }
 
-func (s *v1) beginRun(workflow *workflowMetadata) <-chan struct{} {
+func (s *v1) beginRun(workflow *workflowMetadata) <-chan *core_itf.WorkflowProgress {
 	s.locker.Lock()
 	defer s.locker.Unlock()
 
-	workflow.run = make(chan struct{})
+	select {
+	case <-s.stop:
+		return nil
+	default:
+	}
+
+	workflow.run = make(chan *core_itf.WorkflowProgress, progressBufferSize)
 
 	return workflow.run
-}
-
-func (s *v1) forward(stream <-chan any, out chan<- *core_itf.WorkflowProgress, running <-chan struct{}) {
-	for {
-		select {
-		case <-s.stop:
-			return
-		case <-running:
-			return
-		case data, open := <-stream:
-			if !open {
-				return
-			}
-
-			progress, ok := data.(*core_itf.WorkflowProgress)
-			if !ok {
-				continue
-			}
-
-			select {
-			case out <- progress:
-			case <-running:
-				return
-			case <-s.stop:
-				return
-			}
-		}
-	}
 }
 
 func (s *v1) HeartBeat(agentID uuid.UUID) error {

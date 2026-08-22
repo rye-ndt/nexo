@@ -1,6 +1,7 @@
 import {Folder, FolderOpen} from 'lucide-react'
 
 import {Tooltip, TooltipContent, TooltipTrigger} from '@/shared/ui/tooltip'
+import {isLocked} from '@/features/workflows/graph'
 import {t} from '@/shared/lib/i18n'
 import type {Workflow} from '@/features/workflows/types'
 
@@ -8,7 +9,7 @@ const WIDTH = 'hidden min-w-0 shrink lg:max-w-40 xl:max-w-72'
 
 export function WorkflowDirectories({workflow, onEdit}: {workflow: Workflow; onEdit: () => void}) {
     if (!workflow.projectDir) {
-        if (workflow.locked)
+        if (isLocked(workflow))
             return (
                 <span className={`${WIDTH} truncate text-sm text-muted-foreground lg:block`}>
                     {t('canvas.dirs.none')}
@@ -32,7 +33,7 @@ export function WorkflowDirectories({workflow, onEdit}: {workflow: Workflow; onE
         )
     }
 
-    if (workflow.locked)
+    if (isLocked(workflow))
         return (
             <span className={`${WIDTH} truncate font-mono text-sm text-muted-foreground lg:block`}>
                 {workflow.projectDir}

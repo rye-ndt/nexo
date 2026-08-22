@@ -29,7 +29,6 @@ import (
 	"hexago/internal/implementation/output/app_builder"
 	wails_api "hexago/internal/implementation/output/fe_api"
 	"hexago/internal/implementation/output/logger"
-	"hexago/internal/implementation/output/message_queue"
 	"hexago/internal/implementation/output/user_config"
 	core_itf "hexago/internal/interface/core"
 	input_itf "hexago/internal/interface/input"
@@ -86,7 +85,7 @@ func wire(assets fs.FS) (*App, error) {
 		return nil, err
 	}
 
-	workflowManager, err := workflow_manager.InitV1(cfg.Read().Workflow, store.StepStore(), message_queue.InitV1())
+	workflowManager, err := workflow_manager.InitV1(cfg.Read().Workflow, store.StepStore())
 	if err != nil {
 		return nil, err
 	}
@@ -176,7 +175,12 @@ func wire(assets fs.FS) (*App, error) {
 		return nil, err
 	}
 
-	mcpProxy.TrackWorkflowControl(workflowControl)
+	mcpProxy.TrackWorkflowControl(&core_itf.ControlPorts{
+		Control:     workflowControl,
+		Workflows:   workflowManager,
+		Coordinator: workflowCoordinator,
+		Roles:       roleManager,
+	})
 
 	feAPI := wails_api.New(&wails_api.Deps{
 		AgentManager:    agentManager,

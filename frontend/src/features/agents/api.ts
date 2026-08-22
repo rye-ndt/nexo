@@ -32,56 +32,82 @@ const INSTALL_PROGRESS_EVENT = 'harness:install:progress'
 
 type ProgressListener = (agentId: string, progress: InstallProgress) => void
 
-const localListeners = new Set<ProgressListener>()
-
-export async function listAgents(): Promise<Agent[]> {
-    if (!hasWailsRuntime()) return mockListAgents()
-
-    const infos = await bridge(AgentStatuses)
-
-    return infos.map(({id, status}) => ({
-        id,
-        name: status?.name || formatAgentName(id),
-        version: status?.version ?? '',
-        installed: status?.installed ?? false,
-        loggedIn: status?.logged_in ?? false,
-        instanceCount: status?.instance_count ?? 0,
-    }))
+type AgentsBackend = {
+    list(): Promise<Agent[]>
+    install(agentId: string): Promise<void>
+    uninstall(agentId: string): Promise<void>
+    startLogin(agentId: string): Promise<string>
+    logout(agentId: string): Promise<void>
+    submitAuthCode(agentId: string, code: string): Promise<void>
 }
 
-export async function installAgent(agentId: string): Promise<void> {
-    if (!hasWailsRuntime()) {
+const localListeners = new Set<ProgressListener>()
+
+const wailsAgents: AgentsBackend = {
+    list: async () => {
+        const infos = await bridge(AgentStatuses)
+
+        return infos.map(({id, status}) => ({
+            id,
+            name: status?.name || formatAgentName(id),
+            version: status?.version ?? '',
+            installed: status?.installed ?? false,
+            loggedIn: status?.logged_in ?? false,
+            instanceCount: status?.instance_count ?? 0,
+        }))
+    },
+    install: async (agentId) => {
+        await bridge(() => InstallAgent(agentId))
+    },
+    uninstall: async (agentId) => {
+        await bridge(() => UninstallAgent(agentId))
+    },
+    startLogin: async (agentId) => bridge(() => AuthAgent(agentId)),
+    logout: async (agentId) => {
+        await bridge(() => LogoutAgent(agentId))
+    },
+    submitAuthCode: async (agentId, code) => {
+        await bridge(() => SubmitAuthCode(agentId, code))
+    },
+}
+
+const mockAgents: AgentsBackend = {
+    list: mockListAgents,
+    install: async (agentId) => {
         await mockInstallAgent(agentId, (progress) => {
             for (const listener of localListeners) listener(agentId, progress)
         })
-        return
-    }
+    },
+    uninstall: mockUninstallAgent,
+    startLogin: mockStartLogin,
+    logout: mockLogoutAgent,
+    submitAuthCode: mockSubmitAuthCode,
+}
 
-    await bridge(() => InstallAgent(agentId))
+const backend: AgentsBackend = hasWailsRuntime() ? wailsAgents : mockAgents
+
+export async function listAgents(): Promise<Agent[]> {
+    return backend.list()
+}
+
+export async function installAgent(agentId: string): Promise<void> {
+    return backend.install(agentId)
 }
 
 export async function uninstallAgent(agentId: string): Promise<void> {
-    if (!hasWailsRuntime()) return mockUninstallAgent(agentId)
-
-    await bridge(() => UninstallAgent(agentId))
+    return backend.uninstall(agentId)
 }
 
 export async function startAgentLogin(agentId: string): Promise<string> {
-    if (!hasWailsRuntime()) return mockStartLogin(agentId)
-
-    return bridge(() => AuthAgent(agentId))
+    return backend.startLogin(agentId)
 }
 
 export async function logoutAgent(agentId: string): Promise<void> {
-    if (!hasWailsRuntime()) return mockLogoutAgent(agentId)
-
-    await bridge(() => LogoutAgent(agentId))
+    return backend.logout(agentId)
 }
 
 export async function submitAgentAuthCode(agentId: string, code: string): Promise<void> {
-    if (!hasWailsRuntime()) return mockSubmitAuthCode(agentId, code)
-
-    await bridge(() => SubmitAuthCode(agentId, code))
+    return backend.submitAuthCode(agentId, code)
 }
 
 export function onInstallProgress(listener: ProgressListener): () => void {

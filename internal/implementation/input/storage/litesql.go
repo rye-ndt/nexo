@@ -29,152 +29,74 @@ var migrations = []string{
 		platform TEXT NOT NULL,
 		path TEXT NOT NULL
 	)`,
-	`CREATE TABLE sessions (
+	`CREATE TABLE workflows (
 		id TEXT PRIMARY KEY,
 		started_at TEXT NOT NULL,
 		completed_at TEXT NOT NULL,
-		total_task INTEGER NOT NULL,
+		total_step INTEGER NOT NULL,
 		total_retry INTEGER NOT NULL,
-		revert_count INTEGER NOT NULL,
 		created_at TEXT NOT NULL,
-		updated_at TEXT NOT NULL
+		updated_at TEXT NOT NULL,
+		project_dir_path TEXT NOT NULL DEFAULT ''
 	)`,
-	`CREATE TABLE tasks (
+	`CREATE TABLE steps (
 		id TEXT PRIMARY KEY,
-		session_id TEXT NOT NULL,
+		workflow_id TEXT NOT NULL,
 		name TEXT NOT NULL,
-		agent_role TEXT NOT NULL,
-		preferred_model_family TEXT NOT NULL,
-		file_write_allowance TEXT NOT NULL,
-		allowed_file_paths TEXT NOT NULL,
-		template_file_paths TEXT NOT NULL,
+		preferred_model TEXT NOT NULL,
 		extra_guidance TEXT NOT NULL,
 		retry_count INTEGER NOT NULL,
 		status TEXT NOT NULL,
-		prev_task_id TEXT NOT NULL,
-		next_task_id TEXT NOT NULL,
-		children_task_ids TEXT NOT NULL,
 		last_report_id TEXT NOT NULL,
 		created_at TEXT NOT NULL,
-		updated_at TEXT NOT NULL
+		updated_at TEXT NOT NULL,
+		thinking_level TEXT NOT NULL DEFAULT '',
+		instructions TEXT NOT NULL DEFAULT '[]',
+		auto_retry INTEGER NOT NULL DEFAULT 0,
+		depends_on_step_ids TEXT NOT NULL DEFAULT '[]',
+		pause_for_review INTEGER NOT NULL DEFAULT 0,
+		effort TEXT NOT NULL DEFAULT ''
 	)`,
-	`CREATE TABLE task_reports (
+	`CREATE TABLE step_results (
 		id TEXT PRIMARY KEY,
-		task_id TEXT NOT NULL,
+		step_id TEXT NOT NULL,
 		agent_id TEXT NOT NULL,
 		attempt_status TEXT NOT NULL,
-		handover_doc TEXT NOT NULL,
+		handoff TEXT NOT NULL,
 		started_at TEXT NOT NULL,
 		completed_at TEXT NOT NULL,
 		created_at TEXT NOT NULL,
-		updated_at TEXT NOT NULL
-	)`,
-	`CREATE TABLE file_changes (
-		id TEXT PRIMARY KEY,
-		report_id TEXT NOT NULL,
-		path TEXT NOT NULL,
-		old_path TEXT NOT NULL,
-		change_type TEXT NOT NULL,
-		additions INTEGER NOT NULL,
-		deletions INTEGER NOT NULL,
-		unified_diff TEXT NOT NULL
+		updated_at TEXT NOT NULL,
+		context_usage TEXT NOT NULL DEFAULT ''
 	)`,
 	`CREATE TABLE mcp_credentials (
 		name TEXT PRIMARY KEY,
 		client_id TEXT NOT NULL,
 		token_endpoint TEXT NOT NULL,
 		encrypted_oauth_key TEXT NOT NULL,
-		encrypted_refresh_key TEXT NOT NULL,
 		expired_at TEXT NOT NULL,
 		created_at TEXT NOT NULL,
-		updated_at TEXT NOT NULL
+		updated_at TEXT NOT NULL,
+		account TEXT NOT NULL DEFAULT ''
 	)`,
-	`ALTER TABLE tasks RENAME COLUMN preferred_model_family TO preferred_model`,
-	`ALTER TABLE tasks ADD COLUMN thinking_level TEXT NOT NULL DEFAULT ''`,
-	`ALTER TABLE tasks ADD COLUMN system_prompts TEXT NOT NULL DEFAULT '[]'`,
-	`ALTER TABLE tasks ADD COLUMN auto_retry INTEGER NOT NULL DEFAULT 0`,
-	`CREATE TABLE agent_templates (
+	`CREATE TABLE roles (
 		id TEXT PRIMARY KEY,
 		name TEXT NOT NULL,
-		role TEXT NOT NULL,
-		task_level TEXT NOT NULL,
+		description TEXT NOT NULL,
+		effort TEXT NOT NULL,
 		retryable INTEGER NOT NULL,
-		params TEXT NOT NULL,
-		system_prompts TEXT NOT NULL,
+		inputs TEXT NOT NULL,
+		instructions TEXT NOT NULL,
 		created_at TEXT NOT NULL,
-		updated_at TEXT NOT NULL
+		updated_at TEXT NOT NULL,
+		pause_for_review INTEGER NOT NULL DEFAULT 0,
+		output_structure TEXT NOT NULL DEFAULT ''
 	)`,
-	`ALTER TABLE sessions ADD COLUMN working_dir_path TEXT NOT NULL DEFAULT ''`,
-	`ALTER TABLE sessions ADD COLUMN context_dir_path TEXT NOT NULL DEFAULT ''`,
-	`ALTER TABLE tasks ADD COLUMN depends_on_task_ids TEXT NOT NULL DEFAULT '[]'`,
-	`CREATE TABLE session_drafts (
+	`CREATE TABLE workflow_drafts (
 		id TEXT PRIMARY KEY,
 		doc TEXT NOT NULL,
 		updated_at TEXT NOT NULL
 	)`,
-	`ALTER TABLE agent_templates ADD COLUMN manual_accept_required INTEGER NOT NULL DEFAULT 0`,
-	`ALTER TABLE tasks ADD COLUMN manual_accept_required INTEGER NOT NULL DEFAULT 0`,
-	`ALTER TABLE task_reports ADD COLUMN snapshot_id TEXT NOT NULL DEFAULT ''`,
-	`ALTER TABLE mcp_credentials ADD COLUMN account TEXT NOT NULL DEFAULT ''`,
-	`ALTER TABLE task_reports ADD COLUMN context_usage TEXT NOT NULL DEFAULT ''`,
-	`ALTER TABLE tasks DROP COLUMN prev_task_id`,
-	`ALTER TABLE tasks DROP COLUMN next_task_id`,
-	`ALTER TABLE tasks DROP COLUMN children_task_ids`,
-	`ALTER TABLE tasks DROP COLUMN template_file_paths`,
-	`ALTER TABLE task_reports DROP COLUMN snapshot_id`,
-	`ALTER TABLE sessions DROP COLUMN revert_count`,
-	`DROP TABLE IF EXISTS file_changes`,
-	`ALTER TABLE tasks DROP COLUMN agent_role`,
-	`ALTER TABLE tasks DROP COLUMN file_write_allowance`,
-	`ALTER TABLE tasks DROP COLUMN allowed_file_paths`,
-	`ALTER TABLE mcp_credentials DROP COLUMN encrypted_refresh_key`,
-	`ALTER TABLE agent_templates ADD COLUMN output_structure TEXT NOT NULL DEFAULT ''`,
-	`ALTER TABLE tasks ADD COLUMN task_level TEXT NOT NULL DEFAULT ''`,
-	`ALTER TABLE sessions RENAME TO workflows`,
-	`ALTER TABLE tasks RENAME TO steps`,
-	`ALTER TABLE task_reports RENAME TO step_results`,
-	`ALTER TABLE agent_templates RENAME TO roles`,
-	`ALTER TABLE session_drafts RENAME TO workflow_drafts`,
-	`ALTER TABLE workflows RENAME COLUMN total_task TO total_step`,
-	`ALTER TABLE workflows RENAME COLUMN working_dir_path TO project_dir_path`,
-	`ALTER TABLE steps RENAME COLUMN session_id TO workflow_id`,
-	`ALTER TABLE steps RENAME COLUMN depends_on_task_ids TO depends_on_step_ids`,
-	`ALTER TABLE steps RENAME COLUMN manual_accept_required TO pause_for_review`,
-	`ALTER TABLE steps RENAME COLUMN task_level TO effort`,
-	`ALTER TABLE step_results RENAME COLUMN task_id TO step_id`,
-	`ALTER TABLE step_results RENAME COLUMN handover_doc TO handoff`,
-	`ALTER TABLE roles RENAME COLUMN role TO description`,
-	`ALTER TABLE roles RENAME COLUMN task_level TO effort`,
-	`ALTER TABLE roles RENAME COLUMN manual_accept_required TO pause_for_review`,
-	`UPDATE steps SET effort = 'quick' WHERE effort = 'lightweight_task'`,
-	`UPDATE steps SET effort = 'standard' WHERE effort = 'daily_task'`,
-	`UPDATE steps SET effort = 'deep' WHERE effort = 'heavy_task'`,
-	`UPDATE steps SET effort = 'exhaustive' WHERE effort = 'maximum_effort_task'`,
-	`UPDATE roles SET effort = 'quick' WHERE effort = 'lightweight_task'`,
-	`UPDATE roles SET effort = 'standard' WHERE effort = 'daily_task'`,
-	`UPDATE roles SET effort = 'deep' WHERE effort = 'heavy_task'`,
-	`UPDATE roles SET effort = 'exhaustive' WHERE effort = 'maximum_effort_task'`,
-	`ALTER TABLE workflows DROP COLUMN context_dir_path`,
-	`ALTER TABLE roles RENAME COLUMN params TO inputs`,
-	`ALTER TABLE roles RENAME COLUMN system_prompts TO instructions`,
-	`ALTER TABLE steps RENAME COLUMN system_prompts TO instructions`,
-	`UPDATE steps SET status = 'awaiting_review' WHERE status = 'awaiting_accept'`,
-	`UPDATE step_results SET handoff = REPLACE(handoff, '"task_name"', '"step_name"')`,
-	`UPDATE workflow_drafts SET doc = REPLACE(doc, '"tasks"', '"steps"')`,
-	`UPDATE workflow_drafts SET doc = REPLACE(doc, '"finalized"', '"locked"')`,
-	`UPDATE workflow_drafts SET doc = REPLACE(doc, '"workingDir"', '"projectDir"')`,
-	`UPDATE workflow_drafts SET doc = REPLACE(doc, '"templateId"', '"roleId"')`,
-	`UPDATE workflow_drafts SET doc = REPLACE(doc, '"taskIds"', '"stepIds"')`,
-	`UPDATE workflow_drafts SET doc = REPLACE(doc, '"sessionId"', '"workflowId"')`,
-	`UPDATE workflow_drafts SET doc = REPLACE(doc, '"handoverDocs"', '"handoffs"')`,
-	`UPDATE workflow_drafts SET doc = REPLACE(doc, '"manualAcceptRequired"', '"pauseForReview"')`,
-	`UPDATE workflow_drafts SET doc = REPLACE(doc, '"systemPrompts"', '"instructions"')`,
-	`UPDATE workflow_drafts SET doc = REPLACE(doc, '"task":', '"step":')`,
-	`UPDATE workflow_drafts SET doc = REPLACE(doc, '"lightweight_task"', '"quick"')`,
-	`UPDATE workflow_drafts SET doc = REPLACE(doc, '"daily_task"', '"standard"')`,
-	`UPDATE workflow_drafts SET doc = REPLACE(doc, '"heavy_task"', '"deep"')`,
-	`UPDATE workflow_drafts SET doc = REPLACE(doc, '"maximum_effort_task"', '"exhaustive"')`,
-	`UPDATE workflow_drafts SET doc = REPLACE(doc, '"awaiting_accept"', '"awaiting_review"')`,
 	seedRoles,
 	seedWorkflow,
 }
@@ -246,8 +168,8 @@ func dsn(path string) string {
 }
 
 func migrate(db *sql.DB) error {
-	var version int
-	if err := db.QueryRow(`PRAGMA user_version`).Scan(&version); err != nil {
+	version, err := alignedVersion(db)
+	if err != nil {
 		return err
 	}
 
@@ -269,6 +191,63 @@ func migrate(db *sql.DB) error {
 		}
 	}
 	return nil
+}
+
+var collapsedTables = []string{
+	"harnesses",
+	"workflows",
+	"steps",
+	"step_results",
+	"mcp_credentials",
+	"roles",
+	"workflow_drafts",
+}
+
+func alignedVersion(db *sql.DB) (int, error) {
+	var version int
+	if err := db.QueryRow(`PRAGMA user_version`).Scan(&version); err != nil {
+		return 0, err
+	}
+
+	if version <= len(migrations) {
+		return version, nil
+	}
+
+	built, err := builtByTheCollapsedList(db)
+	if err != nil {
+		return 0, err
+	}
+
+	if !built {
+		return 0, custom_error.Critical(
+			"database is at version %d and predates the collapsed schema, which cannot upgrade it: "+
+				"move or delete the app data directory and start again",
+			version,
+		)
+	}
+
+	if _, err := db.Exec(fmt.Sprintf(`PRAGMA user_version = %d`, len(migrations))); err != nil {
+		return 0, err
+	}
+
+	return len(migrations), nil
+}
+
+func builtByTheCollapsedList(db *sql.DB) (bool, error) {
+	for _, table := range collapsedTables {
+		var name string
+
+		err := db.QueryRow(`SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?`, table).Scan(&name)
+
+		switch {
+		case errors.Is(err, sql.ErrNoRows):
+			return false, nil
+		case err != nil:
+			return false, err
+		}
+	}
+
+	return true, nil
 }
 
 func (s *litesql) Save(info *input_itf.HarnessEntity) error {

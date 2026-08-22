@@ -24,7 +24,6 @@ func (h *stubHarness) Uninstall() error                              { return ni
 func (h *stubHarness) Shutdown()                                     {}
 func (h *stubHarness) Support(enums.ModelName) bool                  { return true }
 func (h *stubHarness) Send(string, string) error                     { return nil }
-func (h *stubHarness) Listen(string) (<-chan string, error)          { return nil, nil }
 func (h *stubHarness) Alive(string) (time.Time, error)               { return time.Now(), nil }
 func (h *stubHarness) Usage(string) (*input_itf.ContextUsage, error) { return nil, nil }
 func (h *stubHarness) Activity(string) ([]input_itf.Activity, error) { return nil, nil }

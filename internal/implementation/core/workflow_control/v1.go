@@ -107,22 +107,6 @@ func (s *v1) CreateWorkflow(spec *core_itf.ControlWorkflowSpec) (*core_itf.Contr
 	return ref, nil
 }
 
-func (s *v1) StartWorkflow(workflowID uuid.UUID) error {
-	return s.coordinator.Run(workflowID)
-}
-
-func (s *v1) PauseWorkflow(workflowID uuid.UUID) error {
-	return s.coordinator.Pause(workflowID)
-}
-
-func (s *v1) CancelWorkflow(workflowID uuid.UUID) error {
-	return s.coordinator.Cancel(workflowID)
-}
-
-func (s *v1) WorkflowState(workflowID uuid.UUID) (*core_itf.WorkflowStatus, error) {
-	return s.workflows.Status(workflowID)
-}
-
 func (s *v1) ListWorkflows(limit int) ([]*core_itf.WorkflowStatus, error) {
 	snapshots, err := s.db.LoadStepHistory()
 	if err != nil {
@@ -163,14 +147,6 @@ func (s *v1) ListWorkflows(limit int) ([]*core_itf.WorkflowStatus, error) {
 	}
 
 	return statuses, nil
-}
-
-func (s *v1) ListRoles() ([]*core_itf.Role, error) {
-	return s.roles.List()
-}
-
-func (s *v1) AnswerReview(stepID uuid.UUID, accepted bool) error {
-	return s.workflows.AnswerReview(stepID, accepted)
 }
 
 func (s *v1) addSteps(workflowID uuid.UUID, steps []*core_itf.ControlStepSpec) (map[string]uuid.UUID, error) {

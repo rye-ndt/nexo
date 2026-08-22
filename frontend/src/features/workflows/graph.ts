@@ -1,4 +1,4 @@
-import {WorkflowStatus, StepState} from '@/shared/lib/enums'
+import {WorkflowLifecycle, WorkflowStatus, StepState} from '@/shared/lib/enums'
 import {t} from '@/shared/lib/i18n'
 import type {
     PastRun,
@@ -24,9 +24,15 @@ const KEPT_ON_CANCEL = new Set<StepState>([StepState.Done, StepState.Failed])
 
 const WAITING_STATES = new Set<StepState>([StepState.Idle, StepState.Queued, StepState.Blocked])
 
+const STARTED_LIFECYCLES = new Set<WorkflowLifecycle>([
+    WorkflowLifecycle.Running,
+    WorkflowLifecycle.Paused,
+    WorkflowLifecycle.Cancelled,
+])
+
 const STEP_STAGGER = 40
 
-export const MAX_PAST_RUNS = 3
+const MAX_PAST_RUNS = 3
 
 function isSettled(state: StepState) {
     return SETTLED_STATES.has(state)
@@ -34,6 +40,14 @@ function isSettled(state: StepState) {
 
 export function isFinished(state: StepState) {
     return FINISHED_STATES.has(state)
+}
+
+export function isLocked(workflow: Workflow) {
+    return workflow.lifecycle !== WorkflowLifecycle.Draft
+}
+
+export function hasStarted(workflow: Workflow) {
+    return STARTED_LIFECYCLES.has(workflow.lifecycle)
 }
 
 export function createStep(draft: StepDraft, position: Point): Step {
@@ -73,10 +87,7 @@ export function createWorkflow(draft: WorkflowDraft): Workflow {
         id: crypto.randomUUID(),
         name: draft.name.trim(),
         createdAt: new Date().toISOString(),
-        locked: false,
-        started: false,
-        cancelled: false,
-        paused: false,
+        lifecycle: WorkflowLifecycle.Draft,
         projectDir: draft.projectDir.trim(),
         steps: [],
     }
@@ -93,10 +104,7 @@ export function copyWorkflow(
         id: crypto.randomUUID(),
         name,
         createdAt: new Date().toISOString(),
-        locked: false,
-        started: false,
-        cancelled: false,
-        paused: false,
+        lifecycle: WorkflowLifecycle.Draft,
         projectDir: workflow.projectDir,
         steps: workflow.steps.map((step) => ({
             id: idMap.get(step.id)!,
@@ -128,10 +136,9 @@ export function duplicateWorkflow(workflow: Workflow, copyInputs: boolean): Work
     }
 }
 
-export function pauseRun(workflow: Workflow): Workflow {
+export function haltSteps(workflow: Workflow): Workflow {
     return {
         ...workflow,
-        paused: true,
         steps: workflow.steps.map((step) =>
             step.state === StepState.AwaitingReview || isFinished(step.state)
                 ? step
@@ -140,16 +147,20 @@ export function pauseRun(workflow: Workflow): Workflow {
     }
 }
 
+export function pauseRun(workflow: Workflow): Workflow {
+    return {...haltSteps(workflow), lifecycle: WorkflowLifecycle.Paused}
+}
+
 export function resumeRun(workflow: Workflow): Workflow {
-    return label({...workflow, paused: false})
+    return label({...workflow, lifecycle: WorkflowLifecycle.Running})
 }
 
 export function isPausable(workflow: Workflow): boolean {
-    return !workflow.paused && isCancellable(workflow)
+    return workflow.lifecycle === WorkflowLifecycle.Running && isCancellable(workflow)
 }
 
 export function isResumable(workflow: Workflow): boolean {
-    return workflow.paused
+    return workflow.lifecycle === WorkflowLifecycle.Paused
 }
 
 function notStarted(step: Step): Step {
@@ -177,14 +188,11 @@ function pastRun(workflow: Workflow): PastRun {
 }
 
 export function archiveRun(workflow: Workflow): Workflow {
-    const ran = workflow.started || workflow.remote
+    const ran = hasStarted(workflow) || workflow.remote
 
     return {
         ...workflow,
-        locked: false,
-        started: false,
-        paused: false,
-        cancelled: false,
+        lifecycle: WorkflowLifecycle.Draft,
         remote: undefined,
         spent: undefined,
         costUsd: undefined,
@@ -204,8 +212,7 @@ export function cancelRun(workflow: Workflow): Workflow {
 
     return {
         ...workflow,
-        cancelled: true,
-        paused: false,
+        lifecycle: WorkflowLifecycle.Cancelled,
         steps: workflow.steps.map((step) => {
             if (KEPT_ON_CANCEL.has(step.state)) return step
 
@@ -225,8 +232,10 @@ export function rewindTo(workflow: Workflow, stepId: string): Workflow {
 
     return {
         ...workflow,
-        started: false,
-        paused: false,
+        lifecycle:
+            workflow.lifecycle === WorkflowLifecycle.Cancelled
+                ? WorkflowLifecycle.Cancelled
+                : WorkflowLifecycle.Ready,
         steps: workflow.steps.map((step) => {
             const kept =
                 step.id === stepId || (!undone.has(step.id) && KEPT_ON_CANCEL.has(step.state))
@@ -237,8 +246,11 @@ export function rewindTo(workflow: Workflow, stepId: string): Workflow {
 }
 
 export function isCancellable(workflow: Workflow): boolean {
-    if (!workflow.started || workflow.cancelled) return false
-    return workflow.steps.some((step) => !isFinished(step.state))
+    const underway =
+        workflow.lifecycle === WorkflowLifecycle.Running ||
+        workflow.lifecycle === WorkflowLifecycle.Paused
+
+    return underway && workflow.steps.some((step) => !isFinished(step.state))
 }
 
 /** What an agent writing a new role is told about the workflow it is being written for. */
@@ -346,14 +358,22 @@ export function freePosition(workflow: Workflow, wanted: Point): Point {
     return position
 }
 
+const HALTED_STATUSES: Partial<Record<WorkflowLifecycle, WorkflowStatus>> = {
+    [WorkflowLifecycle.Draft]: WorkflowStatus.Draft,
+    [WorkflowLifecycle.Ready]: WorkflowStatus.Ready,
+    [WorkflowLifecycle.Paused]: WorkflowStatus.Paused,
+    [WorkflowLifecycle.Cancelled]: WorkflowStatus.Cancelled,
+}
+
 export function workflowStatus(workflow: Workflow): WorkflowStatus {
     if (workflow.steps.length === 0) return WorkflowStatus.Empty
-    if (workflow.cancelled) return WorkflowStatus.Cancelled
-    if (!workflow.locked) return WorkflowStatus.Draft
-    if (!workflow.started) return WorkflowStatus.Ready
-    if (workflow.paused) return WorkflowStatus.Paused
+
+    const halted = HALTED_STATUSES[workflow.lifecycle]
+    if (halted) return halted
+
     if (workflow.steps.some((step) => step.state === StepState.Failed)) return WorkflowStatus.Failed
     if (workflow.steps.every((step) => step.state === StepState.Done)) return WorkflowStatus.Done
+
     return WorkflowStatus.Running
 }
 
@@ -394,7 +414,11 @@ export function isRunnable(workflow: Workflow, step: Step) {
         (id) => findStep(workflow, id)?.state === StepState.Done,
     )
 
-    return workflow.started && WAITING_STATES.has(step.state) && upstreamDone
+    return (
+        workflow.lifecycle === WorkflowLifecycle.Running &&
+        WAITING_STATES.has(step.state) &&
+        upstreamDone
+    )
 }
 
 export function label(workflow: Workflow): Workflow {

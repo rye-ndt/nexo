@@ -1,4 +1,4 @@
-import type {StepState} from '@/shared/lib/enums'
+import {WorkflowLifecycle, type StepState} from '@/shared/lib/enums'
 import type {Handoff, Workflow, Step, StepResult} from '@/features/workflows/types'
 
 const secondsAgo = (seconds: number) => new Date(Date.now() - seconds * 1000).toISOString()
@@ -29,10 +29,7 @@ export const MOCK_WORKFLOWS: Workflow[] = [
         id: '0198e3a1-0000-7000-8000-000000000001',
         name: 'Coordinator port',
         createdAt: '2026-07-30T09:12:00Z',
-        locked: false,
-        started: false,
-        cancelled: false,
-        paused: false,
+        lifecycle: WorkflowLifecycle.Draft,
         projectDir: '/Users/rye/dev/agent-harness',
         steps: [
             {
@@ -105,10 +102,7 @@ export const MOCK_WORKFLOWS: Workflow[] = [
         id: '0198e3a1-0000-7000-8000-000000000007',
         name: 'Streaming errors',
         createdAt: '2026-08-05T16:05:00Z',
-        locked: true,
-        started: false,
-        cancelled: false,
-        paused: false,
+        lifecycle: WorkflowLifecycle.Ready,
         projectDir: '/Users/rye/dev/agent-harness',
         steps: [
             {
@@ -161,10 +155,7 @@ export const MOCK_WORKFLOWS: Workflow[] = [
         id: '0198e3a1-0000-7000-8000-000000000006',
         name: 'Approval gate',
         createdAt: '2026-08-04T11:15:00Z',
-        locked: true,
-        started: true,
-        cancelled: false,
-        paused: false,
+        lifecycle: WorkflowLifecycle.Running,
         projectDir: '/Users/rye/dev/agent-harness',
         steps: [
             {
@@ -240,10 +231,7 @@ export const MOCK_WORKFLOWS: Workflow[] = [
         id: '0198e3a1-0000-7000-8000-000000000004',
         name: 'Retry policy',
         createdAt: '2026-08-01T07:20:00Z',
-        locked: true,
-        started: true,
-        cancelled: false,
-        paused: false,
+        lifecycle: WorkflowLifecycle.Running,
         projectDir: '/Users/rye/dev/agent-harness',
         steps: [
             {
@@ -317,10 +305,7 @@ export const MOCK_WORKFLOWS: Workflow[] = [
         id: '0198e3a1-0000-7000-8000-000000000002',
         name: 'MCP proxy hardening',
         createdAt: '2026-07-28T14:40:00Z',
-        locked: true,
-        started: true,
-        cancelled: false,
-        paused: false,
+        lifecycle: WorkflowLifecycle.Running,
         projectDir: '/Users/rye/dev/agent-harness',
         steps: [
             {
@@ -457,10 +442,7 @@ export const MOCK_WORKFLOWS: Workflow[] = [
         id: '0198e3a1-0000-7000-8000-000000000003',
         name: 'WAL replay spike',
         createdAt: '2026-07-31T08:05:00Z',
-        locked: true,
-        started: true,
-        cancelled: false,
-        paused: false,
+        lifecycle: WorkflowLifecycle.Running,
         projectDir: '/Users/rye/dev/agent-harness',
         steps: [
             {
@@ -569,10 +551,7 @@ export const MOCK_WORKFLOWS: Workflow[] = [
         id: '0198e3a1-0000-7000-8000-000000000005',
         name: 'Heartbeat recovery',
         createdAt: '2026-08-02T10:30:00Z',
-        locked: true,
-        started: true,
-        cancelled: true,
-        paused: false,
+        lifecycle: WorkflowLifecycle.Cancelled,
         projectDir: '/Users/rye/dev/agent-harness',
         steps: [
             {

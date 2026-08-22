@@ -1,6 +1,7 @@
 import {useMemo} from 'react'
 
 import {missingInputs} from '@/features/workflows/step-inputs'
+import {hasStarted} from '@/features/workflows/graph'
 import {useRoles} from '@/features/roles/use-roles'
 import type {Workflow} from '@/features/workflows/types'
 
@@ -11,7 +12,7 @@ export function useMissingInputs(workflow: Workflow | null) {
     const {roles} = useRoles()
 
     const entries = useMemo(
-        () => (workflow && !workflow.started ? missingInputs(workflow, roles) : NO_ENTRIES),
+        () => (workflow && !hasStarted(workflow) ? missingInputs(workflow, roles) : NO_ENTRIES),
         [workflow, roles],
     )
 

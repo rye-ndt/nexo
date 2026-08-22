@@ -46,6 +46,20 @@ import {
 
 const ROUNDTRIP_MS = 400
 
+type PreferencesBackend = {
+    agentDefaults(): Promise<AgentDefault[]>
+    modelPrices(): Promise<ModelPrice[]>
+    defaultOptions(): Promise<AgentDefaultOptions>
+    saveAgentDefault(effort: Effort, model: string, thinkingLevel: ThinkingLevel): Promise<void>
+    saveModelPrices(model: string, prices: TokenPrices): Promise<void>
+    autopilot(): Promise<boolean>
+    saveAutopilot(on: boolean): Promise<void>
+    maxRunningAgents(): Promise<number>
+    saveMaxRunningAgents(limit: number): Promise<void>
+    language(): Promise<Language>
+    saveLanguage(language: Language): Promise<void>
+}
+
 let picked: Partial<Record<Effort, AgentDefault>> = {}
 
 let modelPrices: ModelPrice[] = structuredClone(MOCK_MODEL_PRICES)
@@ -66,56 +80,110 @@ function modelLabel(model: string) {
     return option.label
 }
 
-export async function listAgentDefaults(): Promise<AgentDefault[]> {
-    if (!hasWailsRuntime()) return mockAgentDefaults(picked)
+const storedPreferences: PreferencesBackend = {
+    agentDefaults: async () => {
+        const infos = await bridge(FetchAgentDefaults)
+        const stored: AgentDefault[] = []
 
-    const infos = await bridge(FetchAgentDefaults)
-    const stored: AgentDefault[] = []
+        for (const info of infos) {
+            if (!isEffort(info.effort) || !isThinkingLevel(info.thinking_level)) continue
 
-    for (const info of infos) {
-        if (!isEffort(info.effort) || !isThinkingLevel(info.thinking_level)) continue
+            stored.push({
+                effort: info.effort,
+                model: info.model,
+                modelLabel: info.model_label,
+                thinkingLevel: info.thinking_level,
+            })
+        }
 
-        stored.push({
-            effort: info.effort,
+        return stored
+    },
+    modelPrices: async () => {
+        const infos = await bridge(FetchModelPrices)
+
+        return infos.map((info) => ({
             model: info.model,
             modelLabel: info.model_label,
-            thinkingLevel: info.thinking_level,
-        })
-    }
+            prices: {
+                input: info.input_price ?? '',
+                cachedInput: info.cached_input_price ?? '',
+                output: info.output_price ?? '',
+            },
+        }))
+    },
+    defaultOptions: async () => {
+        const info = await bridge(FetchAgentDefaultOptions)
 
-    return stored
+        return {
+            efforts: (info.efforts ?? []).filter(isEffort),
+            models: (info.models ?? []).map((model) => ({
+                model: model.model,
+                label: model.label,
+                harness: model.harness,
+            })),
+            thinkingLevels: (info.thinking_levels ?? []).filter(isThinkingLevel),
+        }
+    },
+    saveAgentDefault: async (effort, model, thinkingLevel) => {
+        await bridge(() => SaveAgentDefault(effort, model, thinkingLevel))
+    },
+    saveModelPrices: async (model, prices) => {
+        await bridge(() => SaveModelPrices(model, prices.input, prices.cachedInput, prices.output))
+    },
+    autopilot: () => bridge(FetchAutopilot),
+    saveAutopilot: async (on) => {
+        await bridge(() => SaveAutopilot(on))
+    },
+    maxRunningAgents: () => bridge(FetchMaxRunningAgents),
+    saveMaxRunningAgents: async (limit) => {
+        await bridge(() => SaveMaxRunningAgents(limit))
+    },
+    language: async () => {
+        const stored = await bridge(FetchLanguage).catch(() => Language.En)
+        return isLanguage(stored) ? stored : Language.En
+    },
+    saveLanguage: async (language) => {
+        await bridge(() => SaveLanguage(language))
+    },
+}
+
+const mockPreferences: PreferencesBackend = {
+    agentDefaults: async () => mockAgentDefaults(picked),
+    modelPrices: async () => structuredClone(modelPrices),
+    defaultOptions: async () => mockAgentDefaultOptions(),
+    saveAgentDefault: async (effort, model, thinkingLevel) => {
+        const label = modelLabel(model)
+        await roundtrip()
+
+        picked = {...picked, [effort]: {effort, model, modelLabel: label, thinkingLevel}}
+    },
+    saveModelPrices: async (model, prices) => {
+        await roundtrip()
+
+        modelPrices = modelPrices.map((current) =>
+            current.model === model ? {...current, prices} : current,
+        )
+    },
+    autopilot: async () => autopilotOn,
+    saveAutopilot: () => roundtrip(),
+    maxRunningAgents: async () => runningAgentLimit,
+    saveMaxRunningAgents: () => roundtrip(),
+    language: async () => chosenLanguage,
+    saveLanguage: () => roundtrip(),
+}
+
+const backend: PreferencesBackend = hasWailsRuntime() ? storedPreferences : mockPreferences
+
+export async function listAgentDefaults(): Promise<AgentDefault[]> {
+    return backend.agentDefaults()
 }
 
 export async function listModelPrices(): Promise<ModelPrice[]> {
-    if (!hasWailsRuntime()) return structuredClone(modelPrices)
-
-    const infos = await bridge(FetchModelPrices)
-
-    return infos.map((info) => ({
-        model: info.model,
-        modelLabel: info.model_label,
-        prices: {
-            input: info.input_price ?? '',
-            cachedInput: info.cached_input_price ?? '',
-            output: info.output_price ?? '',
-        },
-    }))
+    return backend.modelPrices()
 }
 
 export async function agentDefaultOptions(): Promise<AgentDefaultOptions> {
-    if (!hasWailsRuntime()) return mockAgentDefaultOptions()
-
-    const info = await bridge(FetchAgentDefaultOptions)
-
-    return {
-        efforts: (info.efforts ?? []).filter(isEffort),
-        models: (info.models ?? []).map((model) => ({
-            model: model.model,
-            label: model.label,
-            harness: model.harness,
-        })),
-        thinkingLevels: (info.thinking_levels ?? []).filter(isThinkingLevel),
-    }
+    return backend.defaultOptions()
 }
 
 export async function setAgentDefault(
@@ -127,59 +195,30 @@ export async function setAgentDefault(
     if (!isThinkingLevel(thinkingLevel))
         throw new Error(t('settings.error.unknownThinkingLevel', {level: thinkingLevel}))
 
-    if (hasWailsRuntime()) {
-        await bridge(() => SaveAgentDefault(effort, model, thinkingLevel))
-        return
-    }
-
-    const label = modelLabel(model)
-    await roundtrip()
-
-    picked = {...picked, [effort]: {effort, model, modelLabel: label, thinkingLevel}}
+    return backend.saveAgentDefault(effort, model, thinkingLevel)
 }
 
 export async function setModelPrices(model: string, prices: TokenPrices): Promise<void> {
-    if (hasWailsRuntime()) {
-        await bridge(() => SaveModelPrices(model, prices.input, prices.cachedInput, prices.output))
-        return
-    }
-
-    await roundtrip()
-
-    modelPrices = modelPrices.map((current) =>
-        current.model === model ? {...current, prices} : current,
-    )
+    return backend.saveModelPrices(model, prices)
 }
 
 export async function autopilot(): Promise<boolean> {
-    if (hasWailsRuntime()) autopilotOn = await bridge(FetchAutopilot)
+    autopilotOn = await backend.autopilot()
     return autopilotOn
 }
 
 export async function setAutopilot(on: boolean): Promise<void> {
-    if (hasWailsRuntime()) {
-        await bridge(() => SaveAutopilot(on))
-        autopilotOn = on
-        return
-    }
-
-    await roundtrip()
+    await backend.saveAutopilot(on)
     autopilotOn = on
 }
 
 export async function maxRunningAgents(): Promise<number> {
-    if (hasWailsRuntime()) runningAgentLimit = await bridge(FetchMaxRunningAgents)
+    runningAgentLimit = await backend.maxRunningAgents()
     return runningAgentLimit
 }
 
 export async function setMaxRunningAgents(limit: number): Promise<void> {
-    if (hasWailsRuntime()) {
-        await bridge(() => SaveMaxRunningAgents(limit))
-        runningAgentLimit = limit
-        return
-    }
-
-    await roundtrip()
+    await backend.saveMaxRunningAgents(limit)
     runningAgentLimit = limit
 }
 
@@ -189,26 +228,17 @@ export async function setMaxRunningAgents(limit: number): Promise<void> {
  * that changes the language goes through here.
  */
 export async function loadLanguage(): Promise<Language> {
-    if (hasWailsRuntime()) {
-        const stored = await bridge(FetchLanguage).catch(() => Language.En)
-        chosenLanguage = isLanguage(stored) ? stored : Language.En
-    }
-
+    chosenLanguage = await backend.language()
     applyLanguage(chosenLanguage)
 
     return chosenLanguage
 }
 
 export async function setLanguage(language: Language): Promise<void> {
-    if (hasWailsRuntime()) await bridge(() => SaveLanguage(language))
-    else await roundtrip()
+    await backend.saveLanguage(language)
 
     chosenLanguage = language
     applyLanguage(language)
-}
-
-export function cachedLanguage(): Language {
-    return chosenLanguage
 }
 
 export function cachedAutopilot(): boolean {

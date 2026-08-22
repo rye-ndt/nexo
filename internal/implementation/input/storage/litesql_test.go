@@ -1,6 +1,8 @@
 package storage
 
 import (
+	"database/sql"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -674,5 +676,121 @@ func TestDSNKeepsAWindowsDriveOutOfTheURIAuthority(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestAVersionPastTheListIsRebasedSoLaterMigrationsStillRun(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "harness.db")
+
+	opened, err := New(path)
+	if err != nil {
+		t.Fatalf("open storage: %v", err)
+	}
+
+	store, ok := opened.(*litesql)
+	if !ok {
+		t.Fatalf("storage is %T, want *litesql", opened)
+	}
+
+	ahead := len(migrations) + 71
+
+	if _, err := store.db.Exec(fmt.Sprintf(`PRAGMA user_version = %d`, ahead)); err != nil {
+		t.Fatalf("stamp an old chain's version: %v", err)
+	}
+
+	version, err := alignedVersion(store.db)
+	if err != nil {
+		t.Fatalf("align version: %v", err)
+	}
+
+	if version != len(migrations) {
+		t.Fatalf("aligned version = %d, want %d", version, len(migrations))
+	}
+
+	var stored int
+	if err := store.db.QueryRow(`PRAGMA user_version`).Scan(&stored); err != nil {
+		t.Fatalf("read back version: %v", err)
+	}
+
+	if stored != len(migrations) {
+		t.Fatalf("stored user_version = %d, want %d: a migration added later would be skipped", stored, len(migrations))
+	}
+}
+
+func TestAVersionInsideTheListIsLeftAlone(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "harness.db")
+
+	opened, err := New(path)
+	if err != nil {
+		t.Fatalf("open storage: %v", err)
+	}
+
+	store, ok := opened.(*litesql)
+	if !ok {
+		t.Fatalf("storage is %T, want *litesql", opened)
+	}
+
+	if _, err := store.db.Exec(`PRAGMA user_version = 2`); err != nil {
+		t.Fatalf("stamp a partial version: %v", err)
+	}
+
+	version, err := alignedVersion(store.db)
+	if err != nil {
+		t.Fatalf("align version: %v", err)
+	}
+
+	if version != 2 {
+		t.Fatalf("aligned version = %d, want 2", version)
+	}
+}
+
+func TestADatabaseFromBeforeTheCollapsedSchemaIsRefusedNotRebased(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "harness.db")
+
+	old, err := sql.Open(driverName, dsn(path))
+	if err != nil {
+		t.Fatalf("open raw db: %v", err)
+	}
+
+	for _, statement := range []string{
+		`CREATE TABLE sessions (id TEXT PRIMARY KEY, total_task INTEGER NOT NULL)`,
+		`CREATE TABLE tasks (id TEXT PRIMARY KEY, session_id TEXT NOT NULL)`,
+		`PRAGMA user_version = 33`,
+	} {
+		if _, err := old.Exec(statement); err != nil {
+			t.Fatalf("build a v1.0.0 database: %v", err)
+		}
+	}
+
+	if err := old.Close(); err != nil {
+		t.Fatalf("close raw db: %v", err)
+	}
+
+	opened, openErr := New(path)
+	if openErr == nil {
+		t.Fatal("a pre-collapse database was accepted; every later query would fail on a missing table")
+	}
+
+	if opened != nil {
+		t.Fatal("a refused database still handed back a store")
+	}
+
+	if !strings.Contains(openErr.Error(), "predates the collapsed schema") {
+		t.Fatalf("error does not say what is wrong: %v", openErr)
+	}
+
+	reopened, err := sql.Open(driverName, dsn(path))
+	if err != nil {
+		t.Fatalf("reopen raw db: %v", err)
+	}
+	defer reopened.Close()
+
+	var version int
+	if err := reopened.QueryRow(`PRAGMA user_version`).Scan(&version); err != nil {
+		t.Fatalf("read back version: %v", err)
+	}
+
+	if version != 33 {
+		t.Fatalf("user_version = %d, want 33: rolling back to the previous build can no longer resume", version)
 	}
 }

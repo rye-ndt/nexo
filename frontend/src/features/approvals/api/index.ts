@@ -13,39 +13,56 @@ import {AnswerApproval, PendingApprovals} from '@wailsjs/go/wails_api/API'
 
 const ROUNDTRIP_MS = 400
 
+type ApprovalsBackend = {
+    list(): Promise<Approval[]>
+    answer(id: string, answer: ApprovalAnswer): Promise<void>
+}
+
 async function roundtrip() {
     await new Promise((resolve) => setTimeout(resolve, ROUNDTRIP_MS))
 }
 
+const wailsApprovals: ApprovalsBackend = {
+    list: async () => {
+        const infos = await bridge(() => PendingApprovals())
+
+        return infos.map((info) => ({
+            id: info.id,
+            agentId: info.agent_id,
+            kind:
+                info.kind === ApprovalKind.Permission
+                    ? ApprovalKind.Permission
+                    : ApprovalKind.Decision,
+            question: info.question,
+            detail: info.detail,
+            options: (info.options ?? []).map((option) => ({
+                id: option.id,
+                label: option.label,
+                description: option.description || '',
+            })),
+            multiSelect: info.multi_select,
+            requestedAt: info.requested_at,
+        }))
+    },
+    answer: async (id, answer) => {
+        await bridge(() => AnswerApproval(id, answer.approved, answer.optionIds, answer.guidance))
+    },
+}
+
+const mockApprovals: ApprovalsBackend = {
+    list: async () => listMockApprovals(),
+    answer: async (id, answer) => {
+        await roundtrip()
+        answerMockApproval(id, answer)
+    },
+}
+
+const backend: ApprovalsBackend = hasWailsRuntime() ? wailsApprovals : mockApprovals
+
 export async function listApprovals(): Promise<Approval[]> {
-    if (!hasWailsRuntime()) return listMockApprovals()
-
-    const infos = await bridge(() => PendingApprovals())
-
-    return infos.map((info) => ({
-        id: info.id,
-        agentId: info.agent_id,
-        kind:
-            info.kind === ApprovalKind.Permission ? ApprovalKind.Permission : ApprovalKind.Decision,
-        question: info.question,
-        detail: info.detail,
-        options: (info.options ?? []).map((option) => ({
-            id: option.id,
-            label: option.label,
-            description: option.description || '',
-        })),
-        multiSelect: info.multi_select,
-        requestedAt: info.requested_at,
-    }))
+    return backend.list()
 }
 
 export async function answerApproval(id: string, answer: ApprovalAnswer): Promise<void> {
-    if (hasWailsRuntime()) {
-        await bridge(() => AnswerApproval(id, answer.approved, answer.optionIds, answer.guidance))
-        return
-    }
-
-    await roundtrip()
-
-    answerMockApproval(id, answer)
+    return backend.answer(id, answer)
 }

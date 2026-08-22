@@ -7,9 +7,9 @@
 
 import type {Instruction, RoleDraft} from '@/features/roles/types'
 
-export const CONFLICT_KEY = 'conflict_awareness'
+const CONFLICT_KEY = 'conflict_awareness'
 
-export const CONFLICT_INSTRUCTION: Instruction = {
+const CONFLICT_INSTRUCTION: Instruction = {
     key: CONFLICT_KEY,
     value: `Other agents are working in this project folder at the same time as you, some of them filling the same role on other steps. Nothing is locked for you, so assume a file you did not create may be read or rewritten by someone else while you work.
 

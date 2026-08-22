@@ -8,7 +8,7 @@ import {StepState, type Effort} from '@/shared/lib/enums'
 import {ContextStamina} from '@/features/workflows/components/canvas/context-stamina'
 import {FailureBubble} from '@/features/workflows/components/canvas/failure-bubble'
 import {StepActivity} from '@/features/workflows/components/canvas/step-activity'
-import {upstreamOf} from '@/features/workflows/graph'
+import {isLocked, upstreamOf} from '@/features/workflows/graph'
 import {cn} from '@/shared/lib/utils'
 import {t} from '@/shared/lib/i18n'
 import type {Workflow, Step} from '@/features/workflows/types'
@@ -64,7 +64,7 @@ export function StepCard({data, selected}: NodeProps<StepNodeType>) {
     const blocked = step.state === StepState.Blocked
     const running = step.state === StepState.Running
     const cancelled = step.state === StepState.Cancelled
-    const connectable = !workflow.locked && !unlinkable
+    const connectable = !isLocked(workflow) && !unlinkable
     const accent = accentClass(step.state)
     const tldr = failureTldr(step)
 

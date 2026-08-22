@@ -153,7 +153,6 @@ type agentProc struct {
 	stdin       io.WriteCloser
 	stdinMu     sync.Mutex
 	stdout      io.ReadCloser
-	out         chan string
 	done        chan struct{}
 	exited      chan struct{}
 	lastOut     atomic.Int64
@@ -835,7 +834,6 @@ func (c *claudeCode) Spawn(
 		cmd.Wait()
 	})
 
-	out := make(chan string, 64)
 	done := make(chan struct{})
 	exited := make(chan struct{})
 
@@ -843,7 +841,6 @@ func (c *claudeCode) Spawn(
 		cmd:       cmd,
 		stdin:     stdin,
 		stdout:    stdout,
-		out:       out,
 		done:      done,
 		exited:    exited,
 		ctxWindow: c.ctxWindow,
@@ -863,14 +860,7 @@ func (c *claudeCode) Spawn(
 		for sc.Scan() {
 			proc.lastOut.Store(helpers.NewUTCUnix())
 			proc.track(sc.Bytes())
-
-			select {
-			case out <- sc.Text():
-			case <-done:
-			default:
-			}
 		}
-		close(out)
 		harness_helper.KillProc(cmd)
 		cmd.Wait()
 		stderr.Close()
@@ -942,15 +932,6 @@ func (c *claudeCode) Activity(id string) ([]input_itf.Activity, error) {
 	}
 
 	return a.snapshotActivity(), nil
-}
-
-func (c *claudeCode) Listen(id string) (<-chan string, error) {
-	a, err := c.agents.Get(id)
-	if err != nil {
-		return nil, err
-	}
-
-	return a.out, nil
 }
 
 func (c *claudeCode) stopAll() {

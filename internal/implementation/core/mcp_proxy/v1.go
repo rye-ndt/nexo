@@ -40,7 +40,7 @@ type v1 struct {
 	approvalBroker    core_itf.ApprovalBroker
 	reporter          core_itf.StepReporter
 	roleHelper        core_itf.RoleHelper
-	workflowControl   core_itf.WorkflowControl
+	controlPorts      *core_itf.ControlPorts
 	controlToken      string
 	gateway           *core_itf.MCPGateway
 	gatewayHttpServer *http.Server

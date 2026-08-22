@@ -23,7 +23,7 @@ export type TourStop = {
     side: 'right' | 'bottom'
 }
 
-export const TOUR_ANCHOR = {
+const TOUR_ANCHOR = {
     workflow: '[data-tour="workflow"]',
     step: '.react-flow__node',
 } as const

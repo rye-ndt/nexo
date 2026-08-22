@@ -1,7 +1,7 @@
 import type {Rect} from '@/features/onboarding/types'
 
 /** Breathing room between the ring and what it rings. */
-export const HALO = 6
+const HALO = 6
 
 const GAP = 14
 const MARGIN = 16

@@ -166,18 +166,18 @@ type acceptanceAckPayload struct {
 	Result   string `json:"result"`
 }
 
-func (s *v1) TrackWorkflowControl(control core_itf.WorkflowControl) {
+func (s *v1) TrackWorkflowControl(ports *core_itf.ControlPorts) {
 	s.locker.Lock()
 	defer s.locker.Unlock()
 
-	s.workflowControl = control
+	s.controlPorts = ports
 }
 
-func (s *v1) control() core_itf.WorkflowControl {
+func (s *v1) control() *core_itf.ControlPorts {
 	s.locker.RLock()
 	defer s.locker.RUnlock()
 
-	return s.workflowControl
+	return s.controlPorts
 }
 
 func (s *v1) serveControl(w http.ResponseWriter, r *http.Request) {
@@ -315,7 +315,7 @@ func (s *v1) callListRoles(_ json.RawMessage, _ uuid.UUID) *toolResult {
 		return errorResult(controlUnavailable)
 	}
 
-	roles, err := control.ListRoles()
+	roles, err := control.Roles.List()
 	if err != nil {
 		return errorResult(err.Error())
 	}
@@ -404,7 +404,7 @@ func (s *v1) callCreateWorkflow(arguments json.RawMessage, _ uuid.UUID) *toolRes
 		})
 	}
 
-	ref, err := control.CreateWorkflow(spec)
+	ref, err := control.Control.CreateWorkflow(spec)
 	if err != nil {
 		return errorResult(err.Error())
 	}
@@ -417,27 +417,27 @@ func (s *v1) callCreateWorkflow(arguments json.RawMessage, _ uuid.UUID) *toolRes
 }
 
 func (s *v1) callStartWorkflow(arguments json.RawMessage, _ uuid.UUID) *toolResult {
-	return s.callWorkflowAction(arguments, "started", func(control core_itf.WorkflowControl, workflowID uuid.UUID) error {
-		return control.StartWorkflow(workflowID)
+	return s.callWorkflowAction(arguments, "started", func(control *core_itf.ControlPorts, workflowID uuid.UUID) error {
+		return control.Coordinator.Run(workflowID)
 	})
 }
 
 func (s *v1) callPauseWorkflow(arguments json.RawMessage, _ uuid.UUID) *toolResult {
-	return s.callWorkflowAction(arguments, "paused", func(control core_itf.WorkflowControl, workflowID uuid.UUID) error {
-		return control.PauseWorkflow(workflowID)
+	return s.callWorkflowAction(arguments, "paused", func(control *core_itf.ControlPorts, workflowID uuid.UUID) error {
+		return control.Coordinator.Pause(workflowID)
 	})
 }
 
 func (s *v1) callCancelWorkflow(arguments json.RawMessage, _ uuid.UUID) *toolResult {
-	return s.callWorkflowAction(arguments, "cancelled", func(control core_itf.WorkflowControl, workflowID uuid.UUID) error {
-		return control.CancelWorkflow(workflowID)
+	return s.callWorkflowAction(arguments, "cancelled", func(control *core_itf.ControlPorts, workflowID uuid.UUID) error {
+		return control.Coordinator.Cancel(workflowID)
 	})
 }
 
 func (s *v1) callWorkflowAction(
 	arguments json.RawMessage,
 	result string,
-	action func(control core_itf.WorkflowControl, workflowID uuid.UUID) error,
+	action func(control *core_itf.ControlPorts, workflowID uuid.UUID) error,
 ) *toolResult {
 	control := s.control()
 	if control == nil {
@@ -477,7 +477,7 @@ func (s *v1) callWorkflowStatus(arguments json.RawMessage, _ uuid.UUID) *toolRes
 		return errorResult(err.Error())
 	}
 
-	state, err := control.WorkflowState(workflowID)
+	state, err := control.Workflows.Status(workflowID)
 	if err != nil {
 		return errorResult(err.Error())
 	}
@@ -513,7 +513,7 @@ func (s *v1) callListWorkflows(arguments json.RawMessage, _ uuid.UUID) *toolResu
 		return errorResult("cannot parse tool arguments: " + err.Error())
 	}
 
-	workflows, err := control.ListWorkflows(args.Limit)
+	workflows, err := control.Control.ListWorkflows(args.Limit)
 	if err != nil {
 		return errorResult(err.Error())
 	}
@@ -554,7 +554,7 @@ func (s *v1) callAnswerAcceptance(arguments json.RawMessage, _ uuid.UUID) *toolR
 		return errorResult(err.Error())
 	}
 
-	if err := control.AnswerReview(stepID, args.Accepted); err != nil {
+	if err := control.Workflows.AnswerReview(stepID, args.Accepted); err != nil {
 		return errorResult(err.Error())
 	}
 

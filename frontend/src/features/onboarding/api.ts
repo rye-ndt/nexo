@@ -11,17 +11,31 @@ import {CompleteOnboarding, Onboarded} from '@wailsjs/go/wails_api/API'
 
 let onboarded = new URLSearchParams(window.location.search).get('onboarded') === '1'
 
-export async function hasOnboarded(): Promise<boolean> {
-    if (!hasWailsRuntime()) return onboarded
+type OnboardingBackend = {
+    read(): Promise<boolean>
+    complete(): Promise<void>
+}
 
-    return bridge(Onboarded)
+const storedFlag: OnboardingBackend = {
+    read: () => bridge(Onboarded),
+    complete: async () => {
+        await bridge(CompleteOnboarding)
+    },
+}
+
+const memoryFlag: OnboardingBackend = {
+    read: async () => onboarded,
+    complete: async () => {
+        onboarded = true
+    },
+}
+
+const backend: OnboardingBackend = hasWailsRuntime() ? storedFlag : memoryFlag
+
+export async function hasOnboarded(): Promise<boolean> {
+    return backend.read()
 }
 
 export async function completeOnboarding(): Promise<void> {
-    if (!hasWailsRuntime()) {
-        onboarded = true
-        return
-    }
-
-    await bridge(CompleteOnboarding)
+    return backend.complete()
 }

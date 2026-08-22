@@ -24,7 +24,6 @@ import (
 	"hexago/internal/implementation/input/role_archive"
 	"hexago/internal/implementation/input/storage"
 	"hexago/internal/implementation/input/workspace_history"
-	"hexago/internal/implementation/output/message_queue"
 	core_itf "hexago/internal/interface/core"
 	input_itf "hexago/internal/interface/input"
 	output_itf "hexago/internal/interface/output"
@@ -91,8 +90,6 @@ func (a *stubAgents) Send(agentID uuid.UUID, message string) error {
 
 	return nil
 }
-
-func (a *stubAgents) Listen(uuid.UUID) (<-chan string, error) { return nil, nil }
 
 func (a *stubAgents) ContextUsage(uuid.UUID) (*input_itf.ContextUsage, error) { return nil, nil }
 
@@ -189,7 +186,7 @@ func newHarness(t *testing.T) *harness {
 		t.Fatalf("init storage: %v", err)
 	}
 
-	workflows, err := workflow_manager.InitV1(e2eWorkflowConfig(), store.StepStore(), message_queue.InitV1())
+	workflows, err := workflow_manager.InitV1(e2eWorkflowConfig(), store.StepStore())
 	if err != nil {
 		t.Fatalf("init workflow manager: %v", err)
 	}
@@ -250,7 +247,12 @@ func newHarness(t *testing.T) *harness {
 		t.Fatalf("init workflow control: %v", err)
 	}
 
-	proxy.TrackWorkflowControl(control)
+	proxy.TrackWorkflowControl(&core_itf.ControlPorts{
+		Control:     control,
+		Workflows:   workflows,
+		Coordinator: runner,
+		Roles:       roles,
+	})
 
 	return &harness{
 		baseURL:      gateway.BaseURL,

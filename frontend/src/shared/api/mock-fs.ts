@@ -90,9 +90,7 @@ const CONTENTS: Record<string, string> = {
                 id: '0198e3a1-0000-7000-8000-000000000101',
                 name: 'Gateway credential sweep',
                 createdAt: '2026-08-14T11:20:00Z',
-                locked: false,
-                started: false,
-                cancelled: false,
+                lifecycle: 'draft',
                 projectDir: '/Users/rye/dev/agent-harness',
                 steps: [
                     {

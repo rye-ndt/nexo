@@ -4,6 +4,7 @@ import {StepState, type Effort} from '@/shared/lib/enums'
 import type {StepNodeType} from '@/features/workflows/components/canvas/step-card'
 import type {UnlinkEdgeType} from '@/features/workflows/components/canvas/unlink-edge'
 import {effortOf} from '@/features/workflows/step-spec'
+import {isLocked} from '@/features/workflows/graph'
 import {t} from '@/shared/lib/i18n'
 import type {Point, Workflow, Step} from '@/features/workflows/types'
 import type {Role} from '@/features/roles/types'
@@ -62,7 +63,7 @@ export function toFlowNodes(context: FlowContext): StepNodeType[] {
 export function toFlowEdges(context: EdgeContext): GraphEdge[] {
     const {workflow, selectedEdgeId, hoveredEdgeId, onHold, onRelease, onUnlink} = context
     const byId = new Map(workflow.steps.map((step) => [step.id, step]))
-    const locked = workflow.locked
+    const locked = isLocked(workflow)
 
     return workflow.steps.flatMap((step) =>
         step.dependsOn.flatMap((sourceId) => {

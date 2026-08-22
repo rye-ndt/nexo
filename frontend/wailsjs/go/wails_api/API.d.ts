@@ -66,8 +66,6 @@ export function RemoveRole(arg1:string):Promise<void>;
 
 export function ResumeWorkflow(arg1:string):Promise<void>;
 
-export function RetryWorkflowStep(arg1:string):Promise<void>;
-
 export function RevertWorkflowTo(arg1:string,arg2:string):Promise<void>;
 
 export function RevokeMCPServer(arg1:string):Promise<void>;

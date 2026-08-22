@@ -7,8 +7,7 @@
  * it happens.
  */
 
-import {bridge, hasWailsRuntime} from '@/shared/api/bridge'
-import {StepState} from '@/shared/lib/enums'
+import {StepState, WorkflowLifecycle} from '@/shared/lib/enums'
 import {t} from '@/shared/lib/i18n'
 import {
     archiveRun,
@@ -20,8 +19,11 @@ import {
     duplicateWorkflow as duplicateGraph,
     moveWorkflow,
     hasActiveStep,
+    hasStarted,
     isCancellable,
+    isLocked,
     isPausable,
+    isResumable,
     label,
     pauseRun,
     resumeRun,
@@ -35,6 +37,7 @@ import {listRoles} from '@/features/roles/api'
 import type {InputValue} from '@/features/roles/types'
 import type {Point, Workflow, WorkflowDraft, Step, StepDraft} from '@/features/workflows/types'
 import {
+    deleteDraft,
     findOpenWorkflow,
     findWorkflow,
     findStep,
@@ -46,21 +49,7 @@ import {
     setWorkflows,
 } from '@/features/workflows/api/store'
 import {forgetWorkflowActivity} from '@/features/workflows/api/activity'
-import {forgetMockApprovals} from '@/features/approvals/mock-approvals'
-import {
-    forgetWorkflowForks,
-    resolveAcceptance,
-    stopRun,
-    tick,
-} from '@/features/workflows/api/simulated-run'
-import {
-    answerRemoteAcceptance,
-    cancelRemoteRun,
-    pauseRemoteRun,
-    runs,
-    startRemoteRun,
-} from '@/features/workflows/api/remote-run'
-import {DeleteWorkflowDraft, DiscardWorkflowRun} from '@wailsjs/go/wails_api/API'
+import {run} from '@/features/workflows/api/run'
 
 export {stepActivity} from '@/features/workflows/api/activity'
 export {fetchStepDiff, revertWorkflowTo} from '@/features/workflows/api/step-diff'
@@ -115,32 +104,32 @@ export async function duplicateWorkflow(
 
 export async function updateWorkflow(
     workflowId: string,
-    patch: Partial<Pick<Workflow, 'name' | 'locked' | 'started' | 'projectDir'>>,
+    patch: Partial<Pick<Workflow, 'name' | 'lifecycle' | 'projectDir'>>,
 ): Promise<Workflow> {
     if (patch.projectDir !== undefined && !patch.projectDir.trim())
         throw new Error(t('workflow.api.needsProjectDir'))
 
     await hydrate()
 
-    if (patch.locked === false) return unlockWorkflow(workflowId)
+    if (patch.lifecycle === WorkflowLifecycle.Draft) return unlockWorkflow(workflowId)
 
-    const locking = patch.locked || patch.started
-    const workflow = locking ? findWorkflow(workflowId) : findOpenWorkflow(workflowId)
+    const workflow = patch.lifecycle ? findWorkflow(workflowId) : findOpenWorkflow(workflowId)
 
-    if (patch.locked && !workflow.projectDir.trim())
+    if (patch.lifecycle === WorkflowLifecycle.Ready && !workflow.projectDir.trim())
         throw new Error(t('workflow.api.folderBeforeLock'))
 
-    if (patch.started && !workflow.locked) throw new Error(t('workflow.api.lockBeforeRun'))
-
-    if (patch.started && workflow.cancelled) throw new Error(t('workflow.api.cancelled'))
-
-    if (!patch.started) {
+    if (patch.lifecycle !== WorkflowLifecycle.Running) {
         replaceWorkflow({...workflow, ...patch})
         return structuredClone(findWorkflow(workflowId))
     }
 
+    if (!isLocked(workflow)) throw new Error(t('workflow.api.lockBeforeRun'))
+
+    if (workflow.lifecycle === WorkflowLifecycle.Cancelled)
+        throw new Error(t('workflow.api.cancelled'))
+
     await listRoles()
-    await startRun(label({...workflow, ...patch}))
+    await run.start(label({...workflow, ...patch}))
 
     return structuredClone(findWorkflow(workflowId))
 }
@@ -149,27 +138,10 @@ async function unlockWorkflow(workflowId: string): Promise<Workflow> {
     const workflow = findWorkflow(workflowId)
     if (hasActiveStep(workflow)) throw new Error(t('workflow.api.unlockRunning'))
 
-    stopRun(workflowId)
-    runs.delete(workflowId)
-
-    const remote = workflow.remote
-    if (remote && hasWailsRuntime()) await bridge(() => DiscardWorkflowRun(remote.workflowId))
-
+    await run.discard(workflow)
     forgetWorkflowActivity(workflow)
-    forgetWorkflowApprovals(workflow)
-    forgetWorkflowForks(workflow)
 
     return replaceWorkflow(archiveRun(workflow))
-}
-
-async function startRun(workflow: Workflow) {
-    if (!hasWailsRuntime()) {
-        replaceWorkflow(workflow)
-        tick(workflow.id)
-        return
-    }
-
-    await startRemoteRun(replaceWorkflow(workflow))
 }
 
 /** Inputs are editable on the step until the run starts, locked or not. */
@@ -181,7 +153,7 @@ export async function setStepInputs(
     await hydrate()
 
     const workflow = findWorkflow(workflowId)
-    if (workflow.started) throw new Error(t('workflow.api.inputsLocked'))
+    if (hasStarted(workflow)) throw new Error(t('workflow.api.inputsLocked'))
 
     const step = findStep(workflow, stepId)
     replaceWorkflow(withStepPatch(workflow, stepId, {values: {...step.values, ...values}}))
@@ -203,45 +175,37 @@ export async function answerStepAcceptance(
     if (step.state !== StepState.AwaitingReview)
         throw new Error(t('workflow.api.notAwaitingReview'))
 
-    if (hasWailsRuntime()) await answerRemoteAcceptance(workflowId, stepId, accepted)
-    else resolveAcceptance(workflowId, stepId, accepted)
+    await run.answerAcceptance(workflowId, stepId, accepted)
 
     return structuredClone(findWorkflow(workflowId))
 }
 
 /** Pause is not terminal — the ids of the backend run are kept so resuming reattaches to it. */
 export async function pauseWorkflow(workflowId: string): Promise<Workflow> {
-    return haltWorkflow(workflowId, isPausable, pauseRemoteRun, pauseRun)
+    return haltWorkflow(workflowId, isPausable, run.pause, pauseRun)
 }
 
 export async function resumeWorkflow(workflowId: string): Promise<Workflow> {
     await hydrate()
 
     const workflow = findWorkflow(workflowId)
-    if (!workflow.paused) throw new Error(t('workflow.api.notPaused'))
+    if (!isResumable(workflow)) throw new Error(t('workflow.api.notPaused'))
 
     await listRoles()
-    await startRun(resumeRun(workflow))
+    await run.start(resumeRun(workflow))
 
     return structuredClone(findWorkflow(workflowId))
 }
 
-/** A held step loses its question when its workflow goes away, or the queue outlives the run. */
-function forgetWorkflowApprovals(workflow: Workflow) {
-    forgetMockApprovals(
-        workflow.steps.map((step) => step.agentId).filter((id): id is string => Boolean(id)),
-    )
-}
-
 /** Cancel is terminal — the step that was running loses its work and the workflow can only be duplicated. */
 export async function cancelWorkflow(workflowId: string): Promise<Workflow> {
-    return haltWorkflow(workflowId, isCancellable, cancelRemoteRun, cancelRun)
+    return haltWorkflow(workflowId, isCancellable, run.cancel, cancelRun)
 }
 
 async function haltWorkflow(
     workflowId: string,
     halts: (workflow: Workflow) => boolean,
-    stopRemoteRun: (workflowId: string) => Promise<void>,
+    stop: (workflow: Workflow) => Promise<void>,
     halt: (workflow: Workflow) => Workflow,
 ): Promise<Workflow> {
     await hydrate()
@@ -249,10 +213,8 @@ async function haltWorkflow(
     const workflow = findWorkflow(workflowId)
     if (!halts(workflow)) return structuredClone(workflow)
 
-    stopRun(workflowId)
-    await stopRemoteRun(workflowId)
+    await stop(workflow)
     forgetWorkflowActivity(workflow)
-    forgetWorkflowApprovals(workflow)
 
     return replaceWorkflow(halt(workflow))
 }
@@ -262,18 +224,14 @@ export async function deleteWorkflow(workflowId: string): Promise<void> {
 
     const doomed = workflows.find((workflow) => workflow.id === workflowId)
 
-    stopRun(workflowId)
-    await cancelRemoteRun(workflowId).catch(() => {})
-    runs.delete(workflowId)
-
     if (doomed) {
+        await run.cancel(doomed).catch(() => {})
         forgetWorkflowActivity(doomed)
-        forgetWorkflowApprovals(doomed)
     }
 
     setWorkflows(workflows.filter((workflow) => workflow.id !== workflowId))
 
-    if (hasWailsRuntime()) await bridge(() => DeleteWorkflowDraft(workflowId))
+    await deleteDraft(workflowId)
 }
 
 export async function createStep(

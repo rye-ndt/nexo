@@ -126,10 +126,6 @@ export function ResumeWorkflow(arg1) {
   return window['go']['wails_api']['API']['ResumeWorkflow'](arg1);
 }
 
-export function RetryWorkflowStep(arg1) {
-  return window['go']['wails_api']['API']['RetryWorkflowStep'](arg1);
-}
-
 export function RevertWorkflowTo(arg1, arg2) {
   return window['go']['wails_api']['API']['RevertWorkflowTo'](arg1, arg2);
 }

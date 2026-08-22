@@ -27,12 +27,19 @@ type MCPGateway struct {
 	Servers     []MCPGatewayServer
 }
 
+type ControlPorts struct {
+	Control     WorkflowControl
+	Workflows   WorkflowManager
+	Coordinator Coordinator
+	Roles       RoleManager
+}
+
 type MCPProxyServer interface {
 	// TrackRoleHelper hands the proxy the place a drafted role lands. It is
 	// set after construction because the helper is built on top of the agent manager,
 	// which is itself built on top of the gateway this proxy serves.
 	TrackRoleHelper(helper RoleHelper)
-	TrackWorkflowControl(control WorkflowControl)
+	TrackWorkflowControl(ports *ControlPorts)
 	List() ([]*MCPAuthInfo, error)
 	Authorize(server string) error // rfc 8252
 	Revoke(server string) error

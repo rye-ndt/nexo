@@ -21,7 +21,12 @@ import {Tooltip, TooltipContent, TooltipTrigger} from '@/shared/ui/tooltip'
 import {WorkflowStatus} from '@/shared/lib/enums'
 import {formatRelative, formatTokens, formatUSD} from '@/shared/lib/format'
 import {t} from '@/shared/lib/i18n'
-import {hasActiveStep, workflowRunWindow, workflowStatus} from '@/features/workflows/graph'
+import {
+    hasActiveStep,
+    isLocked,
+    workflowRunWindow,
+    workflowStatus,
+} from '@/features/workflows/graph'
 import {useElapsed} from '@/shared/hooks/use-elapsed'
 import {cn} from '@/shared/lib/utils'
 import type {Workflow} from '@/features/workflows/types'
@@ -45,7 +50,7 @@ function markerFor(workflow: Workflow, status: WorkflowStatus): Marker | null {
             className: 'text-state-approval',
         }
 
-    if (workflow.locked)
+    if (isLocked(workflow))
         return {
             icon: Lock,
             label: t('workflow.row.locked'),

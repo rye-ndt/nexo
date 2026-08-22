@@ -18,7 +18,6 @@ import (
 	"hexago/internal/implementation/core/workflow_manager"
 	"hexago/internal/implementation/input/storage"
 	"hexago/internal/implementation/input/workspace_history"
-	"hexago/internal/implementation/output/message_queue"
 	core_itf "hexago/internal/interface/core"
 	input_itf "hexago/internal/interface/input"
 
@@ -148,8 +147,6 @@ func (s *stubAgents) Send(agentID uuid.UUID, message string) error {
 	return nil
 }
 
-func (s *stubAgents) Listen(uuid.UUID) (<-chan string, error) { return nil, nil }
-
 func (s *stubAgents) ContextUsage(uuid.UUID) (*input_itf.ContextUsage, error) { return nil, nil }
 
 func (s *stubAgents) Activity(uuid.UUID) ([]input_itf.Activity, error) { return nil, nil }
@@ -200,7 +197,7 @@ func newHarness(t *testing.T) *harness {
 		AgentHeartbeatInterval: time.Hour,
 	}
 
-	workflows, err := workflow_manager.InitV1(cfg, store.StepStore(), message_queue.InitV1())
+	workflows, err := workflow_manager.InitV1(cfg, store.StepStore())
 	if err != nil {
 		t.Fatalf("init workflow manager: %v", err)
 	}

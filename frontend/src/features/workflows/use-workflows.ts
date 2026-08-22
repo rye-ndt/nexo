@@ -2,7 +2,7 @@ import {useMutation, useQuery, useQueryClient} from '@tanstack/react-query'
 
 import * as api from '@/features/workflows/api'
 import * as graph from '@/features/workflows/graph'
-import {StepState} from '@/shared/lib/enums'
+import {StepState, WorkflowLifecycle} from '@/shared/lib/enums'
 import {t, type MessageKey} from '@/shared/lib/i18n'
 import type {InputValue} from '@/features/roles/types'
 import type {
@@ -26,7 +26,7 @@ function editWorkflow(workflows: Workflow[], workflowId: string, edit: WorkflowE
 
 function editDraft(workflows: Workflow[], workflowId: string, edit: WorkflowEdit) {
     return workflows.map((workflow) =>
-        workflow.id === workflowId && !workflow.locked ? edit(workflow) : workflow,
+        workflow.id === workflowId && !graph.isLocked(workflow) ? edit(workflow) : workflow,
     )
 }
 
@@ -113,22 +113,31 @@ export function useWorkflows() {
 
     const lock = useWorkflowMutation(
         'workflow.error.lock',
-        (args: {workflowId: string}) => api.updateWorkflow(args.workflowId, {locked: true}),
+        (args: {workflowId: string}) =>
+            api.updateWorkflow(args.workflowId, {lifecycle: WorkflowLifecycle.Ready}),
         (workflows, {workflowId}) =>
-            editWorkflow(workflows, workflowId, (workflow) => ({...workflow, locked: true})),
+            editWorkflow(workflows, workflowId, (workflow) => ({
+                ...workflow,
+                lifecycle: WorkflowLifecycle.Ready,
+            })),
     )
 
     const unlock = useWorkflowMutation(
         'workflow.error.unlock',
-        (args: {workflowId: string}) => api.updateWorkflow(args.workflowId, {locked: false}),
+        (args: {workflowId: string}) =>
+            api.updateWorkflow(args.workflowId, {lifecycle: WorkflowLifecycle.Draft}),
         (workflows, {workflowId}) => editWorkflow(workflows, workflowId, graph.archiveRun),
     )
 
     const start = useWorkflowMutation(
         'workflow.error.start',
-        (args: {workflowId: string}) => api.updateWorkflow(args.workflowId, {started: true}),
+        (args: {workflowId: string}) =>
+            api.updateWorkflow(args.workflowId, {lifecycle: WorkflowLifecycle.Running}),
         (workflows, {workflowId}) =>
-            editWorkflow(workflows, workflowId, (workflow) => ({...workflow, started: true})),
+            editWorkflow(workflows, workflowId, (workflow) => ({
+                ...workflow,
+                lifecycle: WorkflowLifecycle.Running,
+            })),
     )
 
     const pause = useWorkflowMutation(

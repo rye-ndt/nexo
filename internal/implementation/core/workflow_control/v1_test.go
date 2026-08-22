@@ -22,14 +22,12 @@ type fakeWorkflows struct {
 	added      []*core_itf.AddStep
 	stepIDs    []uuid.UUID
 	statuses   map[uuid.UUID]*core_itf.WorkflowStatus
-	answered   map[uuid.UUID]bool
 }
 
 func newFakeWorkflows() *fakeWorkflows {
 	return &fakeWorkflows{
 		workflowID: uuid.New(),
 		statuses:   map[uuid.UUID]*core_itf.WorkflowStatus{},
-		answered:   map[uuid.UUID]bool{},
 	}
 }
 
@@ -56,11 +54,6 @@ func (f *fakeWorkflows) Status(id uuid.UUID) (*core_itf.WorkflowStatus, error) {
 	return status, nil
 }
 
-func (f *fakeWorkflows) AnswerReview(stepID uuid.UUID, accepted bool) error {
-	f.answered[stepID] = accepted
-	return nil
-}
-
 func (f *fakeWorkflows) addedNames() []string {
 	names := make([]string, 0, len(f.added))
 	for _, step := range f.added {
@@ -73,17 +66,11 @@ func (f *fakeWorkflows) addedNames() []string {
 type fakeCoordinator struct {
 	core_itf.Coordinator
 
-	ran    []uuid.UUID
-	paused []uuid.UUID
+	ran []uuid.UUID
 }
 
 func (f *fakeCoordinator) Run(workflow uuid.UUID) error {
 	f.ran = append(f.ran, workflow)
-	return nil
-}
-
-func (f *fakeCoordinator) Pause(workflow uuid.UUID) error {
-	f.paused = append(f.paused, workflow)
 	return nil
 }
 
@@ -100,15 +87,6 @@ func (f *fakeRoles) Get(id uuid.UUID) (*core_itf.Role, error) {
 	}
 
 	return role, nil
-}
-
-func (f *fakeRoles) List() ([]*core_itf.Role, error) {
-	roles := make([]*core_itf.Role, 0, len(f.byID))
-	for _, role := range f.byID {
-		roles = append(roles, role)
-	}
-
-	return roles, nil
 }
 
 type fakeUserConfig struct {
@@ -665,32 +643,6 @@ func TestAutopilotDropsTheManualAccept(t *testing.T) {
 	}
 }
 
-func TestWorkflowStateComesStraightFromTheManager(t *testing.T) {
-	h := newHarness(t, anyWorkspaceConfig())
-
-	workflowID := uuid.MustParse("00000000-0000-7000-8000-000000000001")
-	want := &core_itf.WorkflowStatus{
-		ID:             workflowID,
-		Status:         enums.WorkflowProcessing,
-		ProjectDirPath: "/work",
-		Steps:          map[uuid.UUID]*core_itf.StepResult{},
-	}
-	h.workflows.statuses[workflowID] = want
-
-	state, err := h.control.WorkflowState(workflowID)
-	if err != nil {
-		t.Fatalf("workflow state: %v", err)
-	}
-
-	if state != want {
-		t.Fatalf("state is %p, want manager value %p", state, want)
-	}
-
-	if h.storage.loads != 0 {
-		t.Fatalf("workflow_status read the step history %d times, want none", h.storage.loads)
-	}
-}
-
 func TestListWorkflowsClampsTheLimitAndOrdersNewestFirst(t *testing.T) {
 	cfg := anyWorkspaceConfig()
 	cfg.MaxWorkflowsListed = 2
@@ -760,57 +712,5 @@ func TestListWorkflowsSkipsAWorkflowTheManagerDoesNotKnow(t *testing.T) {
 
 	if len(listed) != 1 || listed[0].ID != known {
 		t.Fatalf("listing is %+v, want only the workflow the manager knows", listed)
-	}
-}
-
-func TestListRolesComesStraightFromTheManager(t *testing.T) {
-	h := newHarness(t, anyWorkspaceConfig())
-	role := withRole(t, h)
-
-	listed, err := h.control.ListRoles()
-	if err != nil {
-		t.Fatalf("list roles: %v", err)
-	}
-
-	if len(listed) != 1 {
-		t.Fatalf("listed %d roles, want 1", len(listed))
-	}
-
-	if listed[0] != role {
-		t.Fatalf("role is %p, want manager value %p", listed[0], role)
-	}
-}
-
-func TestLifecycleCallsForwardIDs(t *testing.T) {
-	h := newHarness(t, anyWorkspaceConfig())
-	workflowID := uuid.New()
-
-	if err := h.control.StartWorkflow(workflowID); err != nil {
-		t.Fatalf("start workflow: %v", err)
-	}
-
-	if err := h.control.PauseWorkflow(workflowID); err != nil {
-		t.Fatalf("pause workflow: %v", err)
-	}
-
-	if len(h.coordinator.ran) != 1 || h.coordinator.ran[0] != workflowID {
-		t.Fatalf("the coordinator ran %v, want one run of %v", h.coordinator.ran, workflowID)
-	}
-
-	if len(h.coordinator.paused) != 1 || h.coordinator.paused[0] != workflowID {
-		t.Fatalf("the coordinator paused %v, want %v", h.coordinator.paused, workflowID)
-	}
-}
-
-func TestAnswerReviewReachesTheWorkflowManager(t *testing.T) {
-	h := newHarness(t, anyWorkspaceConfig())
-	stepID := uuid.New()
-
-	if err := h.control.AnswerReview(stepID, true); err != nil {
-		t.Fatalf("answer acceptance: %v", err)
-	}
-
-	if accepted, found := h.workflows.answered[stepID]; !found || !accepted {
-		t.Fatalf("the workflow manager saw %v for %v", h.workflows.answered, stepID)
 	}
 }

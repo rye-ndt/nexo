@@ -30,17 +30,17 @@ type StepSpec struct {
 }
 
 type Handoff struct {
-	Step              string
-	TLDR              string
-	Outcome           string
-	Blockers          map[string]string
-	ApprovedDecisions map[string]string
-	RejectedDecisions map[string]string
-	CurrentBehaviors  map[string]string
-	ChangedBehaviors  map[string]string
-	MustAvoid         map[string]string
-	Nuances           map[string]string
-	KnownGaps         map[string]string
+	Step              string            `json:"step"`
+	TLDR              string            `json:"tldr"`
+	Outcome           string            `json:"outcome"`
+	Blockers          map[string]string `json:"blockers"`
+	ApprovedDecisions map[string]string `json:"approved_decisions"`
+	RejectedDecisions map[string]string `json:"rejected_decisions"`
+	CurrentBehaviors  map[string]string `json:"current_behaviors"`
+	ChangedBehaviors  map[string]string `json:"changed_behaviors"`
+	MustAvoid         map[string]string `json:"must_avoid"`
+	Nuances           map[string]string `json:"nuances"`
+	KnownGaps         map[string]string `json:"known_gaps"`
 }
 
 // ContextUsage is the window of the attempt being looked at, which is what the step's
@@ -105,7 +105,6 @@ type WorkflowManager interface {
 	ReadySteps(workflow uuid.UUID) ([]*StepSpec, error)
 	Assign(stepID, agentID uuid.UUID) error
 	Execute(workflow uuid.UUID) (<-chan *WorkflowProgress, error)
-	RetryStep(stepID uuid.UUID) error
 	RewindTo(stepID uuid.UUID) error
 	AnswerReview(stepID uuid.UUID, accepted bool) error
 	Cancel(workflow uuid.UUID) ([]uuid.UUID, error)

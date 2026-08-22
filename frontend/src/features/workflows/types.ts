@@ -1,4 +1,4 @@
-import type {FileChangeType, Effort, StepState} from '@/shared/lib/enums'
+import type {FileChangeType, Effort, StepState, WorkflowLifecycle} from '@/shared/lib/enums'
 import type {InputValue} from '@/features/roles/types'
 
 export type Point = {
@@ -126,10 +126,7 @@ export type Workflow = {
     name: string
     createdAt: string
     railRank?: number
-    locked: boolean
-    started: boolean
-    cancelled: boolean
-    paused: boolean
+    lifecycle: WorkflowLifecycle
     projectDir: string
     steps: Step[]
     remote?: RemoteRunIds

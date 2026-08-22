@@ -17,24 +17,38 @@ import type {Workflow, WorkflowLocations} from '@/features/workflows/types'
 import {findWorkflow, hydrate, prependWorkflow, saveDraft} from '@/features/workflows/api/store'
 import {ExportWorkflow, ImportWorkflow} from '@wailsjs/go/wails_api/API'
 
+type WorkflowFiles = {
+    write(path: string, body: string): Promise<void>
+    read(path: string): Promise<string>
+}
+
+const nativeFiles: WorkflowFiles = {
+    write: async (path, body) => {
+        await bridge(() => ExportWorkflow(path, body))
+    },
+    read: async (path) => bridge(() => ImportWorkflow(path)),
+}
+
+const mockFiles: WorkflowFiles = {
+    write: async (path, body) => {
+        mockWriteFile(path, mockWorkflowArchive(body))
+    },
+    read: async (path) => mockWorkflowBody(mockReadFile(path)),
+}
+
+const files: WorkflowFiles = hasWailsRuntime() ? nativeFiles : mockFiles
+
 export async function exportWorkflow(workflowId: string, path: string): Promise<string> {
     await hydrate()
 
     const workflow = findWorkflow(workflowId)
-    const body = JSON.stringify(toExportedWorkflow(workflow, await listRoles()))
-
-    if (hasWailsRuntime()) await bridge(() => ExportWorkflow(path, body))
-    else mockWriteFile(path, mockWorkflowArchive(body))
+    await files.write(path, JSON.stringify(toExportedWorkflow(workflow, await listRoles())))
 
     return workflow.name
 }
 
 export async function readWorkflowFile(path: string): Promise<Workflow> {
-    const body = hasWailsRuntime()
-        ? await bridge(() => ImportWorkflow(path))
-        : mockWorkflowBody(mockReadFile(path))
-
-    return fromExportedWorkflow(body)
+    return fromExportedWorkflow(await files.read(path))
 }
 
 export async function importWorkflow(

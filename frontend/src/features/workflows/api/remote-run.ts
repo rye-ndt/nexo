@@ -10,9 +10,9 @@
  * reattaches instead of starting a second workflow over the same directory.
  */
 
-import {bridge, hasWailsRuntime} from '@/shared/api/bridge'
+import {bridge} from '@/shared/api/bridge'
 import {listRoles} from '@/features/roles/api'
-import {StepState} from '@/shared/lib/enums'
+import {StepState, WorkflowLifecycle} from '@/shared/lib/enums'
 import {t} from '@/shared/lib/i18n'
 import {hasActiveStep, isFinished, label} from '@/features/workflows/graph'
 import {resolvedPrompt} from '@/features/workflows/step-inputs'
@@ -31,10 +31,12 @@ import {findWorkflow, replaceWorkflow, workflows} from '@/features/workflows/api
 import {mergeActivity} from '@/features/workflows/api/activity'
 import {TICK_MS, timers} from '@/features/workflows/api/timers'
 import {output_itf} from '@wailsjs/go/models'
+import type {core_itf} from '@wailsjs/go/models'
 import type {input_itf} from '@wailsjs/go/models'
 import {
     AnswerStepReview,
     CancelWorkflow,
+    DiscardWorkflowRun,
     PauseWorkflow,
     ResumeWorkflow,
     RunWorkflow,
@@ -93,26 +95,26 @@ function track(workflow: Workflow, remote: RemoteRunIds) {
     pollRemoteRun(workflow.id)
 }
 
-export async function startRemoteRun(workflow: Workflow): Promise<boolean> {
-    if (!hasWailsRuntime()) return false
-    if (runs.has(workflow.id)) return true
-    if (!workflow.projectDir.trim()) throw new Error(t('workflow.api.setProjectDir'))
+export async function startRemoteRun(workflow: Workflow): Promise<void> {
+    const started = replaceWorkflow(workflow)
 
-    const known = workflow.remote
+    if (runs.has(started.id)) return
+    if (!started.projectDir.trim()) throw new Error(t('workflow.api.setProjectDir'))
+
+    const known = started.remote
 
     if (known) {
         await bridge(() => ResumeWorkflow(known.workflowId))
-        track(workflow, known)
-        return true
+        track(started, known)
+        return
     }
 
-    const spec = await buildRunSpec(workflow)
+    const spec = await buildRunSpec(started)
     const result = await bridge(() => RunWorkflow(spec))
 
     if (!result.workflow_id) throw new Error(t('workflow.api.noWorkflowId'))
 
-    track(workflow, {workflowId: result.workflow_id, stepIds: result.step_ids ?? {}})
-    return true
+    track(started, {workflowId: result.workflow_id, stepIds: result.step_ids ?? {}})
 }
 
 export async function answerRemoteAcceptance(
@@ -126,12 +128,12 @@ export async function answerRemoteAcceptance(
     pollRemoteRun(workflowId)
 }
 
-export async function pauseRemoteRun(workflowId: string): Promise<void> {
-    return haltRemoteRun(workflowId, PauseWorkflow)
+export async function pauseRemoteRun(workflow: Workflow): Promise<void> {
+    return haltRemoteRun(workflow.id, PauseWorkflow)
 }
 
-export async function cancelRemoteRun(workflowId: string): Promise<void> {
-    return haltRemoteRun(workflowId, CancelWorkflow)
+export async function cancelRemoteRun(workflow: Workflow): Promise<void> {
+    return haltRemoteRun(workflow.id, CancelWorkflow)
 }
 
 async function haltRemoteRun(
@@ -142,7 +144,25 @@ async function haltRemoteRun(
     if (!run) return
 
     await bridge(() => halt(run.remoteWorkflowId))
+
+    stopPolling(workflowId)
     runs.delete(workflowId)
+}
+
+export async function discardRemoteRun(workflow: Workflow): Promise<void> {
+    stopPolling(workflow.id)
+    runs.delete(workflow.id)
+
+    const remote = workflow.remote
+    if (remote) await bridge(() => DiscardWorkflowRun(remote.workflowId))
+}
+
+export function stopPolling(workflowId: string) {
+    const timer = timers.get(workflowId)
+    if (timer === undefined) return
+
+    clearTimeout(timer)
+    timers.delete(workflowId)
 }
 
 function pollRemoteRun(workflowId: string) {
@@ -160,7 +180,7 @@ function pollRemoteRun(workflowId: string) {
 async function pollRemoteTick(workflowId: string) {
     const run = runs.get(workflowId)
     const workflow = workflows.find((workflow) => workflow.id === workflowId)
-    if (!run || !workflow || workflow.cancelled) return
+    if (!run || !workflow || workflow.lifecycle === WorkflowLifecycle.Cancelled) return
 
     let status: output_itf.WorkflowStatusInfo | null
 
@@ -289,7 +309,7 @@ function toActivityLine(info: output_itf.StepActivityInfo): ActivityLine {
     return {seq: info.seq ?? 0, at: info.at ?? '', text: info.text ?? ''}
 }
 
-function toHandoff(info: output_itf.HandoffInfo): Handoff {
+function toHandoff(info: core_itf.Handoff): Handoff {
     return {
         step: info.step ?? '',
         tldr: info.tldr ?? '',

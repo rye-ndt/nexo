@@ -2,6 +2,7 @@ import {Gauge} from 'lucide-react'
 
 import {Button} from '@/shared/ui/button'
 import {RunCostDialog} from '@/features/workflows/components/canvas/header/run-cost-dialog'
+import {hasStarted} from '@/features/workflows/graph'
 import {Tooltip, TooltipContent, TooltipTrigger} from '@/shared/ui/tooltip'
 import {useToggle} from '@/shared/hooks/use-toggle'
 import {t} from '@/shared/lib/i18n'
@@ -11,7 +12,7 @@ import type {Workflow} from '@/features/workflows/types'
 export function RunCost({workflow}: {workflow: Workflow}) {
     const dialog = useToggle()
 
-    if (!workflow.started) return null
+    if (!hasStarted(workflow)) return null
 
     return (
         <>

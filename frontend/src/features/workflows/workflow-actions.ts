@@ -1,7 +1,14 @@
 import {CirclePlay, CircleStop, Copy, Lock, LockOpen, Pause, Play, Plus} from 'lucide-react'
 import type {LucideIcon} from 'lucide-react'
 
-import {hasActiveStep, isCancellable, isPausable, isResumable} from '@/features/workflows/graph'
+import {
+    hasActiveStep,
+    hasStarted,
+    isCancellable,
+    isLocked,
+    isPausable,
+    isResumable,
+} from '@/features/workflows/graph'
 import {t, type MessageKey} from '@/shared/lib/i18n'
 import type {GlossaryTerm} from '@/shared/lib/glossary'
 import type {Workflow} from '@/features/workflows/types'
@@ -89,14 +96,14 @@ const ACTIONS: Record<WorkflowActionId, ActionShape> = {
 export function workflowActions(workflow: Workflow | null): WorkflowAction[] {
     if (!workflow) return []
 
-    const draft = !workflow.locked
+    const locked = isLocked(workflow)
 
     const ids = [
-        draft && WorkflowActionId.NewStep,
+        !locked && WorkflowActionId.NewStep,
         WorkflowActionId.Duplicate,
-        draft && WorkflowActionId.Lock,
-        workflow.locked && !hasActiveStep(workflow) && WorkflowActionId.Unlock,
-        workflow.locked && !workflow.started && WorkflowActionId.Run,
+        !locked && WorkflowActionId.Lock,
+        locked && !hasActiveStep(workflow) && WorkflowActionId.Unlock,
+        locked && !hasStarted(workflow) && WorkflowActionId.Run,
         isPausable(workflow) && WorkflowActionId.Pause,
         isResumable(workflow) && WorkflowActionId.Resume,
         isCancellable(workflow) && WorkflowActionId.Cancel,

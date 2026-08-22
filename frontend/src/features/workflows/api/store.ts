@@ -1,17 +1,55 @@
 /**
  * Workflows are authored in this module's memory. Inside the Wails webview they
  * are hydrated from the stored drafts and every change is written back as one
- * JSON doc.
+ * JSON doc; under the plain vite dev server the mock workflows are the drafts.
  */
 
 import {bridge, hasWailsRuntime} from '@/shared/api/bridge'
+import {WORKFLOW_LIFECYCLES, WorkflowLifecycle} from '@/shared/lib/enums'
 import {t} from '@/shared/lib/i18n'
-import {byRailRank, isPausable, pauseRun} from '@/features/workflows/graph'
+import {
+    archiveRun,
+    byRailRank,
+    haltSteps,
+    isLocked,
+    isPausable,
+    pauseRun,
+} from '@/features/workflows/graph'
 import {MOCK_WORKFLOWS} from '@/features/workflows/mock-workflows'
 import type {Workflow} from '@/features/workflows/types'
-import {SaveWorkflowDraft, WorkflowDrafts} from '@wailsjs/go/wails_api/API'
+import {DeleteWorkflowDraft, SaveWorkflowDraft, WorkflowDrafts} from '@wailsjs/go/wails_api/API'
 
-export let workflows: Workflow[] = hasWailsRuntime() ? [] : structuredClone(MOCK_WORKFLOWS)
+type DraftStore = {
+    seed(): Workflow[]
+    load(): Promise<Workflow[]>
+    save(workflow: Workflow): Promise<void>
+    remove(workflowId: string): Promise<void>
+}
+
+const storedDrafts: DraftStore = {
+    seed: () => [],
+    load: async () => {
+        const stored = await bridge(WorkflowDrafts)
+        return stored.map((draft) => restore(JSON.parse(draft.doc) as Workflow))
+    },
+    save: async (workflow) => {
+        await bridge(() => SaveWorkflowDraft(workflow.id, JSON.stringify(workflow)))
+    },
+    remove: async (workflowId) => {
+        await bridge(() => DeleteWorkflowDraft(workflowId))
+    },
+}
+
+const mockDrafts: DraftStore = {
+    seed: () => structuredClone(MOCK_WORKFLOWS),
+    load: async () => workflows,
+    save: async () => {},
+    remove: async () => {},
+}
+
+const drafts: DraftStore = hasWailsRuntime() ? storedDrafts : mockDrafts
+
+export let workflows: Workflow[] = drafts.seed()
 
 let hydrated = false
 
@@ -36,7 +74,7 @@ export function findWorkflow(workflowId: string) {
 
 export function findOpenWorkflow(workflowId: string) {
     const workflow = findWorkflow(workflowId)
-    if (workflow.locked) throw new Error(t('workflow.api.locked'))
+    if (isLocked(workflow)) throw new Error(t('workflow.api.locked'))
     return workflow
 }
 
@@ -53,28 +91,34 @@ export function replaceWorkflow(next: Workflow) {
 }
 
 export async function saveDraft(workflow: Workflow) {
-    if (!hasWailsRuntime()) return
+    await drafts.save(workflow)
+}
 
-    await bridge(() => SaveWorkflowDraft(workflow.id, JSON.stringify(workflow)))
+export async function deleteDraft(workflowId: string) {
+    await drafts.remove(workflowId)
 }
 
 export async function hydrate() {
-    if (hydrated || !hasWailsRuntime()) return
+    if (hydrated) return
 
-    const drafts = await bridge(WorkflowDrafts)
-    workflows = drafts.map((draft) => restore(JSON.parse(draft.doc) as Workflow)).sort(byRailRank)
+    workflows = (await drafts.load()).sort(byRailRank)
     hydrated = true
 }
 
 /**
  * No agent survives the process, so a run that was still going comes back paused —
  * the same steps it would have lost to a pause. A cancelled workflow is terminal, so
- * it comes back exactly as it was stored.
+ * it comes back exactly as it was stored, and a doc written before the lifecycle
+ * existed comes back as a draft rather than crashing the rail.
  */
 function restore(stored: Workflow): Workflow {
-    if (stored.cancelled) return {...stored, cancelled: true}
+    if (!WORKFLOW_LIFECYCLES.includes(stored.lifecycle)) return archiveRun(stored)
 
-    const halted = {...stored, cancelled: false, paused: false}
+    const lifecycle = stored.lifecycle
 
-    return {...pauseRun(halted), paused: isPausable(halted)}
+    if (lifecycle === WorkflowLifecycle.Cancelled) return {...stored, lifecycle}
+
+    const halted = haltSteps({...stored, lifecycle})
+
+    return isPausable(halted) ? pauseRun(halted) : halted
 }

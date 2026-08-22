@@ -9,7 +9,7 @@ import {MissingInputsDialog} from '@/features/workflows/components/steps/missing
 import {NewStepDialog} from '@/features/workflows/components/steps/new-step-dialog'
 import {WorkflowHeader} from '@/features/workflows/components/canvas/workflow-header'
 import {StepDialog} from '@/features/workflows/components/steps/step-dialog'
-import {draftContext} from '@/features/workflows/graph'
+import {draftContext, isLocked} from '@/features/workflows/graph'
 import {useInterrupts} from '@/features/workflows/use-interrupts'
 import {useMissingInputs} from '@/features/workflows/use-missing-inputs'
 import {useToggle} from '@/shared/hooks/use-toggle'
@@ -188,7 +188,7 @@ export function WorkflowWorkspace({
                 />
             )}
 
-            {locations.on && workflow && !workflow.locked && (
+            {locations.on && workflow && !isLocked(workflow) && (
                 <EditLocationsDialog
                     key={workflow.id}
                     workflow={workflow}

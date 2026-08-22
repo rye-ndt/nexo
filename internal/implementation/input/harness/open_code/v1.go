@@ -64,7 +64,6 @@ type githubRelease struct {
 
 type openCodeProc struct {
 	cmd       *exec.Cmd
-	out       chan string
 	port      int
 	session   string
 	done      chan struct{}
@@ -459,11 +458,10 @@ func (o *openCode) Spawn(
 		return uuid.Nil, err
 	}
 
-	out := make(chan string, 64)
 	done := make(chan struct{})
 	exited := make(chan struct{})
 
-	proc := &openCodeProc{cmd: cmd, out: out, port: port, session: session, done: done, exited: exited, ctxWindow: o.ctxWindow}
+	proc := &openCodeProc{cmd: cmd, port: port, session: session, done: done, exited: exited, ctxWindow: o.ctxWindow}
 	proc.lastOut.Store(helpers.NewUTCUnix())
 
 	if err := o.agents.Admit(id, proc); err != nil {
@@ -474,7 +472,7 @@ func (o *openCode) Spawn(
 
 	streamClosed := make(chan struct{})
 
-	go streamEvents(o.baseURL(port), out, done, streamClosed, proc)
+	go streamEvents(o.baseURL(port), done, streamClosed, proc)
 
 	go func() {
 		select {
@@ -528,13 +526,11 @@ func (o *openCode) createSession(port int) (string, error) {
 
 func streamEvents(
 	baseURL string,
-	out chan string,
 	done <-chan struct{},
 	closed chan<- struct{},
 	proc *openCodeProc,
 ) {
 	defer close(closed)
-	defer close(out)
 
 	res, err := http.Get(baseURL + "/event")
 	if err != nil {
@@ -555,7 +551,6 @@ func streamEvents(
 		proc.trackUsage([]byte(data))
 
 		select {
-		case out <- data:
 		case <-done:
 			return
 		default:
@@ -618,15 +613,6 @@ func (o *openCode) Usage(id string) (*input_itf.ContextUsage, error) {
 
 func (o *openCode) Activity(id string) ([]input_itf.Activity, error) {
 	return []input_itf.Activity{}, nil
-}
-
-func (o *openCode) Listen(id string) (<-chan string, error) {
-	a, err := o.agents.Get(id)
-	if err != nil {
-		return nil, err
-	}
-
-	return a.out, nil
 }
 
 func (o *openCode) stopAll() {

@@ -14,40 +14,58 @@ import {mockStepDiff} from '@/features/workflows/mock-step-diff'
 import type {FileChange} from '@/features/workflows/types'
 import {RemoteChangeType} from '@/features/workflows/api/remote-enums'
 import {forgetWorkflowActivity} from '@/features/workflows/api/activity'
-import {remoteRefs, runs} from '@/features/workflows/api/remote-run'
-import {stopRun} from '@/features/workflows/api/simulated-run'
+import {remoteRefs, runs, stopPolling} from '@/features/workflows/api/remote-run'
+import {stopTicking} from '@/features/workflows/api/simulated-run'
 import {findWorkflow, replaceWorkflow} from '@/features/workflows/api/store'
 import type {output_itf} from '@wailsjs/go/models'
 import {RevertWorkflowTo, StepDiff} from '@wailsjs/go/wails_api/API'
 
 const ROUNDTRIP_MS = 400
 
+type StepDiffs = {
+    fetch(workflowId: string, stepId: string): Promise<FileChange[]>
+    revertTo(workflowId: string, stepId: string): Promise<void>
+}
+
 async function roundtrip() {
     await new Promise((resolve) => setTimeout(resolve, ROUNDTRIP_MS))
 }
 
-export async function fetchStepDiff(workflowId: string, stepId: string): Promise<FileChange[]> {
-    if (!hasWailsRuntime()) {
+const remoteDiffs: StepDiffs = {
+    fetch: async (workflowId, stepId) => {
+        const refs = remoteRefs(workflowId, stepId)
+        const infos = await bridge(() => StepDiff(refs.workflowId, refs.stepId))
+
+        return infos.map(toFileChange)
+    },
+    revertTo: async (workflowId, stepId) => {
+        const refs = remoteRefs(workflowId, stepId)
+        await bridge(() => RevertWorkflowTo(refs.workflowId, refs.stepId))
+
+        stopPolling(workflowId)
+        runs.delete(workflowId)
+    },
+}
+
+const mockDiffs: StepDiffs = {
+    fetch: async (_workflowId, stepId) => {
         await roundtrip()
         return mockStepDiff(stepId)
-    }
+    },
+    revertTo: async (workflowId) => {
+        await roundtrip()
+        stopTicking(workflowId)
+    },
+}
 
-    const refs = remoteRefs(workflowId, stepId)
-    const infos = await bridge(() => StepDiff(refs.workflowId, refs.stepId))
+const diffs: StepDiffs = hasWailsRuntime() ? remoteDiffs : mockDiffs
 
-    return infos.map(toFileChange)
+export async function fetchStepDiff(workflowId: string, stepId: string): Promise<FileChange[]> {
+    return diffs.fetch(workflowId, stepId)
 }
 
 export async function revertWorkflowTo(workflowId: string, stepId: string): Promise<void> {
-    if (hasWailsRuntime()) {
-        const refs = remoteRefs(workflowId, stepId)
-        await bridge(() => RevertWorkflowTo(refs.workflowId, refs.stepId))
-        runs.delete(workflowId)
-    } else {
-        await roundtrip()
-    }
-
-    stopRun(workflowId)
+    await diffs.revertTo(workflowId, stepId)
 
     const workflow = findWorkflow(workflowId)
     forgetWorkflowActivity(workflow)

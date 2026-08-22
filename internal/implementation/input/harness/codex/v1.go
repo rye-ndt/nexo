@@ -337,15 +337,6 @@ func (c *codex) Send(id string, message string) error {
 	return nil
 }
 
-func (c *codex) Listen(id string) (<-chan string, error) {
-	proc, err := c.agents.Get(id)
-	if err != nil {
-		return nil, err
-	}
-
-	return proc.out, nil
-}
-
 func (c *codex) Alive(id string) (time.Time, error) {
 	proc, err := c.agents.Get(id)
 	if err != nil {
@@ -427,7 +418,6 @@ func (c *codex) run(id, workspace string, stderr *os.File, proc *agentProc) {
 	stderr.Close()
 	os.RemoveAll(workspace)
 	c.agents.Forget(id)
-	close(proc.out)
 	close(proc.exited)
 }
 

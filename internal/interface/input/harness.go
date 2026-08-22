@@ -64,7 +64,6 @@ type AgentHarness interface {
 		workdir string,
 	) (uuid.UUID, error)
 	Send(id string, message string) error
-	Listen(id string) (<-chan string, error)
 	Alive(id string) (time.Time, error)
 	Usage(id string) (*ContextUsage, error)
 	Activity(id string) ([]Activity, error)

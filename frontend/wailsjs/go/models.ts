@@ -72,6 +72,38 @@ export namespace core_itf {
 		    return a;
 		}
 	}
+	export class Handoff {
+	    step: string;
+	    tldr: string;
+	    outcome: string;
+	    blockers: Record<string, string>;
+	    approved_decisions: Record<string, string>;
+	    rejected_decisions: Record<string, string>;
+	    current_behaviors: Record<string, string>;
+	    changed_behaviors: Record<string, string>;
+	    must_avoid: Record<string, string>;
+	    nuances: Record<string, string>;
+	    known_gaps: Record<string, string>;
+	
+	    static createFrom(source: any = {}) {
+	        return new Handoff(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.step = source["step"];
+	        this.tldr = source["tldr"];
+	        this.outcome = source["outcome"];
+	        this.blockers = source["blockers"];
+	        this.approved_decisions = source["approved_decisions"];
+	        this.rejected_decisions = source["rejected_decisions"];
+	        this.current_behaviors = source["current_behaviors"];
+	        this.changed_behaviors = source["changed_behaviors"];
+	        this.must_avoid = source["must_avoid"];
+	        this.nuances = source["nuances"];
+	        this.known_gaps = source["known_gaps"];
+	    }
+	}
 
 }
 
@@ -288,38 +320,6 @@ export namespace output_itf {
 	        this.additions = source["additions"];
 	        this.deletions = source["deletions"];
 	        this.unified_diff = source["unified_diff"];
-	    }
-	}
-	export class HandoffInfo {
-	    step: string;
-	    tldr: string;
-	    outcome: string;
-	    blockers: Record<string, string>;
-	    approved_decisions: Record<string, string>;
-	    rejected_decisions: Record<string, string>;
-	    current_behaviors: Record<string, string>;
-	    changed_behaviors: Record<string, string>;
-	    must_avoid: Record<string, string>;
-	    nuances: Record<string, string>;
-	    known_gaps: Record<string, string>;
-	
-	    static createFrom(source: any = {}) {
-	        return new HandoffInfo(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.step = source["step"];
-	        this.tldr = source["tldr"];
-	        this.outcome = source["outcome"];
-	        this.blockers = source["blockers"];
-	        this.approved_decisions = source["approved_decisions"];
-	        this.rejected_decisions = source["rejected_decisions"];
-	        this.current_behaviors = source["current_behaviors"];
-	        this.changed_behaviors = source["changed_behaviors"];
-	        this.must_avoid = source["must_avoid"];
-	        this.nuances = source["nuances"];
-	        this.known_gaps = source["known_gaps"];
 	    }
 	}
 	export class MCPServerInfo {
@@ -543,7 +543,7 @@ export namespace output_itf {
 	    agent_id: string;
 	    effort: string;
 	    status: string;
-	    handoffs: HandoffInfo[];
+	    handoffs: core_itf.Handoff[];
 	    context_usage?: input_itf.ContextUsage;
 	    spent?: input_itf.ContextUsage;
 	    cost_usd: number;
@@ -560,7 +560,7 @@ export namespace output_itf {
 	        this.agent_id = source["agent_id"];
 	        this.effort = source["effort"];
 	        this.status = source["status"];
-	        this.handoffs = this.convertValues(source["handoffs"], HandoffInfo);
+	        this.handoffs = this.convertValues(source["handoffs"], core_itf.Handoff);
 	        this.context_usage = this.convertValues(source["context_usage"], input_itf.ContextUsage);
 	        this.spent = this.convertValues(source["spent"], input_itf.ContextUsage);
 	        this.cost_usd = source["cost_usd"];

@@ -3,6 +3,7 @@ import {Lock} from 'lucide-react'
 
 import {Tooltip, TooltipContent, TooltipTrigger} from '@/shared/ui/tooltip'
 import {lockedHint} from '@/features/workflows/workflow-copy'
+import {isLocked} from '@/features/workflows/graph'
 import {t} from '@/shared/lib/i18n'
 import type {Workflow} from '@/features/workflows/types'
 
@@ -15,7 +16,7 @@ export function WorkflowName({
     workflow: Workflow
     onRename: (name: string) => void
 }) {
-    if (workflow.locked) return <LockedName name={workflow.name} />
+    if (isLocked(workflow)) return <LockedName name={workflow.name} />
 
     return <WorkflowNameInput key={workflow.id} name={workflow.name} onRename={onRename} />
 }

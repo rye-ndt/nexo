@@ -47,7 +47,7 @@ export function useWorkflowStore() {
     /** A draft is the only thing structural edits may touch; a locked graph is frozen. */
     const openWorkflow = (workflowId: string) => {
         const workflow = graph.findWorkflow(workflows, workflowId)
-        return workflow && !workflow.locked ? workflow : null
+        return workflow && !graph.isLocked(workflow) ? workflow : null
     }
 
     const addWorkflow = (draft: WorkflowDraft) => {
