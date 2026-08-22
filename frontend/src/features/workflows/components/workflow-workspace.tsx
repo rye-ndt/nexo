@@ -90,6 +90,7 @@ export function WorkflowWorkspace({
                     onRename={active.rename}
                     onEditLocations={locations.open}
                     onLock={active.lock}
+                    onUnlock={active.unlock}
                     onRun={run}
                     onPause={active.pause}
                     onResume={active.resume}

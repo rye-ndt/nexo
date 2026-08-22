@@ -769,6 +769,10 @@ func (a *API) RevertWorkflowTo(workflowID, stepID string) error {
 	return withWorkflowStep(workflowID, stepID, a.coordinator.RevertTo)
 }
 
+func (a *API) DiscardWorkflowRun(workflowID string) error {
+	return withID(idWorkflow, workflowID, a.coordinator.DiscardRun)
+}
+
 func fileChangeInfos(changes []*input_itf.FileChange) []*output_itf.FileChangeInfo {
 	infos := make([]*output_itf.FileChangeInfo, 0, len(changes))
 

@@ -103,6 +103,24 @@ export type RemoteRunIds = {
     stepIds: Record<string, string>
 }
 
+export type PastRun = {
+    runId: string
+    remote?: RemoteRunIds
+    startedAt?: string
+    finishedAt?: string
+    spent?: Spend
+    costUsd?: number
+    priced?: boolean
+    steps: {
+        id: string
+        title: string
+        state: StepState
+        agentId?: string
+        run?: Run
+        report?: StepResult
+    }[]
+}
+
 export type Workflow = {
     id: string
     name: string
@@ -123,6 +141,7 @@ export type Workflow = {
     /** When the first step was assigned, and when the last one settled. */
     startedAt?: string
     finishedAt?: string
+    history?: PastRun[]
 }
 
 export type WorkflowLocations = {

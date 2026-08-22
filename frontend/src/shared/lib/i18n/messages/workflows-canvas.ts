@@ -279,8 +279,8 @@ export const WORKFLOW_CANVAS_MESSAGES = {
         vi: 'Sơ đồ đã khóa. Đầu vào vẫn sửa được cho tới khi bắt đầu chạy.',
     },
     'step.locked.roleGone': {
-        en: 'This step’s role is gone, so its inputs cannot be read. Duplicate the workflow and rebuild the step.',
-        vi: 'Vai trò của bước này không còn nên không đọc được đầu vào. Nhân bản workflow rồi dựng lại bước.',
+        en: 'This step’s role is gone, so its inputs cannot be read. Unlock the workflow and rebuild the step.',
+        vi: 'Vai trò của bước này không còn nên không đọc được đầu vào. Mở khóa workflow rồi dựng lại bước.',
     },
     'step.locked.promptPreview': {
         en: 'Prompt the agent receives',

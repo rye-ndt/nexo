@@ -35,6 +35,8 @@ const (
 
 	agentsDoc  = ".harness/context/AGENTS.md"
 	gotchasDoc = ".harness/context/.agent/gotchas.md"
+
+	preRunFile = "docs/existing.md"
 )
 
 const (
@@ -52,6 +54,8 @@ const (
 	featureTestBody = "package app\n\nimport \"testing\"\n\nfunc TestFeature(t *testing.T) {\n\tif Feature(1) == \"\" {\n\t\tt.Fatal(\"empty\")\n\t}\n}\n"
 
 	changelogBody = "# changelog\n\n- the fourth step doubled the feature\n"
+
+	preRunBody = "# docs\n\nwritten by hand before any agent ran\n"
 
 	gotchaNote = "\n- the shadow repo excludes this file on purpose\n"
 	agentsNote = "\n- learned by an agent and kept across workflows\n"
@@ -653,6 +657,32 @@ func TestWorkflowRunsAgainFromTheRevertPoint(t *testing.T) {
 	h.runToCompletion("c", "d")
 
 	assertTree(t, h.dir, treeAfter(chain...))
+}
+
+func TestDiscardRunRestoresTheWorkspaceToItsPreRunContents(t *testing.T) {
+	h := newHarness(t)
+
+	h.apply(mutation{path: preRunFile, body: preRunBody})
+
+	before := readTree(t, h.dir)
+
+	h.runToCompletion(chain...)
+
+	if err := h.coord.DiscardRun(h.workflow); err != nil {
+		t.Fatalf("discard run: %v", err)
+	}
+
+	h.reportProblems()
+
+	assertTree(t, h.dir, before)
+
+	if body := mustRead(t, h.dir, preRunFile); body != preRunBody {
+		t.Errorf("%s = %q, want the pre-run content %q", preRunFile, body, preRunBody)
+	}
+
+	if body := mustRead(t, h.dir, agentsDoc); !strings.Contains(body, agentsNote) {
+		t.Errorf("%s lost the note the fourth step wrote, got %q", agentsDoc, body)
+	}
 }
 
 func mustRead(t *testing.T, dir, path string) string {

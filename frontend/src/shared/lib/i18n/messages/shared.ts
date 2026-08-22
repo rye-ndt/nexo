@@ -134,12 +134,12 @@ export const SHARED_MESSAGES = {
     },
     'glossary.lock.title': {en: 'Locking', vi: 'Khóa'},
     'glossary.lock.what': {
-        en: 'Freezes the graph and the project folder so the workflow can run.',
-        vi: 'Đóng băng sơ đồ và thư mục dự án để workflow có thể chạy.',
+        en: 'Freezes the graph and the project folder so the workflow can run. Unlocking opens it for editing again and discards the run.',
+        vi: 'Đóng băng sơ đồ và thư mục dự án để workflow có thể chạy. Mở khóa cho phép sửa lại và bỏ lần chạy đó.',
     },
     'glossary.lock.why': {
-        en: 'A run that could be edited underneath itself could not be trusted or replayed.',
-        vi: 'Một lượt chạy bị sửa ngay lúc đang chạy thì không đáng tin và không chạy lại được.',
+        en: 'A run that could be edited underneath itself could not be trusted or replayed. Unlocking puts the folder back, so the next run starts from the same place this one did.',
+        vi: 'Một lượt chạy bị sửa ngay lúc đang chạy thì không đáng tin và không chạy lại được. Mở khóa trả thư mục về như cũ, nên lần chạy sau bắt đầu từ đúng chỗ lần này đã bắt đầu.',
     },
     'glossary.approval.title': {en: 'Approval', vi: 'Phê duyệt'},
     'glossary.approval.what': {
@@ -237,8 +237,8 @@ export const SHARED_MESSAGES = {
         vi: 'Chép workflow với id mới và không kèm lịch sử chạy.',
     },
     'glossary.duplicate.why': {
-        en: 'The only way to change a locked workflow.',
-        vi: 'Cách duy nhất để sửa một workflow đã khóa.',
+        en: 'A second copy to try another approach on, with the original left as it is.',
+        vi: 'Một bản thứ hai để thử hướng khác, bản gốc vẫn giữ nguyên.',
     },
     'glossary.context.title': {en: 'Context', vi: 'Context'},
     'glossary.context.what': {

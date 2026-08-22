@@ -7,5 +7,6 @@ type Coordinator interface {
 	Cancel(workflow uuid.UUID) error
 	Pause(workflow uuid.UUID) error
 	RevertTo(workflow, stepID uuid.UUID) error
+	DiscardRun(workflow uuid.UUID) error
 	Stop()
 }

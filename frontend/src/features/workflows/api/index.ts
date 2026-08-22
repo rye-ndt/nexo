@@ -11,6 +11,7 @@ import {bridge, hasWailsRuntime} from '@/shared/api/bridge'
 import {StepState} from '@/shared/lib/enums'
 import {t} from '@/shared/lib/i18n'
 import {
+    archiveRun,
     createWorkflow as buildWorkflow,
     createStep as buildStep,
     cancelRun,
@@ -18,6 +19,7 @@ import {
     createsCycle,
     duplicateWorkflow as duplicateGraph,
     moveWorkflow,
+    hasActiveStep,
     isCancellable,
     isPausable,
     label,
@@ -45,7 +47,12 @@ import {
 } from '@/features/workflows/api/store'
 import {forgetWorkflowActivity} from '@/features/workflows/api/activity'
 import {forgetMockApprovals} from '@/features/approvals/mock-approvals'
-import {resolveAcceptance, stopRun, tick} from '@/features/workflows/api/simulated-run'
+import {
+    forgetWorkflowForks,
+    resolveAcceptance,
+    stopRun,
+    tick,
+} from '@/features/workflows/api/simulated-run'
 import {
     answerRemoteAcceptance,
     cancelRemoteRun,
@@ -53,7 +60,7 @@ import {
     runs,
     startRemoteRun,
 } from '@/features/workflows/api/remote-run'
-import {DeleteWorkflowDraft} from '@wailsjs/go/wails_api/API'
+import {DeleteWorkflowDraft, DiscardWorkflowRun} from '@wailsjs/go/wails_api/API'
 
 export {stepActivity} from '@/features/workflows/api/activity'
 export {fetchStepDiff, revertWorkflowTo} from '@/features/workflows/api/step-diff'
@@ -110,12 +117,12 @@ export async function updateWorkflow(
     workflowId: string,
     patch: Partial<Pick<Workflow, 'name' | 'locked' | 'started' | 'projectDir'>>,
 ): Promise<Workflow> {
-    if (patch.locked === false) throw new Error(t('workflow.api.noUnlock'))
-
     if (patch.projectDir !== undefined && !patch.projectDir.trim())
         throw new Error(t('workflow.api.needsProjectDir'))
 
     await hydrate()
+
+    if (patch.locked === false) return unlockWorkflow(workflowId)
 
     const locking = patch.locked || patch.started
     const workflow = locking ? findWorkflow(workflowId) : findOpenWorkflow(workflowId)
@@ -136,6 +143,23 @@ export async function updateWorkflow(
     await startRun(label({...workflow, ...patch}))
 
     return structuredClone(findWorkflow(workflowId))
+}
+
+async function unlockWorkflow(workflowId: string): Promise<Workflow> {
+    const workflow = findWorkflow(workflowId)
+    if (hasActiveStep(workflow)) throw new Error(t('workflow.api.unlockRunning'))
+
+    stopRun(workflowId)
+    runs.delete(workflowId)
+
+    const remote = workflow.remote
+    if (remote && hasWailsRuntime()) await bridge(() => DiscardWorkflowRun(remote.workflowId))
+
+    forgetWorkflowActivity(workflow)
+    forgetWorkflowApprovals(workflow)
+    forgetWorkflowForks(workflow)
+
+    return replaceWorkflow(archiveRun(workflow))
 }
 
 async function startRun(workflow: Workflow) {

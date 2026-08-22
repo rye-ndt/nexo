@@ -115,6 +115,23 @@ func (c *v1) RevertTo(workflow, stepID uuid.UUID) error {
 	return c.workflows.RewindTo(stepID)
 }
 
+func (c *v1) DiscardRun(workflow uuid.UUID) error {
+	status, err := c.workflows.Status(workflow)
+	if err != nil {
+		return err
+	}
+
+	if err := c.Cancel(workflow); err != nil {
+		return err
+	}
+
+	if err := c.history.RestoreTo(workflow, uuid.Nil, status.ProjectDirPath); err != nil {
+		c.logger.Error("discard run", "workflow", workflow, "err", err)
+	}
+
+	return nil
+}
+
 func (c *v1) Stop() {
 	c.stopOnce.Do(func() { close(c.stop) })
 }

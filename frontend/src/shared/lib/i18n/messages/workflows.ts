@@ -22,12 +22,12 @@ export const WORKFLOW_MESSAGES = {
     'workflow.row.notPriced': {en: 'not priced', vi: 'chưa tính giá'},
 
     'workflow.hint.locked': {
-        en: 'Locked — duplicate to make changes.',
-        vi: 'Đã khóa — nhân bản để chỉnh sửa.',
+        en: 'Locked — unlock to make changes.',
+        vi: 'Đã khóa — mở khóa để chỉnh sửa.',
     },
     'workflow.hint.cancelled': {
-        en: 'Run cancelled — duplicate to start over.',
-        vi: 'Đã hủy lần chạy — nhân bản để chạy lại từ đầu.',
+        en: 'Run cancelled — unlock to start over.',
+        vi: 'Đã hủy lần chạy — mở khóa để chạy lại từ đầu.',
     },
     'workflow.hint.paused': {
         en: 'Paused — resume when you are ready.',
@@ -37,16 +37,25 @@ export const WORKFLOW_MESSAGES = {
     'workflow.action.newStep': {en: 'New step', vi: 'Bước mới'},
     'workflow.action.duplicate': {en: 'Duplicate', vi: 'Nhân bản'},
     'workflow.action.lock': {en: 'Lock', vi: 'Khóa'},
+    'workflow.action.unlock': {en: 'Unlock', vi: 'Mở khóa'},
     'workflow.action.run': {en: 'Run', vi: 'Chạy'},
     'workflow.action.pause': {en: 'Pause run', vi: 'Tạm dừng'},
     'workflow.action.resume': {en: 'Resume run', vi: 'Chạy tiếp'},
     'workflow.action.cancel': {en: 'Cancel run', vi: 'Hủy lần chạy'},
 
     'workflow.lock.description': {
-        en: 'The graph and its project folder lock for good. To change anything after this you have to duplicate the workflow. Nothing runs until you press Run.',
-        vi: 'Sơ đồ và thư mục dự án sẽ khóa vĩnh viễn. Sau đó muốn sửa gì bạn phải nhân bản workflow. Chưa có gì chạy cho tới khi bạn bấm Chạy.',
+        en: 'The graph and its project folder freeze so the run can be trusted. To change anything after this you unlock the workflow, which discards the run. Nothing runs until you press Run.',
+        vi: 'Sơ đồ và thư mục dự án bị đóng băng để lần chạy đáng tin cậy. Sau đó muốn sửa gì thì bạn mở khóa workflow, và lần chạy sẽ bị bỏ. Chưa có gì chạy cho tới khi bạn bấm Chạy.',
     },
     'workflow.lock.confirm': {en: 'Lock workflow', vi: 'Khóa workflow'},
+
+    'workflow.unlock.title': {en: 'Unlock the workflow?', vi: 'Mở khóa workflow?'},
+    'workflow.unlock.description': {
+        en: 'Editing opens up again and this run is discarded: the project folder goes back to how it was before the run started, and the run’s results move to history. You can change the graph and run it again from the start.',
+        vi: 'Bạn chỉnh sửa được trở lại và lần chạy này bị bỏ: thư mục dự án quay về đúng như trước khi lần chạy bắt đầu, còn kết quả của lần chạy chuyển vào lịch sử. Bạn có thể sửa sơ đồ rồi chạy lại từ đầu.',
+    },
+    'workflow.unlock.confirm': {en: 'Unlock workflow', vi: 'Mở khóa workflow'},
+    'workflow.unlock.dismiss': {en: 'Keep it locked', vi: 'Giữ nguyên khóa'},
 
     'workflow.pause.title': {en: 'Pause the run?', vi: 'Tạm dừng lần chạy?'},
     'workflow.pause.description': {
@@ -58,8 +67,8 @@ export const WORKFLOW_MESSAGES = {
 
     'workflow.cancel.title': {en: 'Cancel the run?', vi: 'Hủy lần chạy?'},
     'workflow.cancel.description': {
-        en: 'The step running right now loses its work — there will be no result for it. Finished steps keep theirs, and the workflow stays on the rail. You cannot resume a cancelled run; duplicate it to start over.',
-        vi: 'Bước đang chạy sẽ mất phần việc dở dang — bước đó không để lại kết quả. Các bước đã xong vẫn giữ kết quả, và workflow vẫn nằm trong danh sách. Lần chạy đã hủy thì không chạy tiếp được; nhân bản nó để chạy lại từ đầu.',
+        en: 'The step running right now loses its work — there will be no result for it. Finished steps keep theirs, and the workflow stays on the rail. You cannot resume a cancelled run; unlock the workflow to start over.',
+        vi: 'Bước đang chạy sẽ mất phần việc dở dang — bước đó không để lại kết quả. Các bước đã xong vẫn giữ kết quả, và workflow vẫn nằm trong danh sách. Lần chạy đã hủy thì không chạy tiếp được; mở khóa workflow để chạy lại từ đầu.',
     },
     'workflow.cancel.dismiss': {en: 'Keep running', vi: 'Chạy tiếp'},
 
@@ -246,6 +255,10 @@ export const WORKFLOW_MESSAGES = {
         vi: 'Không lưu được thư mục của workflow',
     },
     'workflow.error.lock': {en: 'Could not lock the workflow', vi: 'Không khóa được workflow'},
+    'workflow.error.unlock': {
+        en: 'Could not unlock the workflow',
+        vi: 'Không mở khóa được workflow',
+    },
     'workflow.error.start': {en: 'Could not start the run', vi: 'Không bắt đầu được lần chạy'},
     'workflow.error.pause': {en: 'Could not pause the run', vi: 'Không tạm dừng được lần chạy'},
     'workflow.error.resume': {en: 'Could not resume the run', vi: 'Không chạy tiếp được'},
@@ -291,8 +304,8 @@ export const WORKFLOW_MESSAGES = {
         vi: 'Workflow đó không còn nữa. Chọn workflow khác trong danh sách.',
     },
     'workflow.api.locked': {
-        en: 'This workflow is locked. Duplicate it to make changes.',
-        vi: 'Workflow này đã khóa. Nhân bản nó để chỉnh sửa.',
+        en: 'This workflow is locked. Unlock it to make changes.',
+        vi: 'Workflow này đã khóa. Mở khóa nó để chỉnh sửa.',
     },
     'workflow.api.stepGone': {
         en: 'That step is gone. Pick another one on the canvas.',
@@ -302,9 +315,9 @@ export const WORKFLOW_MESSAGES = {
         en: 'A workflow needs a project folder.',
         vi: 'Workflow cần một thư mục dự án.',
     },
-    'workflow.api.noUnlock': {
-        en: 'A locked workflow cannot go back to a draft. Duplicate it instead.',
-        vi: 'Workflow đã khóa không quay lại bản nháp được. Hãy nhân bản nó.',
+    'workflow.api.unlockRunning': {
+        en: 'This workflow is still running. Pause or cancel the run before you unlock it.',
+        vi: 'Workflow này vẫn đang chạy. Tạm dừng hoặc hủy lần chạy trước khi mở khóa.',
     },
     'workflow.api.folderBeforeLock': {
         en: 'Choose a project folder before locking this workflow.',
@@ -315,8 +328,8 @@ export const WORKFLOW_MESSAGES = {
         vi: 'Khóa workflow trước khi chạy.',
     },
     'workflow.api.cancelled': {
-        en: 'This run was cancelled. Duplicate the workflow to run it again.',
-        vi: 'Lần chạy này đã bị hủy. Nhân bản workflow để chạy lại.',
+        en: 'This run was cancelled. Unlock the workflow to run it again.',
+        vi: 'Lần chạy này đã bị hủy. Mở khóa workflow để chạy lại.',
     },
     'workflow.api.inputsLocked': {
         en: 'This workflow is running. Its inputs are locked.',

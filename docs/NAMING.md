@@ -20,7 +20,10 @@ leaves a **handoff** for the next step.
 | **Agent defaults** | The ordered `agent_defaults:` list in `config.yaml` — per harness, the model and thinking level for each effort. Its order *is* the priority: a step with no explicit model runs on the first listed harness that is logged in. | Not "fallback chain", not "ranking". There is no separate priority field to add — reorder the list. |
 | **Handoff** | What a finished step writes down for the steps after it. The product of a step. | Not "handover doc", not "report". |
 | **Result** | Everything a finished step produced: its status, its handoffs, its context usage, its activity. Contains handoffs. | Not "report". |
-| **Lock** | Freezing a workflow's graph and folder so it can run. Reversible only by duplicating. | Not "finalize". |
+| **Lock** | Freezing a workflow's graph and folder so it can run. Reversible by unlocking, which discards the run. | Not "finalize". No longer permanent — it was, until Unlock existed. |
+| **Unlock** | Reopening a locked workflow for editing. Discards the current run: the project folder goes back to the baseline the run started from, and the run's results move to history. | Not "revert" — that rewinds files while a run continues. Not "reset": the run is archived, not erased. |
+| **Run** | One execution of a locked workflow, from pressing Run until it settles. A workflow can have several over its life. | Not the workflow itself, not a "job". `Step.run` is a step's slice of the *current* run. |
+| **Past run** | A run that unlocking archived. Read-only; the last few are kept. | Not "version", not "revision": nothing about the graph is restored from it. |
 | **Approval** | The agent stopped mid-step to ask you something it should not decide alone. | Not "question", not "gate". Kept as-is: once the accept gate became *review*, nothing collides with it. |
 | **Review** | A step finished and is holding everything downstream until you accept or reject it. | Not "accept gate", not "manual acceptance". |
 | **Effort** | How hard a role tries: Quick, Standard, Deep, Exhaustive. | Not "task level". "Daily" is gone; it described frequency, not effort. |
@@ -28,7 +31,7 @@ leaves a **handoff** for the next step.
 | **Knowledge base** | The folder agents share across every workflow on a project — `AGENTS.md`, the glossary, the gotchas. Derived from the project folder by `helpers.KnowledgeDir`. | Not a handoff. Handoffs never land here; they travel in the prompt. |
 | **Instructions** | The role's named prompt blocks, composed into what the agent receives. | Not "system prompts". The step's own free text stays **Prompt**. |
 | **Project folder** | The checkout agents read and change. | Not "working directory". |
-| **Duplicate** | Copy a workflow, new ids, run history cleared, project folder empty. Asks once whether the values typed into its steps come across. | Not "clone". Both words existed; only this one survives. |
+| **Duplicate** | Copy a workflow, new ids, run history cleared, project folder empty. Asks once whether the values typed into its steps come across. For trying another approach beside the original — changing a locked workflow is Unlock's job now. | Not "clone". Both words existed; only this one survives. Not the way out of a lock. |
 | **Tour** | The one-time walkthrough a new user gets after onboarding: three surfaces, explained where they live. | Not "tutorial", not "walkthrough", not "coach marks". |
 | **Stop** | One beat of the tour — the surface it rings and the sentence it says about it. | Not "step": a step is work an agent runs, and the tour runs nothing. |
 | **Conflict aware** | A role's switch, on for a new role, that gives it one more instruction: other agents are working the same project folder right now, so write and edit in ways that cannot collide. Held as an instruction under the reserved key `conflict_awareness`, not as a field of its own. | Not "parallel safe", not "locking": nothing is locked, the agent is only told what else is running. |
@@ -171,6 +174,9 @@ the interface says in Vietnamese; it is as binding as the English column above.
 | Handoff | bàn giao | |
 | Result | kết quả | |
 | Lock | khóa | |
+| Unlock | mở khóa | |
+| Run (noun) | lần chạy | The verb on the button stays "Chạy". |
+| Past run | lần chạy trước | |
 | Approval | phê duyệt | |
 | Review | kiểm duyệt | Deliberately a different word from approval; the two gates must not read alike. |
 | Effort | mức nỗ lực | Quick / Standard / Deep / Exhaustive → Nhanh / Tiêu chuẩn / Sâu / Tối đa. |

@@ -1,7 +1,7 @@
-import {CirclePlay, CircleStop, Copy, Lock, Pause, Play, Plus} from 'lucide-react'
+import {CirclePlay, CircleStop, Copy, Lock, LockOpen, Pause, Play, Plus} from 'lucide-react'
 import type {LucideIcon} from 'lucide-react'
 
-import {isCancellable, isPausable, isResumable} from '@/features/workflows/graph'
+import {hasActiveStep, isCancellable, isPausable, isResumable} from '@/features/workflows/graph'
 import {t, type MessageKey} from '@/shared/lib/i18n'
 import type {GlossaryTerm} from '@/shared/lib/glossary'
 import type {Workflow} from '@/features/workflows/types'
@@ -10,6 +10,7 @@ export const WorkflowActionId = {
     NewStep: 'new_step',
     Duplicate: 'duplicate',
     Lock: 'lock',
+    Unlock: 'unlock',
     Run: 'run',
     Pause: 'pause',
     Resume: 'resume',
@@ -56,6 +57,12 @@ const ACTIONS: Record<WorkflowActionId, ActionShape> = {
         emphasis: ActionEmphasis.Outline,
         term: 'lock',
     },
+    [WorkflowActionId.Unlock]: {
+        label: 'workflow.action.unlock',
+        icon: LockOpen,
+        emphasis: ActionEmphasis.Ghost,
+        term: 'lock',
+    },
     [WorkflowActionId.Run]: {
         label: 'workflow.action.run',
         icon: Play,
@@ -88,6 +95,7 @@ export function workflowActions(workflow: Workflow | null): WorkflowAction[] {
         draft && WorkflowActionId.NewStep,
         WorkflowActionId.Duplicate,
         draft && WorkflowActionId.Lock,
+        workflow.locked && !hasActiveStep(workflow) && WorkflowActionId.Unlock,
         workflow.locked && !workflow.started && WorkflowActionId.Run,
         isPausable(workflow) && WorkflowActionId.Pause,
         isResumable(workflow) && WorkflowActionId.Resume,

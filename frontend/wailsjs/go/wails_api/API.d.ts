@@ -32,6 +32,8 @@ export function CompleteOnboarding():Promise<void>;
 
 export function DeleteWorkflowDraft(arg1:string):Promise<void>;
 
+export function DiscardWorkflowRun(arg1:string):Promise<void>;
+
 export function ExportRoles(arg1:Array<string>,arg2:string):Promise<number>;
 
 export function ExportWorkflow(arg1:string,arg2:string):Promise<void>;

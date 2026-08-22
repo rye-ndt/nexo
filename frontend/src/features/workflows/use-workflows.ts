@@ -118,6 +118,12 @@ export function useWorkflows() {
             editWorkflow(workflows, workflowId, (workflow) => ({...workflow, locked: true})),
     )
 
+    const unlock = useWorkflowMutation(
+        'workflow.error.unlock',
+        (args: {workflowId: string}) => api.updateWorkflow(args.workflowId, {locked: false}),
+        (workflows, {workflowId}) => editWorkflow(workflows, workflowId, graph.archiveRun),
+    )
+
     const start = useWorkflowMutation(
         'workflow.error.start',
         (args: {workflowId: string}) => api.updateWorkflow(args.workflowId, {started: true}),
@@ -269,6 +275,7 @@ export function useWorkflows() {
         renameWorkflow: rename.mutate,
         setWorkflowLocations: setLocations.mutate,
         lockWorkflow: lock.mutate,
+        unlockWorkflow: unlock.mutate,
         startWorkflow: start.mutate,
         startingWorkflow: start.isPending,
         pauseWorkflow: pause.mutate,

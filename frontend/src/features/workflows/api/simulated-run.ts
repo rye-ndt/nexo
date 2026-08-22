@@ -366,6 +366,10 @@ function schedule(workflowId: string) {
     )
 }
 
+export function forgetWorkflowForks(workflow: Workflow) {
+    for (const step of workflow.steps) asked.delete(step.id)
+}
+
 export function stopRun(workflowId: string) {
     const timer = timers.get(workflowId)
     if (timer === undefined) return

@@ -15,7 +15,12 @@ import {
     workflowActions,
     type WorkflowActionHandlers,
 } from '@/features/workflows/workflow-actions'
-import {cancelConfirm, lockConfirm, pauseConfirm} from '@/features/workflows/workflow-copy'
+import {
+    cancelConfirm,
+    lockConfirm,
+    pauseConfirm,
+    unlockConfirm,
+} from '@/features/workflows/workflow-copy'
 import {useToggle} from '@/shared/hooks/use-toggle'
 import {t} from '@/shared/lib/i18n'
 import type {Workflow} from '@/features/workflows/types'
@@ -27,6 +32,7 @@ export function WorkflowHeader({
     onRename,
     onEditLocations,
     onLock,
+    onUnlock,
     onRun,
     onPause,
     onResume,
@@ -43,6 +49,7 @@ export function WorkflowHeader({
     onRename: (name: string) => void
     onEditLocations: () => void
     onLock: () => void
+    onUnlock: () => void
     onRun: () => void
     onPause: (onSettled: () => void) => void
     onResume: () => void
@@ -54,6 +61,7 @@ export function WorkflowHeader({
     onToggleRail: () => void
 }) {
     const confirmingLock = useToggle()
+    const confirmingUnlock = useToggle()
     const confirmingPause = useToggle()
     const confirmingCancel = useToggle()
 
@@ -61,6 +69,7 @@ export function WorkflowHeader({
         [WorkflowActionId.NewStep]: onNewStep,
         [WorkflowActionId.Duplicate]: onDuplicate,
         [WorkflowActionId.Lock]: confirmingLock.open,
+        [WorkflowActionId.Unlock]: confirmingUnlock.open,
         [WorkflowActionId.Run]: onRun,
         [WorkflowActionId.Pause]: confirmingPause.open,
         [WorkflowActionId.Resume]: onResume,
@@ -72,6 +81,11 @@ export function WorkflowHeader({
     const lock = () => {
         confirmingLock.close()
         onLock()
+    }
+
+    const unlock = () => {
+        confirmingUnlock.close()
+        onUnlock()
     }
 
     const pauseRun = () => onPause(confirmingPause.close)
@@ -136,6 +150,18 @@ export function WorkflowHeader({
                     confirmLabel={lockConfirm().confirmLabel}
                     onConfirm={lock}
                     onClose={confirmingLock.close}
+                />
+            )}
+
+            {confirmingUnlock.on && workflow && (
+                <ConfirmDialog
+                    title={unlockConfirm().title}
+                    description={unlockConfirm().description}
+                    confirmLabel={unlockConfirm().confirmLabel}
+                    dismissLabel={unlockConfirm().dismissLabel}
+                    destructive
+                    onConfirm={unlock}
+                    onClose={confirmingUnlock.close}
                 />
             )}
 

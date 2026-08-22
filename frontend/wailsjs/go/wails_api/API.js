@@ -58,6 +58,10 @@ export function DeleteWorkflowDraft(arg1) {
   return window['go']['wails_api']['API']['DeleteWorkflowDraft'](arg1);
 }
 
+export function DiscardWorkflowRun(arg1) {
+  return window['go']['wails_api']['API']['DiscardWorkflowRun'](arg1);
+}
+
 export function ExportRoles(arg1, arg2) {
   return window['go']['wails_api']['API']['ExportRoles'](arg1, arg2);
 }

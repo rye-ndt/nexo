@@ -138,6 +138,7 @@ export function useWorkflowStore() {
             store.setWorkflowLocations({workflowId, ...locations}),
         ),
         lock: onActive((workflowId) => store.lockWorkflow({workflowId})),
+        unlock: onActive((workflowId) => store.unlockWorkflow({workflowId})),
         start: onActive((workflowId) => store.startWorkflow({workflowId})),
         pause: onActive((workflowId, onSettled?: () => void) =>
             store.pauseWorkflow({workflowId}, {onSettled}),

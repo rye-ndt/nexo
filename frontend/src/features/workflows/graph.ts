@@ -1,6 +1,13 @@
 import {WorkflowStatus, StepState} from '@/shared/lib/enums'
 import {t} from '@/shared/lib/i18n'
-import type {Point, Workflow, WorkflowDraft, Step, StepDraft} from '@/features/workflows/types'
+import type {
+    PastRun,
+    Point,
+    Workflow,
+    WorkflowDraft,
+    Step,
+    StepDraft,
+} from '@/features/workflows/types'
 import type {DraftContext} from '@/features/roles/types'
 
 const SETTLED_STATES = new Set<StepState>([
@@ -18,6 +25,8 @@ const KEPT_ON_CANCEL = new Set<StepState>([StepState.Done, StepState.Failed])
 const WAITING_STATES = new Set<StepState>([StepState.Idle, StepState.Queued, StepState.Blocked])
 
 const STEP_STAGGER = 40
+
+export const MAX_PAST_RUNS = 3
 
 function isSettled(state: StepState) {
     return SETTLED_STATES.has(state)
@@ -144,7 +153,49 @@ export function isResumable(workflow: Workflow): boolean {
 }
 
 function notStarted(step: Step): Step {
-    return {...step, state: StepState.Idle, run: undefined, report: undefined}
+    return {...step, state: StepState.Idle, agentId: undefined, run: undefined, report: undefined}
+}
+
+function pastRun(workflow: Workflow): PastRun {
+    return {
+        runId: crypto.randomUUID(),
+        remote: workflow.remote,
+        startedAt: workflow.startedAt,
+        finishedAt: workflow.finishedAt,
+        spent: workflow.spent,
+        costUsd: workflow.costUsd,
+        priced: workflow.priced,
+        steps: workflow.steps.map((step) => ({
+            id: step.id,
+            title: step.title,
+            state: step.state,
+            agentId: step.agentId,
+            run: step.run,
+            report: step.report,
+        })),
+    }
+}
+
+export function archiveRun(workflow: Workflow): Workflow {
+    const ran = workflow.started || workflow.remote
+
+    return {
+        ...workflow,
+        locked: false,
+        started: false,
+        paused: false,
+        cancelled: false,
+        remote: undefined,
+        spent: undefined,
+        costUsd: undefined,
+        priced: undefined,
+        startedAt: undefined,
+        finishedAt: undefined,
+        history: ran
+            ? [...(workflow.history ?? []), pastRun(workflow)].slice(-MAX_PAST_RUNS)
+            : workflow.history,
+        steps: workflow.steps.map(notStarted),
+    }
 }
 
 /** Cancel is terminal: finished steps keep their reports, everything else loses its work. */
@@ -315,7 +366,8 @@ export function hasActiveStep(workflow: Workflow) {
         (step) =>
             step.state === StepState.Running ||
             step.state === StepState.Queued ||
-            step.state === StepState.AwaitingReview,
+            step.state === StepState.AwaitingReview ||
+            step.state === StepState.AwaitingApproval,
     )
 }
 

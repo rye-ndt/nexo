@@ -19,6 +19,15 @@ export function lockConfirm() {
     }
 }
 
+export function unlockConfirm() {
+    return {
+        title: t('workflow.unlock.title'),
+        description: t('workflow.unlock.description'),
+        confirmLabel: t('workflow.unlock.confirm'),
+        dismissLabel: t('workflow.unlock.dismiss'),
+    }
+}
+
 export function pauseConfirm() {
     return {
         title: t('workflow.pause.title'),
