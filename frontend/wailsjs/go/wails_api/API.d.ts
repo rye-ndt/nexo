@@ -48,6 +48,8 @@ export function LogoutAgent(arg1:string):Promise<void>;
 
 export function MCPServers():Promise<Array<output_itf.MCPServerInfo>>;
 
+export function MaxRunningAgents():Promise<number>;
+
 export function ModelPrices():Promise<Array<output_itf.ModelPriceInfo>>;
 
 export function Onboarded():Promise<boolean>;
@@ -85,6 +87,8 @@ export function SetAutopilot(arg1:boolean):Promise<void>;
 export function SetLanguage(arg1:string):Promise<void>;
 
 export function SetMCPCredential(arg1:string,arg2:string):Promise<void>;
+
+export function SetMaxRunningAgents(arg1:number):Promise<void>;
 
 export function SetModelPrices(arg1:string,arg2:string,arg3:string,arg4:string):Promise<void>;
 

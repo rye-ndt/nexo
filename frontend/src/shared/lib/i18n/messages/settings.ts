@@ -23,6 +23,14 @@ export const SETTINGS_MESSAGES = {
         vi: 'Không cần phê duyệt thủ công.',
     },
 
+    'settings.maxAgents.title': {en: 'Max running agents', vi: 'Số agent chạy cùng lúc'},
+    'settings.maxAgents.hint': {
+        en: 'How many agents may run at the same time across every workflow.',
+        vi: 'Số agent được phép chạy cùng lúc trên toàn bộ workflow.',
+    },
+    'settings.maxAgents.fewer': {en: 'Fewer agents at once', vi: 'Giảm số agent chạy cùng lúc'},
+    'settings.maxAgents.more': {en: 'More agents at once', vi: 'Tăng số agent chạy cùng lúc'},
+
     'settings.defaults.title': {en: 'Model per effort level', vi: 'Model cho từng mức nỗ lực'},
     'settings.defaults.hint': {
         en: 'Simplified model selections.',
@@ -138,6 +146,14 @@ export const SETTINGS_MESSAGES = {
     'settings.error.saveAutopilot': {
         en: 'Could not change autopilot',
         vi: 'Không đổi được Autopilot',
+    },
+    'settings.error.loadMaxRunningAgents': {
+        en: 'Could not load the running agent limit',
+        vi: 'Không tải được giới hạn agent chạy cùng lúc',
+    },
+    'settings.error.saveMaxRunningAgents': {
+        en: 'Could not change the running agent limit',
+        vi: 'Không đổi được giới hạn agent chạy cùng lúc',
     },
     'settings.error.loadPrices': {
         en: 'Could not load what your models cost',

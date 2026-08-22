@@ -18,11 +18,12 @@ import (
 )
 
 type file struct {
-	AgentDefaults map[enums.Effort]*output_itf.AgentDefault   `json:"agent_defaults"`
-	ModelPrices   map[enums.ModelName]*output_itf.TokenPrices `json:"model_prices"`
-	Onboarded     bool                                        `json:"onboarded"`
-	Autopilot     bool                                        `json:"autopilot"`
-	Language      enums.Language                              `json:"language"`
+	AgentDefaults    map[enums.Effort]*output_itf.AgentDefault   `json:"agent_defaults"`
+	ModelPrices      map[enums.ModelName]*output_itf.TokenPrices `json:"model_prices"`
+	Onboarded        bool                                        `json:"onboarded"`
+	Autopilot        bool                                        `json:"autopilot"`
+	Language         enums.Language                              `json:"language"`
+	MaxRunningAgents int                                         `json:"max_running_agents"`
 }
 
 type v1 struct {
@@ -37,6 +38,7 @@ func InitV1(
 	path string,
 	defaults []*input_itf.HarnessDefaults,
 	ready output_itf.ModelReady,
+	maxRunningAgents int,
 ) (output_itf.UserConfig, error) {
 	if path == "" {
 		return nil, custom_error.Critical("user config path is empty")
@@ -50,11 +52,15 @@ func InitV1(
 		return nil, custom_error.Critical("user config cannot tell which models are runnable")
 	}
 
+	if maxRunningAgents < 1 {
+		return nil, custom_error.Critical("default max running agents must be at least 1")
+	}
+
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return nil, custom_error.Critical("cannot create user config dir: %v", err)
 	}
 
-	cfg, err := read(path)
+	cfg, err := read(path, maxRunningAgents)
 	if err != nil {
 		return nil, err
 	}
@@ -68,7 +74,7 @@ func InitV1(
 	return c, nil
 }
 
-func read(path string) (*file, error) {
+func read(path string, maxRunningAgents int) (*file, error) {
 	cfg := &file{
 		AgentDefaults: map[enums.Effort]*output_itf.AgentDefault{},
 		ModelPrices:   map[enums.ModelName]*output_itf.TokenPrices{},
@@ -87,6 +93,10 @@ func read(path string) (*file, error) {
 
 	if !cfg.Language.Valid() {
 		cfg.Language = enums.English
+	}
+
+	if cfg.MaxRunningAgents < 1 {
+		cfg.MaxRunningAgents = maxRunningAgents
 	}
 
 	cfg.AgentDefaults = picked(renamedEfforts(cfg.AgentDefaults))
@@ -346,6 +356,36 @@ func (c *v1) SetAutopilot(on bool) error {
 
 	if err := c.write(); err != nil {
 		c.cfg.Autopilot = previous
+		return err
+	}
+
+	return nil
+}
+
+func (c *v1) MaxRunningAgents() int {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	return c.cfg.MaxRunningAgents
+}
+
+func (c *v1) SetMaxRunningAgents(limit int) error {
+	if limit < 1 {
+		return custom_error.Critical("at least one agent has to be allowed to run")
+	}
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.cfg.MaxRunningAgents == limit {
+		return nil
+	}
+
+	previous := c.cfg.MaxRunningAgents
+	c.cfg.MaxRunningAgents = limit
+
+	if err := c.write(); err != nil {
+		c.cfg.MaxRunningAgents = previous
 		return err
 	}
 

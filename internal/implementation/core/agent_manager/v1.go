@@ -9,6 +9,7 @@ import (
 	"hexago/internal/helpers/enums"
 	core_itf "hexago/internal/interface/core"
 	input_itf "hexago/internal/interface/input"
+	output_itf "hexago/internal/interface/output"
 
 	"github.com/google/uuid"
 )
@@ -19,8 +20,9 @@ type connectivity struct {
 }
 
 type instance struct {
-	agent   *core_itf.Agent
-	harness input_itf.AgentHarness
+	agent    *core_itf.Agent
+	harness  input_itf.AgentHarness
+	offFleet bool
 }
 
 type agentManagerV1 struct {
@@ -30,6 +32,9 @@ type agentManagerV1 struct {
 	harnesses      map[enums.AgentHarness]input_itf.AgentHarness
 	instances      map[uuid.UUID]*instance
 	approvalBroker core_itf.ApprovalWaitReader
+	userConfig     output_itf.UserConfig
+	starting       int
+	running        int
 	online         connectivity
 }
 
@@ -38,9 +43,14 @@ func InitV1(
 	httpCli input_itf.HttpCli,
 	harnesses map[enums.AgentHarness]input_itf.AgentHarness,
 	approvalBroker core_itf.ApprovalWaitReader,
+	userConfig output_itf.UserConfig,
 ) (core_itf.AgentManager, error) {
 	if cfg == nil {
 		return nil, custom_error.Critical("agent manager config not found")
+	}
+
+	if userConfig == nil {
+		return nil, custom_error.Critical("agent manager cannot tell how many agents may run at once")
 	}
 
 	return &agentManagerV1{
@@ -49,6 +59,7 @@ func InitV1(
 		harnesses:      harnesses,
 		instances:      map[uuid.UUID]*instance{},
 		approvalBroker: approvalBroker,
+		userConfig:     userConfig,
 	}, nil
 }
 
@@ -77,6 +88,14 @@ func (m *agentManagerV1) RequestInstance(specs *core_itf.AgentRequest) (*core_it
 		return nil, custom_error.Critical("no harness client support model %s", specs.Name)
 	}
 
+	if !specs.OffFleet {
+		if err := m.reserveSlot(); err != nil {
+			return nil, err
+		}
+
+		defer m.releaseSlot()
+	}
+
 	agentID, err := harness.Spawn(specs.Name, specs.ThinkingLevel, specs.Instructions, specs.ProjectDir)
 	if err != nil {
 		return nil, err
@@ -90,10 +109,37 @@ func (m *agentManagerV1) RequestInstance(specs *core_itf.AgentRequest) (*core_it
 	clone := *agent
 
 	m.locker.Lock()
-	m.instances[agentID] = &instance{agent: agent, harness: harness}
+	m.instances[agentID] = &instance{agent: agent, harness: harness, offFleet: specs.OffFleet}
+
+	if !specs.OffFleet {
+		m.running++
+	}
+
 	m.locker.Unlock()
 
 	return &clone, nil
+}
+
+func (m *agentManagerV1) reserveSlot() error {
+	limit := m.userConfig.MaxRunningAgents()
+
+	m.locker.Lock()
+	defer m.locker.Unlock()
+
+	if busy := m.starting + m.running; busy >= limit {
+		return custom_error.Critical("already running %d agents, the most allowed at once is %d", busy, limit)
+	}
+
+	m.starting++
+
+	return nil
+}
+
+func (m *agentManagerV1) releaseSlot() {
+	m.locker.Lock()
+	defer m.locker.Unlock()
+
+	m.starting--
 }
 
 func (m *agentManagerV1) Send(agentID uuid.UUID, message string) error {
@@ -241,6 +287,10 @@ func (m *agentManagerV1) setHealth(agentID uuid.UUID, status enums.AgentInstance
 	live, found := m.instances[agentID]
 	if !found {
 		return
+	}
+
+	if !live.offFleet && status == enums.Terminated && live.agent.HealthStatus != enums.Terminated {
+		m.running--
 	}
 
 	live.agent.HealthStatus = status

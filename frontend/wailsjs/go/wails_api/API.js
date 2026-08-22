@@ -90,6 +90,10 @@ export function MCPServers() {
   return window['go']['wails_api']['API']['MCPServers']();
 }
 
+export function MaxRunningAgents() {
+  return window['go']['wails_api']['API']['MaxRunningAgents']();
+}
+
 export function ModelPrices() {
   return window['go']['wails_api']['API']['ModelPrices']();
 }
@@ -164,6 +168,10 @@ export function SetLanguage(arg1) {
 
 export function SetMCPCredential(arg1, arg2) {
   return window['go']['wails_api']['API']['SetMCPCredential'](arg1, arg2);
+}
+
+export function SetMaxRunningAgents(arg1) {
+  return window['go']['wails_api']['API']['SetMaxRunningAgents'](arg1);
 }
 
 export function SetModelPrices(arg1, arg2, arg3, arg4) {

@@ -18,6 +18,7 @@ import {
 import {applyLanguage, t} from '@/shared/lib/i18n'
 import {
     MOCK_AUTOPILOT,
+    MOCK_MAX_RUNNING_AGENTS,
     MOCK_MODEL_PRICES,
     mockAgentDefaultOptions,
     mockAgentDefaults,
@@ -34,10 +35,12 @@ import {
     AgentDefaults as FetchAgentDefaults,
     Autopilot as FetchAutopilot,
     Language as FetchLanguage,
+    MaxRunningAgents as FetchMaxRunningAgents,
     ModelPrices as FetchModelPrices,
     SetAgentDefault as SaveAgentDefault,
     SetAutopilot as SaveAutopilot,
     SetLanguage as SaveLanguage,
+    SetMaxRunningAgents as SaveMaxRunningAgents,
     SetModelPrices as SaveModelPrices,
 } from '@wailsjs/go/wails_api/API'
 
@@ -48,6 +51,8 @@ let picked: Partial<Record<Effort, AgentDefault>> = {}
 let modelPrices: ModelPrice[] = structuredClone(MOCK_MODEL_PRICES)
 
 let autopilotOn = MOCK_AUTOPILOT
+
+let runningAgentLimit = MOCK_MAX_RUNNING_AGENTS
 
 let chosenLanguage: Language = Language.En
 
@@ -162,6 +167,22 @@ export async function setAutopilot(on: boolean): Promise<void> {
     autopilotOn = on
 }
 
+export async function maxRunningAgents(): Promise<number> {
+    if (hasWailsRuntime()) runningAgentLimit = await bridge(FetchMaxRunningAgents)
+    return runningAgentLimit
+}
+
+export async function setMaxRunningAgents(limit: number): Promise<void> {
+    if (hasWailsRuntime()) {
+        await bridge(() => SaveMaxRunningAgents(limit))
+        runningAgentLimit = limit
+        return
+    }
+
+    await roundtrip()
+    runningAgentLimit = limit
+}
+
 /**
  * Read once before the first render so the app never paints English and then
  * corrects itself. Applying is this module's job, not the caller's — every path
@@ -192,6 +213,10 @@ export function cachedLanguage(): Language {
 
 export function cachedAutopilot(): boolean {
     return autopilotOn
+}
+
+export function cachedMaxRunningAgents(): number {
+    return runningAgentLimit
 }
 
 /** What the vite mock has been told so far, for the simulated run's price lookup. */

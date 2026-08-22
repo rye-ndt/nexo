@@ -78,7 +78,7 @@ func openConfig(t *testing.T, path string) output_itf.UserConfig {
 func openConfigLoggedInto(t *testing.T, path string, harnesses ...enums.AgentHarness) output_itf.UserConfig {
 	t.Helper()
 
-	cfg, err := InitV1(path, shippedDefaults(), readyFrom(harnesses...))
+	cfg, err := InitV1(path, shippedDefaults(), readyFrom(harnesses...), 3)
 	if err != nil {
 		t.Fatalf("open user config: %v", err)
 	}
@@ -496,7 +496,7 @@ func TestALevelAToolDoesNotOfferFallsThroughToTheNextTool(t *testing.T) {
 		},
 	}
 
-	cfg, err := InitV1(filepath.Join(t.TempDir(), "config.json"), defaults, readyFrom(enums.Codex, enums.OpenCode))
+	cfg, err := InitV1(filepath.Join(t.TempDir(), "config.json"), defaults, readyFrom(enums.Codex, enums.OpenCode), 3)
 	if err != nil {
 		t.Fatalf("open user config: %v", err)
 	}
@@ -513,12 +513,16 @@ func TestALevelAToolDoesNotOfferFallsThroughToTheNextTool(t *testing.T) {
 func TestInitRefusesATableItCannotResolveFrom(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.json")
 
-	if _, err := InitV1(path, nil, readyFrom(enums.ClaudeCode)); err == nil {
+	if _, err := InitV1(path, nil, readyFrom(enums.ClaudeCode), 3); err == nil {
 		t.Fatal("an empty defaults table was accepted")
 	}
 
-	if _, err := InitV1(path, shippedDefaults(), nil); err == nil {
+	if _, err := InitV1(path, shippedDefaults(), nil, 3); err == nil {
 		t.Fatal("a missing readiness check was accepted")
+	}
+
+	if _, err := InitV1(path, shippedDefaults(), readyFrom(enums.ClaudeCode), 0); err == nil {
+		t.Fatal("a default of no running agents was accepted")
 	}
 }
 
@@ -559,5 +563,35 @@ func TestAnUnknownLanguageIsRejected(t *testing.T) {
 
 	if spoken := cfg.Language(); spoken != enums.English {
 		t.Fatalf("a refused language changed the config to %s", spoken)
+	}
+}
+
+func TestMaxRunningAgentsFallsBackToTheShippedDefault(t *testing.T) {
+	if limit := openConfig(t, filepath.Join(t.TempDir(), "config.json")).MaxRunningAgents(); limit != 3 {
+		t.Fatalf("a config with no stored limit allows %d agents, want the shipped 3", limit)
+	}
+}
+
+func TestMaxRunningAgentsRoundTripsThroughTheFile(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.json")
+
+	if err := openConfig(t, path).SetMaxRunningAgents(7); err != nil {
+		t.Fatalf("set max running agents: %v", err)
+	}
+
+	if limit := openConfig(t, path).MaxRunningAgents(); limit != 7 {
+		t.Fatalf("reopened config allows %d agents, want 7", limit)
+	}
+}
+
+func TestAMaxRunningAgentsBelowOneIsRejected(t *testing.T) {
+	cfg := openConfig(t, filepath.Join(t.TempDir(), "config.json"))
+
+	if err := cfg.SetMaxRunningAgents(0); err == nil {
+		t.Fatal("a limit of no running agents was accepted")
+	}
+
+	if limit := cfg.MaxRunningAgents(); limit != 3 {
+		t.Fatalf("a refused limit changed the config to %d", limit)
 	}
 }

@@ -1,4 +1,4 @@
-import {Boxes} from 'lucide-react'
+import {Boxes, Minus, Plus} from 'lucide-react'
 
 import {
     AgentDefaultRow,
@@ -10,6 +10,7 @@ import type {AgentDefault, ModelPrice, TokenPrices} from '@/features/settings/ty
 import {useAgentDefaults} from '@/features/settings/use-agent-defaults'
 import {useAutopilot} from '@/features/settings/use-autopilot'
 import {useLanguageChoice} from '@/features/settings/use-language'
+import {useMaxRunningAgents} from '@/features/settings/use-max-running-agents'
 import {useModelPrices} from '@/features/settings/use-model-prices'
 import {HelpTip} from '@/shared/components/help-tip'
 import {LANGUAGES, LANGUAGE_NAMES, type Language, type ThinkingLevel} from '@/shared/lib/enums'
@@ -99,6 +100,51 @@ function AutopilotSection() {
     )
 }
 
+const MIN_RUNNING_AGENTS = 1
+const MAX_RUNNING_AGENTS = 20
+
+function MaxRunningAgentsSection() {
+    const {maxRunningAgents, loading, saving, setMaxRunningAgents} = useMaxRunningAgents()
+    const busy = loading || saving
+
+    return (
+        <section className="flex items-start justify-between gap-4 border-b border-border px-4 py-4">
+            <div className="flex min-w-0 flex-col gap-1">
+                <h3 id="max-running-agents-label" className="text-lg font-medium">
+                    {t('settings.maxAgents.title')}
+                </h3>
+                <p className="text-sm text-muted-foreground">{t('settings.maxAgents.hint')}</p>
+            </div>
+
+            <div className="mt-1 flex shrink-0 items-center gap-2">
+                <Button
+                    variant="outline"
+                    size="icon-sm"
+                    aria-label={t('settings.maxAgents.fewer')}
+                    disabled={busy || maxRunningAgents <= MIN_RUNNING_AGENTS}
+                    onClick={() => setMaxRunningAgents(maxRunningAgents - 1)}
+                >
+                    <Minus />
+                </Button>
+
+                <span aria-live="polite" className="min-w-6 text-center text-base tabular-nums">
+                    {maxRunningAgents}
+                </span>
+
+                <Button
+                    variant="outline"
+                    size="icon-sm"
+                    aria-label={t('settings.maxAgents.more')}
+                    disabled={busy || maxRunningAgents >= MAX_RUNNING_AGENTS}
+                    onClick={() => setMaxRunningAgents(maxRunningAgents + 1)}
+                >
+                    <Plus />
+                </Button>
+            </div>
+        </section>
+    )
+}
+
 function ModelPricingSection() {
     const {modelPrices, loading, setModelPrices} = useModelPrices()
 
@@ -182,6 +228,8 @@ export function PreferencesPanel({onShowAgents}: {onShowAgents: () => void}) {
             <LanguageSection />
 
             <AutopilotSection />
+
+            <MaxRunningAgentsSection />
 
             <section className="flex flex-col">
                 <div className="flex flex-col gap-1 px-4 pt-4 pb-3">

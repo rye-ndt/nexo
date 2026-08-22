@@ -664,6 +664,14 @@ func (a *API) SetAutopilot(on bool) error {
 	return a.userConfig.SetAutopilot(on)
 }
 
+func (a *API) MaxRunningAgents() int {
+	return a.userConfig.MaxRunningAgents()
+}
+
+func (a *API) SetMaxRunningAgents(limit int) error {
+	return a.userConfig.SetMaxRunningAgents(limit)
+}
+
 func (a *API) AgentDefaultOptions() (*output_itf.AgentDefaultOptionsInfo, error) {
 	agents, err := a.agentManager.SupportedAgents()
 	if err != nil {

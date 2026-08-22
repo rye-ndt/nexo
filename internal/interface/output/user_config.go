@@ -36,4 +36,6 @@ type UserConfig interface {
 	SetLanguage(language enums.Language) error
 	Autopilot() bool
 	SetAutopilot(on bool) error
+	MaxRunningAgents() int
+	SetMaxRunningAgents(limit int) error
 }

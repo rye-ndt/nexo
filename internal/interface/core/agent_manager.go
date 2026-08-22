@@ -12,6 +12,7 @@ type AgentRequest struct {
 	ThinkingLevel enums.ThinkingLevel
 	Instructions  []string
 	ProjectDir    string
+	OffFleet      bool
 }
 
 type Agent struct {

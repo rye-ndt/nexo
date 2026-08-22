@@ -101,6 +101,7 @@ func (s *v1) Draft(req *core_itf.DraftRequest) (*core_itf.Role, error) {
 		ThinkingLevel: agentDefault.ThinkingLevel,
 		Instructions:  []string{systemPrompt},
 		ProjectDir:    req.ProjectDir,
+		OffFleet:      true,
 	})
 	if err != nil {
 		return nil, err

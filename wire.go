@@ -130,12 +130,13 @@ func wire(assets fs.FS) (*App, error) {
 		filepath.Join(dataDir, "user_config.json"),
 		cfg.Read().AgentDefaults,
 		runnable(harnesses),
+		cfg.Read().AgentManager.MaxRunningAgents,
 	)
 	if err != nil {
 		return nil, err
 	}
 
-	agentManager, err := agent_manager.InitV1(cfg.Read().AgentManager, httpCli, harnesses, approvalBroker)
+	agentManager, err := agent_manager.InitV1(cfg.Read().AgentManager, httpCli, harnesses, approvalBroker, userCfg)
 	if err != nil {
 		return nil, err
 	}

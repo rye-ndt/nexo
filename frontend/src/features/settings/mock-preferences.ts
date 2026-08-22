@@ -10,6 +10,8 @@ import type {
 
 export const MOCK_AUTOPILOT = false
 
+export const MOCK_MAX_RUNNING_AGENTS = 3
+
 const MOCK_MODEL_OPTIONS: ModelOption[] = [
     {model: 'fable', label: 'Claude Fable', harness: 'claude_code'},
     {model: 'opus', label: 'Claude Opus', harness: 'claude_code'},

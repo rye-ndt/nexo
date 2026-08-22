@@ -17,6 +17,7 @@ import {specOf} from '@/features/workflows/step-spec'
 import {
     cachedAgentDefaults,
     cachedAutopilot,
+    cachedMaxRunningAgents,
     cachedModelPrices,
 } from '@/features/settings/api/preferences'
 import {cachedRoles} from '@/features/roles/api'
@@ -304,11 +305,17 @@ function advance(workflow: Workflow): Workflow {
         ),
     })
 
+    let room =
+        cachedMaxRunningAgents() -
+        progressed.steps.filter((step) => step.state === StepState.Running).length
+
     const started = label({
         ...progressed,
-        steps: progressed.steps.map((step) =>
-            isRunnable(progressed, step) ? start(step, now) : step,
-        ),
+        steps: progressed.steps.map((step) => {
+            if (room < 1 || !isRunnable(progressed, step)) return step
+            room -= 1
+            return start(step, now)
+        }),
     })
 
     return withRunTotals(started)

@@ -26,6 +26,7 @@ type ApprovalBrokerConfig struct {
 
 type AgentManagerConfig struct {
 	FreezeTimeout             time.Duration `mapstructure:"freeze_timeout" validate:"gt=0"`
+	MaxRunningAgents          int           `mapstructure:"max_running_agents" validate:"gt=0"`
 	AllowedAgentContextWindow int           `mapstructure:"allowed_agent_context_window" validate:"gte=0"`
 	ConnectivityProbeURL      string        `mapstructure:"connectivity_probe_url" validate:"required,http_url"`
 	ConnectivityCacheTTL      time.Duration `mapstructure:"connectivity_cache_ttl" validate:"gt=0,ltefield=FreezeTimeout"`
