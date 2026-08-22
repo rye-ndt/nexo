@@ -28,9 +28,11 @@ leaves a **handoff** for the next step.
 | **Knowledge base** | The folder agents share across every workflow on a project — `AGENTS.md`, the glossary, the gotchas. Derived from the project folder by `helpers.KnowledgeDir`. | Not a handoff. Handoffs never land here; they travel in the prompt. |
 | **Instructions** | The role's named prompt blocks, composed into what the agent receives. | Not "system prompts". The step's own free text stays **Prompt**. |
 | **Project folder** | The checkout agents read and change. | Not "working directory". |
-| **Duplicate** | Copy a workflow, new ids, run history cleared. | Not "clone". Both words existed; only this one survives. |
+| **Duplicate** | Copy a workflow, new ids, run history cleared, project folder empty. Asks once whether the values typed into its steps come across. | Not "clone". Both words existed; only this one survives. |
 | **Tour** | The one-time walkthrough a new user gets after onboarding: three surfaces, explained where they live. | Not "tutorial", not "walkthrough", not "coach marks". |
 | **Stop** | One beat of the tour — the surface it rings and the sentence it says about it. | Not "step": a step is work an agent runs, and the tour runs nothing. |
+| **Conflict aware** | A role's switch, on for a new role, that gives it one more instruction: other agents are working the same project folder right now, so write and edit in ways that cannot collide. Held as an instruction under the reserved key `conflict_awareness`, not as a field of its own. | Not "parallel safe", not "locking": nothing is locked, the agent is only told what else is running. |
+| **Max running agents** | How many agents may run at once across every workflow. `config.yaml` sets the default; Settings › Preferences owns it after that. | Not the per-harness `max_instance`, which caps one vendor CLI underneath this. |
 | **Language** | The language Nexo's own interface speaks — English or Vietnamese. Picked on the first screen of onboarding, changeable in Settings › Preferences. | Not "locale": nothing about dates, numbers or currency changes with it. Not the language an agent answers in — that follows the prompt. |
 
 ## Removed concepts
@@ -178,6 +180,7 @@ the interface says in Vietnamese; it is as binding as the English column above.
 | Prompt | prompt | Loanword. |
 | Project folder | thư mục dự án | |
 | Duplicate | nhân bản | |
+| Conflict aware | tránh xung đột | |
 | Tour | hướng dẫn | |
 | Stop | chặng | "bước" is taken by Step. |
 | Model | model | Loanword. |
