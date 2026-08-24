@@ -986,7 +986,7 @@ func (a *agentProc) stop() error {
 	close(a.done)
 	a.stdin.Close()
 
-	return harness_helper.SignalProc(a.cmd)
+	return harness_helper.KillProc(a.cmd)
 }
 
 func claudeMCPConfig(gateway *core_itf.MCPGateway) ([]byte, error) {

@@ -445,7 +445,7 @@ func (p *agentProc) stop() error {
 	p.stopOnce.Do(func() {
 		close(p.done)
 		p.stdin.Close()
-		err = harness_helper.SignalProc(p.cmd)
+		err = harness_helper.KillProc(p.cmd)
 	})
 
 	return err
