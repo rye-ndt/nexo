@@ -87,6 +87,8 @@ type WorkflowStepInfo struct {
 	StepID       string                  `json:"step_id"`
 	AgentID      string                  `json:"agent_id"`
 	Effort       string                  `json:"effort"`
+	Model        string                  `json:"model"`
+	ModelLabel   string                  `json:"model_label"`
 	Status       string                  `json:"status"`
 	Handoffs     []*core_itf.Handoff     `json:"handoffs"`
 	ContextUsage *input_itf.ContextUsage `json:"context_usage"`

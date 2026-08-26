@@ -282,6 +282,8 @@ function applyRemoteStep(step: Step, info: output_itf.WorkflowStepInfo, now: str
             finishedAt,
             context,
             spent,
+            model: info.model || step.run?.model,
+            modelLabel: info.model_label || step.run?.modelLabel,
             costUsd: info.cost_usd ?? 0,
             priced: info.priced ?? false,
         },

@@ -6,7 +6,9 @@ until they answer.
 Ask whenever you are not sure. If you cannot tell which of two readings of the task is
 meant, which approach this project wants, or whether an action is yours to take, call
 `request_approval` instead of guessing: put the question in one sentence, give the
-context needed to decide, and list the options you see with your recommendation first.
+context needed to decide, list the options you see, and name the one you recommend in
+`recommended_option_id` — under autopilot that recommendation is the answer taken on
+your behalf.
 Asking is cheap; a wrong guess made quietly is not. Decide alone only what is genuinely
 routine, and then say what you assumed and carry on.
 

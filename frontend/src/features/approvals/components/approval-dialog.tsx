@@ -1,4 +1,4 @@
-import {useState} from 'react'
+import {useMemo, useState} from 'react'
 import {Check} from 'lucide-react'
 
 import {DialogShell} from '@/shared/components/dialog-shell'
@@ -50,9 +50,13 @@ function OptionRow({
             onClick={onPick}
             className={cn(
                 'flex w-full items-start gap-3 rounded-lg border p-3 text-left transition-colors outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50',
-                selected
-                    ? 'border-state-approval bg-state-approval-tint'
-                    : 'border-border bg-card hover:border-border-strong hover:bg-muted',
+                selected && 'border-state-approval bg-state-approval-tint',
+                !selected &&
+                    option.recommended &&
+                    'border-live/45 bg-live-tint/60 hover:border-live/70',
+                !selected &&
+                    !option.recommended &&
+                    'border-border bg-card hover:border-border-strong hover:bg-muted',
             )}
         >
             <span
@@ -69,7 +73,14 @@ function OptionRow({
             </span>
 
             <span className="flex min-w-0 flex-1 flex-col gap-1">
-                <span className="text-base font-medium">{option.label}</span>
+                <span className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                    <span className="text-base font-medium">{option.label}</span>
+                    {option.recommended && (
+                        <span className="shrink-0 text-xs font-bold tracking-[0.05em] text-live uppercase">
+                            {t('approval.dialog.recommended')}
+                        </span>
+                    )}
+                </span>
                 {option.description && (
                     <span className="text-sm text-muted-foreground">{option.description}</span>
                 )}
@@ -93,6 +104,14 @@ export function ApprovalDialog({
 }) {
     const [picked, setPicked] = useState<string[]>([])
     const [guidance, setGuidance] = useState('')
+
+    const options = useMemo(
+        () => [
+            ...approval.options.filter((option) => option.recommended),
+            ...approval.options.filter((option) => !option.recommended),
+        ],
+        [approval.options],
+    )
 
     const copy = KIND_COPY[approval.kind]
     const blocked = useElapsed(approval.requestedAt)
@@ -193,13 +212,13 @@ export function ApprovalDialog({
                         </span>
                     </div>
 
-                    {approval.options.length === 0 ? (
+                    {options.length === 0 ? (
                         <p className="text-base text-muted-foreground">
                             {t('approval.dialog.noOptions')}
                         </p>
                     ) : (
                         <div className="flex flex-col gap-2">
-                            {approval.options.map((option) => (
+                            {options.map((option) => (
                                 <OptionRow
                                     key={option.id}
                                     option={option}

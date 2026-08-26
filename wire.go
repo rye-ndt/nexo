@@ -140,6 +140,7 @@ func wire(assets fs.FS) (*App, error) {
 		return nil, err
 	}
 
+	approvalBroker.TrackAutopilot(userCfg)
 	workflowManager.TrackLiveAgents(agentManager)
 
 	if err := workflowManager.Restore(); err != nil {

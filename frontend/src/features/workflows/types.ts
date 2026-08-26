@@ -63,6 +63,8 @@ export type Run = {
     retryCount?: number
     context?: ContextUsage
     spent?: Spend
+    model?: string
+    modelLabel?: string
     /** What `spent` comes to at the prices of the model this step ran on. */
     costUsd?: number
     priced?: boolean

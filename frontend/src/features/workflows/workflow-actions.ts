@@ -1,4 +1,14 @@
-import {CirclePlay, CircleStop, Copy, Lock, LockOpen, Pause, Play, Plus} from 'lucide-react'
+import {
+    CirclePlay,
+    CircleStop,
+    Copy,
+    FolderOpen,
+    Lock,
+    LockOpen,
+    Pause,
+    Play,
+    Plus,
+} from 'lucide-react'
 import type {LucideIcon} from 'lucide-react'
 
 import {
@@ -16,6 +26,7 @@ import type {Workflow} from '@/features/workflows/types'
 export const WorkflowActionId = {
     NewStep: 'new_step',
     Duplicate: 'duplicate',
+    ChooseFolder: 'choose_folder',
     Lock: 'lock',
     Unlock: 'unlock',
     Run: 'run',
@@ -40,86 +51,81 @@ export type WorkflowAction = {
     icon: LucideIcon
     emphasis: ActionEmphasis
     term?: GlossaryTerm
-    disabledReason?: string
 }
 
 export type WorkflowActionHandlers = Record<WorkflowActionId, () => void>
 
-type ActionShape = Omit<WorkflowAction, 'id' | 'label' | 'disabledReason'> & {label: MessageKey}
+type ActionShape = {label: MessageKey; icon: LucideIcon; term?: GlossaryTerm}
 
 const ACTIONS: Record<WorkflowActionId, ActionShape> = {
-    [WorkflowActionId.NewStep]: {
-        label: 'workflow.action.newStep',
-        icon: Plus,
-        emphasis: ActionEmphasis.Outline,
+    [WorkflowActionId.NewStep]: {label: 'workflow.action.newStep', icon: Plus},
+    [WorkflowActionId.Duplicate]: {label: 'workflow.action.duplicate', icon: Copy},
+    [WorkflowActionId.ChooseFolder]: {
+        label: 'workflow.action.chooseFolder',
+        icon: FolderOpen,
+        term: 'projectFolder',
     },
-    [WorkflowActionId.Duplicate]: {
-        label: 'workflow.action.duplicate',
-        icon: Copy,
-        emphasis: ActionEmphasis.Ghost,
-    },
-    [WorkflowActionId.Lock]: {
-        label: 'workflow.action.lock',
-        icon: Lock,
-        emphasis: ActionEmphasis.Outline,
-        term: 'lock',
-    },
-    [WorkflowActionId.Unlock]: {
-        label: 'workflow.action.unlock',
-        icon: LockOpen,
-        emphasis: ActionEmphasis.Ghost,
-        term: 'lock',
-    },
-    [WorkflowActionId.Run]: {
-        label: 'workflow.action.run',
-        icon: Play,
-        emphasis: ActionEmphasis.Primary,
-    },
-    [WorkflowActionId.Pause]: {
-        label: 'workflow.action.pause',
-        icon: Pause,
-        emphasis: ActionEmphasis.Outline,
-    },
-    [WorkflowActionId.Resume]: {
-        label: 'workflow.action.resume',
-        icon: CirclePlay,
-        emphasis: ActionEmphasis.Primary,
-    },
-    [WorkflowActionId.Cancel]: {
-        label: 'workflow.action.cancel',
-        icon: CircleStop,
-        emphasis: ActionEmphasis.Outline,
-    },
+    [WorkflowActionId.Lock]: {label: 'workflow.action.lock', icon: Lock, term: 'lock'},
+    [WorkflowActionId.Unlock]: {label: 'workflow.action.unlock', icon: LockOpen, term: 'lock'},
+    [WorkflowActionId.Run]: {label: 'workflow.action.run', icon: Play},
+    [WorkflowActionId.Pause]: {label: 'workflow.action.pause', icon: Pause},
+    [WorkflowActionId.Resume]: {label: 'workflow.action.resume', icon: CirclePlay},
+    [WorkflowActionId.Cancel]: {label: 'workflow.action.cancel', icon: CircleStop},
+}
+
+const {Primary, Outline, Ghost} = ActionEmphasis
+
+type Offer = [WorkflowActionId, ActionEmphasis]
+
+/** The folder comes before the steps: a duplicate starts without one and cannot lock until it has one. */
+function draftChain(workflow: Workflow): Offer[] {
+    if (!workflow.projectDir.trim())
+        return [
+            [WorkflowActionId.NewStep, Outline],
+            [WorkflowActionId.Duplicate, Ghost],
+            [WorkflowActionId.ChooseFolder, Primary],
+        ]
+
+    if (workflow.steps.length === 0)
+        return [
+            [WorkflowActionId.Duplicate, Ghost],
+            [WorkflowActionId.NewStep, Primary],
+        ]
+
+    return [
+        [WorkflowActionId.NewStep, Outline],
+        [WorkflowActionId.Duplicate, Ghost],
+        [WorkflowActionId.Lock, Primary],
+    ]
+}
+
+function chainOf(workflow: Workflow): Offer[] {
+    if (!isLocked(workflow)) return draftChain(workflow)
+
+    const cancel: Offer[] = isCancellable(workflow) ? [[WorkflowActionId.Cancel, Outline]] : []
+
+    if (isPausable(workflow))
+        return [[WorkflowActionId.Pause, Outline], ...cancel, [WorkflowActionId.Duplicate, Ghost]]
+
+    if (isResumable(workflow))
+        return [...cancel, [WorkflowActionId.Duplicate, Ghost], [WorkflowActionId.Resume, Primary]]
+
+    const unlock: Offer[] = hasActiveStep(workflow) ? [] : [[WorkflowActionId.Unlock, Ghost]]
+
+    if (!hasStarted(workflow))
+        return [...unlock, [WorkflowActionId.Duplicate, Ghost], [WorkflowActionId.Run, Primary]]
+
+    return [...unlock, [WorkflowActionId.Duplicate, Ghost]]
 }
 
 /** Rendered by both the header bar and the mobile menu, so the rules live here only. */
 export function workflowActions(workflow: Workflow | null): WorkflowAction[] {
     if (!workflow) return []
 
-    const locked = isLocked(workflow)
-
-    const ids = [
-        !locked && WorkflowActionId.NewStep,
-        WorkflowActionId.Duplicate,
-        !locked && WorkflowActionId.Lock,
-        locked && !hasActiveStep(workflow) && WorkflowActionId.Unlock,
-        locked && !hasStarted(workflow) && WorkflowActionId.Run,
-        isPausable(workflow) && WorkflowActionId.Pause,
-        isResumable(workflow) && WorkflowActionId.Resume,
-        isCancellable(workflow) && WorkflowActionId.Cancel,
-    ].filter((id): id is WorkflowActionId => Boolean(id))
-
-    return ids.map((id) => ({
+    return chainOf(workflow).map(([id, emphasis]) => ({
         id,
         ...ACTIONS[id],
+        emphasis,
         label: t(ACTIONS[id].label),
-        disabledReason: reasonToWait(workflow, id),
     }))
-}
-
-function reasonToWait(workflow: Workflow, id: WorkflowActionId) {
-    if (id === WorkflowActionId.Lock && !workflow.projectDir.trim())
-        return t('workflow.api.folderBeforeLock')
-
-    return undefined
 }

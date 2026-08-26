@@ -52,18 +52,21 @@ const FORKS: Fork[] = [
         options: [
             {
                 id: 'called-only',
+                recommended: false,
                 label: 'Only the ports the coordinator calls',
                 description:
                     'Seven ports, each with the call that reaches it. The next step gets a list it can work straight through.',
             },
             {
                 id: 'everything',
+                recommended: false,
                 label: 'Every port in interface/core',
                 description:
                     'All twenty-one, marked called or not. Complete, but the next step has to do this filtering again.',
             },
             {
                 id: 'split',
+                recommended: true,
                 label: 'The seven first, the rest as an appendix',
                 description:
                     'Lead with what the coordinator needs and keep the remainder below a divider for later.',
@@ -77,12 +80,14 @@ const FORKS: Fork[] = [
         options: [
             {
                 id: 'single-advance',
+                recommended: true,
                 label: 'One Advance(workflowID)',
                 description:
                     'The port stays a single method. The implementation owns when a step is finished, when the next context is built, and when it is assigned.',
             },
             {
                 id: 'per-step',
+                recommended: false,
                 label: 'Finish, Build, Assign',
                 description:
                     'Three calls that say what the coordinator does. Clearer to read, harder to change once wire.go depends on the shape.',
@@ -142,6 +147,8 @@ function atFork(step: Step, now: number, durationMs: number): Step | undefined {
     const approvalId = asked.get(step.id)
 
     if (approvalId === undefined) {
+        if (cachedAutopilot()) return undefined
+
         asked.set(
             step.id,
             raiseMockApproval({
@@ -226,8 +233,11 @@ function progress(step: Step, now: number, roles: Role[]): Step {
 
 type Rates = {input: number; cached: number; output: number}
 
-function ratesOf(effort: Effort): Rates | undefined {
-    const model = cachedAgentDefaults().find((current) => current.effort === effort)?.model
+function agentFor(effort: Effort) {
+    return cachedAgentDefaults().find((current) => current.effort === effort)
+}
+
+function ratesOf(model: string | undefined): Rates | undefined {
     const prices = cachedModelPrices().find((current) => current.model === model)?.prices
     if (!prices || prices.input === '' || prices.output === '') return undefined
 
@@ -253,10 +263,13 @@ function withCost(step: Step, roles: Role[]): Step {
     const spent = step.run?.spent
     if (!spent) return step
 
-    const rates = ratesOf(specOf(step, roles).effort)
-    if (!rates) return {...step, run: {...step.run, costUsd: undefined, priced: false}}
+    const agent = agentFor(specOf(step, roles).effort)
+    const run = {...step.run, model: agent?.model, modelLabel: agent?.modelLabel}
 
-    return {...step, run: {...step.run, costUsd: costOf(spent, rates), priced: true}}
+    const rates = ratesOf(agent?.model)
+    if (!rates) return {...step, run: {...run, costUsd: undefined, priced: false}}
+
+    return {...step, run: {...run, costUsd: costOf(spent, rates), priced: true}}
 }
 
 /**

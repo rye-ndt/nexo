@@ -30,6 +30,7 @@ export const APPROVAL_MESSAGES = {
     'approval.dialog.context': {en: 'Context', vi: 'Bối cảnh'},
     'approval.dialog.pickAny': {en: 'Pick any that apply', vi: 'Chọn các phương án phù hợp'},
     'approval.dialog.pickOne': {en: 'Pick one', vi: 'Chọn một phương án'},
+    'approval.dialog.recommended': {en: 'Recommended', vi: 'Được đề xuất'},
     'approval.dialog.pickHint': {
         en: 'Approve needs at least one. Reject does not.',
         vi: 'Phê duyệt cần ít nhất một phương án. Từ chối thì không.',

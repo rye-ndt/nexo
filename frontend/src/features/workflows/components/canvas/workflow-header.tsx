@@ -68,6 +68,7 @@ export function WorkflowHeader({
     const handlers: WorkflowActionHandlers = {
         [WorkflowActionId.NewStep]: onNewStep,
         [WorkflowActionId.Duplicate]: onDuplicate,
+        [WorkflowActionId.ChooseFolder]: onEditLocations,
         [WorkflowActionId.Lock]: confirmingLock.open,
         [WorkflowActionId.Unlock]: confirmingUnlock.open,
         [WorkflowActionId.Run]: onRun,

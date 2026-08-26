@@ -11,6 +11,7 @@ type ApprovalOption struct {
 	ID          string `json:"id"`
 	Label       string `json:"label"`
 	Description string `json:"description"`
+	Recommended bool   `json:"recommended"`
 }
 
 type ApprovalRequest struct {
@@ -32,7 +33,15 @@ type ApprovalAnswer struct {
 	Guidance  string    `json:"guidance"`
 }
 
+// AutopilotReader tells the broker whether the operator has handed the run over. The
+// broker takes it after construction because the user config is wired on top of the
+// gateway the broker already feeds.
+type AutopilotReader interface {
+	Autopilot() bool
+}
+
 type ApprovalBroker interface {
+	TrackAutopilot(reader AutopilotReader)
 	Request(req *ApprovalRequest) (*ApprovalAnswer, error)
 	Pending() []*ApprovalRequest
 	Answer(answer *ApprovalAnswer) error

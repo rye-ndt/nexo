@@ -36,6 +36,7 @@ export const WORKFLOW_MESSAGES = {
 
     'workflow.action.newStep': {en: 'New step', vi: 'Bước mới'},
     'workflow.action.duplicate': {en: 'Duplicate', vi: 'Nhân bản'},
+    'workflow.action.chooseFolder': {en: 'Choose project folder', vi: 'Chọn thư mục dự án'},
     'workflow.action.lock': {en: 'Lock', vi: 'Khóa'},
     'workflow.action.unlock': {en: 'Unlock', vi: 'Mở khóa'},
     'workflow.action.run': {en: 'Run', vi: 'Chạy'},

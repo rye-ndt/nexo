@@ -11,7 +11,7 @@ const VARIANTS: Record<ActionEmphasis, 'default' | 'outline' | 'ghost'> = {
 }
 
 export function HeaderAction({action, onClick}: {action: WorkflowAction; onClick: () => void}) {
-    const {label, icon: Icon, emphasis, term, disabledReason} = action
+    const {label, icon: Icon, emphasis, term} = action
     const alwaysLabelled = emphasis === ActionEmphasis.Primary
 
     return (
@@ -22,21 +22,21 @@ export function HeaderAction({action, onClick}: {action: WorkflowAction; onClick
                         variant={VARIANTS[emphasis]}
                         size="sm"
                         aria-label={label}
-                        aria-disabled={disabledReason ? true : undefined}
-                        className={cn(disabledReason && 'opacity-50')}
-                        onClick={disabledReason ? undefined : onClick}
+                        onClick={onClick}
                     >
                         <Icon />
-                        <span className={alwaysLabelled ? 'inline' : 'hidden xl:inline'}>
+                        <span
+                            className={cn(
+                                'whitespace-nowrap',
+                                alwaysLabelled ? 'inline' : 'hidden xl:inline',
+                            )}
+                        >
                             {label}
                         </span>
                     </Button>
                 </TooltipTrigger>
-                <TooltipContent
-                    side="bottom"
-                    className={cn(!disabledReason && (alwaysLabelled ? 'hidden' : 'xl:hidden'))}
-                >
-                    {disabledReason ?? label}
+                <TooltipContent side="bottom" className={alwaysLabelled ? 'hidden' : 'xl:hidden'}>
+                    {label}
                 </TooltipContent>
             </Tooltip>
 

@@ -25,6 +25,7 @@ leaves a **handoff** for the next step.
 | **Run** | One execution of a locked workflow, from pressing Run until it settles. A workflow can have several over its life. | Not the workflow itself, not a "job". `Step.run` is a step's slice of the *current* run. |
 | **Past run** | A run that unlocking archived. Read-only; the last few are kept. | Not "version", not "revision": nothing about the graph is restored from it. |
 | **Approval** | The agent stopped mid-step to ask you something it should not decide alone. | Not "question", not "gate". Kept as-is: once the accept gate became *review*, nothing collides with it. |
+| **Recommendation** | The one option an approval singles out as the agent's own pick. Every approval has exactly one; it is listed first, and under autopilot it is the answer taken without asking. | Not "default", not "suggestion": the agent is answering its own question, not offering a fallback. Exactly one, never zero and never several — autopilot has to have a single answer to take. |
 | **Review** | A step finished and is holding everything downstream until you accept or reject it. | Not "accept gate", not "manual acceptance". |
 | **Effort** | How hard a role tries: Quick, Standard, Deep, Exhaustive. | Not "task level". "Daily" is gone; it described frequency, not effort. |
 | **Input** | A named value a step fills in before it runs. Declared by the role. | Not "param". The kind of value is an `InputType`. |
@@ -178,6 +179,7 @@ the interface says in Vietnamese; it is as binding as the English column above.
 | Run (noun) | lần chạy | The verb on the button stays "Chạy". |
 | Past run | lần chạy trước | |
 | Approval | phê duyệt | |
+| Recommendation | đề xuất | The option is marked "Được đề xuất". |
 | Review | kiểm duyệt | Deliberately a different word from approval; the two gates must not read alike. |
 | Effort | mức nỗ lực | Quick / Standard / Deep / Exhaustive → Nhanh / Tiêu chuẩn / Sâu / Tối đa. |
 | Input | đầu vào | |

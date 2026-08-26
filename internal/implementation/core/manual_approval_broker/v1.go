@@ -20,12 +20,16 @@ type pending struct {
 }
 
 type v1 struct {
-	locker  sync.Mutex
-	cfg     *input_itf.ApprovalBrokerConfig
-	waiting map[uuid.UUID]*pending
-	stop    chan struct{}
-	stopped bool
+	locker    sync.Mutex
+	cfg       *input_itf.ApprovalBrokerConfig
+	waiting   map[uuid.UUID]*pending
+	autopilot core_itf.AutopilotReader
+	stop      chan struct{}
+	stopped   bool
 }
+
+const autopilotGuidance = "Autopilot answered with the option you recommended. No person saw this question, " +
+	"so treat it as your own call rather than an operator decision."
 
 func InitV1(cfg *input_itf.ApprovalBrokerConfig) (core_itf.ApprovalBroker, error) {
 	if err := helpers.ValidateStruct(cfg); err != nil {
@@ -39,8 +43,23 @@ func InitV1(cfg *input_itf.ApprovalBrokerConfig) (core_itf.ApprovalBroker, error
 	}, nil
 }
 
+func (b *v1) TrackAutopilot(reader core_itf.AutopilotReader) {
+	b.locker.Lock()
+	defer b.locker.Unlock()
+
+	b.autopilot = reader
+}
+
+func (b *v1) flying() bool {
+	b.locker.Lock()
+	defer b.locker.Unlock()
+
+	return b.autopilot != nil && b.autopilot.Autopilot()
+}
+
 func (b *v1) Request(req *core_itf.ApprovalRequest) (*core_itf.ApprovalAnswer, error) {
-	if err := validRequest(req); err != nil {
+	recommended, err := validRequest(req)
+	if err != nil {
 		return nil, err
 	}
 
@@ -51,6 +70,17 @@ func (b *v1) Request(req *core_itf.ApprovalRequest) (*core_itf.ApprovalAnswer, e
 
 	req.ID = uid
 	req.RequestedAt = helpers.NewUTC()
+
+	// Under autopilot nobody is watching, so the question is answered with the option the
+	// agent itself recommended rather than parked until the request times out.
+	if b.flying() {
+		return &core_itf.ApprovalAnswer{
+			RequestID: uid,
+			Approved:  true,
+			OptionIDs: []string{recommended.ID},
+			Guidance:  autopilotGuidance,
+		}, nil
+	}
 
 	waiter := &pending{
 		req:    req,
@@ -73,26 +103,38 @@ func (b *v1) Request(req *core_itf.ApprovalRequest) (*core_itf.ApprovalAnswer, e
 	}
 }
 
-func validRequest(req *core_itf.ApprovalRequest) error {
+func validRequest(req *core_itf.ApprovalRequest) (*core_itf.ApprovalOption, error) {
 	if req.Question == "" {
-		return custom_error.Critical("approval request has no question")
+		return nil, custom_error.Critical("approval request has no question")
 	}
 
 	if len(req.Options) == 0 {
-		return custom_error.Critical("approval request %q has no options", req.Question)
+		return nil, custom_error.Critical("approval request %q has no options", req.Question)
 	}
+
+	recommended := []*core_itf.ApprovalOption{}
 
 	for _, option := range req.Options {
 		if option == nil || option.ID == "" || option.Label == "" {
-			return custom_error.Critical("approval request %q has an option without an id or label", req.Question)
+			return nil, custom_error.Critical("approval request %q has an option without an id or label", req.Question)
 		}
+
+		if option.Recommended {
+			recommended = append(recommended, option)
+		}
+	}
+
+	if len(recommended) != 1 {
+		return nil, custom_error.Critical(
+			"approval request %q recommends %d of its %d options, it has to recommend exactly one",
+			req.Question, len(recommended), len(req.Options))
 	}
 
 	if !req.Kind.Valid() {
 		req.Kind = enums.ApproveDecision
 	}
 
-	return nil
+	return recommended[0], nil
 }
 
 func (b *v1) forget(requestID uuid.UUID) {

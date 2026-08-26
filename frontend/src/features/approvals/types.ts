@@ -2,7 +2,12 @@ import type {ApprovalKind} from '@/shared/lib/enums'
 
 export type {ApprovalKind}
 
-export type ApprovalOption = {id: string; label: string; description: string}
+export type ApprovalOption = {
+    id: string
+    label: string
+    description: string
+    recommended: boolean
+}
 
 export type Approval = {
     id: string

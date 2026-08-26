@@ -1,4 +1,4 @@
-import {FolderOpen, Menu, Settings} from 'lucide-react'
+import {Menu, Settings} from 'lucide-react'
 import type {ComponentType} from 'react'
 
 import {Button} from '@/shared/ui/button'
@@ -13,7 +13,6 @@ import {
 import {isLocked, workflowProgress} from '@/features/workflows/graph'
 import {useToggle} from '@/shared/hooks/use-toggle'
 import type {WorkflowAction, WorkflowActionHandlers} from '@/features/workflows/workflow-actions'
-import {cn} from '@/shared/lib/utils'
 import {t} from '@/shared/lib/i18n'
 import type {Workflow} from '@/features/workflows/types'
 
@@ -72,7 +71,6 @@ export function WorkflowMenu({
                                     key={action.id}
                                     label={action.label}
                                     icon={action.icon}
-                                    disabledReason={action.disabledReason}
                                     onClick={pick(handlers[action.id])}
                                 />
                             ))}
@@ -99,56 +97,30 @@ function Divider() {
 function MenuAction({
     label,
     icon: Icon,
-    disabledReason,
     onClick,
 }: {
     label: string
     icon: ComponentType<{className?: string}>
-    disabledReason?: string
     onClick: () => void
 }) {
     return (
-        <span className="flex flex-col">
-            <Button
-                variant="ghost"
-                className={cn('w-full justify-start', disabledReason && 'opacity-50')}
-                aria-disabled={disabledReason ? true : undefined}
-                onClick={disabledReason ? undefined : onClick}
-            >
-                <Icon />
-                {label}
-            </Button>
-
-            {disabledReason && (
-                <span className="px-3 pb-1 text-sm text-muted-foreground">{disabledReason}</span>
-            )}
-        </span>
+        <Button variant="ghost" className="w-full justify-start" onClick={onClick}>
+            <Icon />
+            {label}
+        </Button>
     )
 }
 
 function WorkflowLocations({workflow, onEdit}: {workflow: Workflow; onEdit: () => void}) {
-    if (!workflow.projectDir) {
-        if (isLocked(workflow))
-            return (
-                <span className="flex flex-col gap-2 px-3 py-2">
-                    <span className="micro-label">{t('canvas.sheet.projectDir')}</span>
-                    <span className="text-sm text-muted-foreground">
-                        {t('canvas.sheet.noProjectDir')}
-                    </span>
-                </span>
-            )
-
+    if (!workflow.projectDir)
         return (
-            <button
-                type="button"
-                onClick={onEdit}
-                className="flex items-center gap-2 rounded-lg border border-live/40 bg-live-tint px-3 py-2 text-left text-sm font-medium text-live outline-none transition-colors hover:border-live/70 focus-visible:ring-2 focus-visible:ring-ring/50"
-            >
-                <FolderOpen className="size-4 shrink-0" />
-                {t('canvas.sheet.chooseProjectDir')}
-            </button>
+            <span className="flex flex-col gap-2 px-3 py-2">
+                <span className="micro-label">{t('canvas.sheet.projectDir')}</span>
+                <span className="text-sm text-muted-foreground">
+                    {t('canvas.sheet.noProjectDir')}
+                </span>
+            </span>
         )
-    }
 
     const body = (
         <>

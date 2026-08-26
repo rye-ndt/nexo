@@ -945,6 +945,8 @@ func (a *API) workflowStepInfo(stepID uuid.UUID, report *core_itf.StepResult) *o
 	info.Status = string(report.Status)
 	info.ContextUsage = report.ContextUsage
 	info.Effort = report.Effort.String()
+	info.Model = report.Model.String()
+	info.ModelLabel = report.Model.DisplayName()
 	info.Spent = report.Spent
 	info.CostUSD, info.Priced = a.stepCost(report.Model, report.Spent)
 

@@ -39,6 +39,7 @@ const wailsApprovals: ApprovalsBackend = {
                 id: option.id,
                 label: option.label,
                 description: option.description || '',
+                recommended: option.recommended ?? false,
             })),
             multiSelect: info.multi_select,
             requestedAt: info.requested_at,

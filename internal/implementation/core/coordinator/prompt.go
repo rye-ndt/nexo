@@ -21,7 +21,8 @@ const approvalInstruction = "\nIf you reach a fork you should not settle alone, 
 	constances.GatewayLocalServer +
 	"` MCP server: a choice that would be expensive to undo, a decision the rest of the work has to be " +
 	"built on, or a permission this step does not grant you. Ask the question plainly, lay out the " +
-	"options you see with what each one costs, and the call will wait for a human, so you can sit on " +
+	"options you see with what each one costs, name the one you recommend, and the call will wait " +
+	"for a human, so you can sit on " +
 	"it. If nobody answers in time it comes back as an error, and then you report what you were " +
 	"blocked on rather than choosing for them. Asking is cheap and a wrong guess made quietly is " +
 	"not, so raise it rather than picking one and hoping.\n"

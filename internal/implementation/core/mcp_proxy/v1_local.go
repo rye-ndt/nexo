@@ -3,6 +3,7 @@ package mcp_proxy
 import (
 	"encoding/json"
 	"net/http"
+	"slices"
 
 	"hexago/internal/helpers"
 	"hexago/internal/helpers/constances"
@@ -22,7 +23,9 @@ const approvalToolDescription = `Ask the human operator to approve a decision or
 Call this instead of asking the user directly: you are running non-interactively and have no other way to reach them.
 Use it when a choice would be expensive to undo, when you need a decision locked in before continuing, or when you need
 permission the current step does not already grant. The call blocks until the operator answers.
-The operator may approve, which returns the option they picked, or reject, which returns approved=false and no option.`
+The operator may approve, which returns the option they picked, or reject, which returns approved=false and no option.
+Always name the one option you recommend: it is shown first and it is the answer taken on your behalf when the operator
+has handed the run over to autopilot.`
 
 const reportToolDescription = `Report the assigned step as finished. Call this exactly once, when the step is done.
 Use status completed when the goal is met, failed when you are blocked and cannot meet it.
@@ -46,11 +49,12 @@ const (
 )
 
 type approvalArgs struct {
-	Kind        string `json:"kind"`
-	Question    string `json:"question"`
-	Detail      string `json:"detail"`
-	MultiSelect bool   `json:"multi_select"`
-	Options     []struct {
+	Kind              string `json:"kind"`
+	Question          string `json:"question"`
+	Detail            string `json:"detail"`
+	MultiSelect       bool   `json:"multi_select"`
+	RecommendedOption string `json:"recommended_option_id"`
+	Options           []struct {
 		ID          string `json:"id"`
 		Label       string `json:"label"`
 		Description string `json:"description"`
@@ -110,10 +114,13 @@ var approvalToolSchema = objectSchema(map[string]any{
 		"description": "decision to lock a choice in, permission to be allowed to do something.",
 	},
 	"detail": stringProp("Context the operator needs: what you found, what each option costs."),
+	"recommended_option_id": stringProp(
+		"The id of the one option you recommend. It is shown first, and under autopilot it is " +
+			"the answer taken on your behalf, so recommend the option you would pick yourself."),
 	"options": map[string]any{
 		"type":        "array",
 		"minItems":    1,
-		"description": "The choices available. Put your recommendation first.",
+		"description": "The choices available.",
 		"items": map[string]any{
 			"type": "object",
 			"properties": map[string]any{
@@ -128,7 +135,7 @@ var approvalToolSchema = objectSchema(map[string]any{
 		"type":        "boolean",
 		"description": "Whether the operator may pick more than one option.",
 	},
-}, "question", "options")
+}, "question", "options", "recommended_option_id")
 
 var reportToolSchema = objectSchema(map[string]any{
 	"status": map[string]any{
@@ -332,7 +339,14 @@ func (s *v1) callApproval(arguments json.RawMessage, agentID uuid.UUID) *toolRes
 			ID:          option.ID,
 			Label:       option.Label,
 			Description: option.Description,
+			Recommended: option.ID == args.RecommendedOption,
 		})
+	}
+
+	if !slices.ContainsFunc(request.Options, func(option *core_itf.ApprovalOption) bool {
+		return option.Recommended
+	}) {
+		return errorResult("recommended_option_id must be the id of one of the options you offered")
 	}
 
 	answer, err := s.approvalBroker.Request(request)

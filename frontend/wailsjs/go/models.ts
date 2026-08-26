@@ -4,6 +4,7 @@ export namespace core_itf {
 	    id: string;
 	    label: string;
 	    description: string;
+	    recommended: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new ApprovalOption(source);
@@ -14,6 +15,7 @@ export namespace core_itf {
 	        this.id = source["id"];
 	        this.label = source["label"];
 	        this.description = source["description"];
+	        this.recommended = source["recommended"];
 	    }
 	}
 	export class DraftGraphStep {
@@ -542,6 +544,8 @@ export namespace output_itf {
 	    step_id: string;
 	    agent_id: string;
 	    effort: string;
+	    model: string;
+	    model_label: string;
 	    status: string;
 	    handoffs: core_itf.Handoff[];
 	    context_usage?: input_itf.ContextUsage;
@@ -559,6 +563,8 @@ export namespace output_itf {
 	        this.step_id = source["step_id"];
 	        this.agent_id = source["agent_id"];
 	        this.effort = source["effort"];
+	        this.model = source["model"];
+	        this.model_label = source["model_label"];
 	        this.status = source["status"];
 	        this.handoffs = this.convertValues(source["handoffs"], core_itf.Handoff);
 	        this.context_usage = this.convertValues(source["context_usage"], input_itf.ContextUsage);

@@ -39,7 +39,7 @@ func newRequest(agentID uuid.UUID, question string, multiSelect bool) *core_itf.
 		Detail:      "the caller has to pick before it can continue",
 		MultiSelect: multiSelect,
 		Options: []*core_itf.ApprovalOption{
-			{ID: "sqlite", Label: "Store it in SQLite"},
+			{ID: "sqlite", Label: "Store it in SQLite", Recommended: true},
 			{ID: "files", Label: "Store it on disk"},
 		},
 	}
@@ -269,5 +269,80 @@ func TestStopReleasesABlockedCaller(t *testing.T) {
 	got := waitRaised(t, done)
 	if got.err == nil {
 		t.Fatalf("request returned %+v on shutdown, want an error", got.answer)
+	}
+}
+
+type flying bool
+
+func (f flying) Autopilot() bool { return bool(f) }
+
+func TestAutopilotAnswersWithTheRecommendedOptionWithoutRaisingIt(t *testing.T) {
+	broker := newBroker(t)
+	broker.TrackAutopilot(flying(true))
+
+	answer, err := broker.Request(newRequest(uuid.New(), "where do we store it?", false))
+	if err != nil {
+		t.Fatalf("request under autopilot: %v", err)
+	}
+
+	if !answer.Approved || len(answer.OptionIDs) != 1 || answer.OptionIDs[0] != "sqlite" {
+		t.Fatalf("answer = %+v, want the recommended option approved", answer)
+	}
+
+	if pending := broker.Pending(); len(pending) != 0 {
+		t.Fatalf("autopilot left %d requests on the operator's screen", len(pending))
+	}
+}
+
+func TestWithoutAutopilotTheRequestStillWaitsForAPerson(t *testing.T) {
+	broker := newBroker(t)
+	broker.TrackAutopilot(flying(false))
+
+	done := request(t, broker, newRequest(uuid.New(), "where do we store it?", false))
+	pending := waitPending(t, broker, 1)
+
+	if err := broker.Answer(&core_itf.ApprovalAnswer{
+		RequestID: pending[0].ID,
+		Approved:  true,
+		OptionIDs: []string{"files"},
+	}); err != nil {
+		t.Fatalf("answer: %v", err)
+	}
+
+	got := waitRaised(t, done)
+	if got.err != nil {
+		t.Fatalf("request: %v", got.err)
+	}
+
+	if got.answer.OptionIDs[0] != "files" {
+		t.Fatalf("answer = %+v, want the option the operator picked rather than the recommendation", got.answer)
+	}
+}
+
+// The recommendation is what autopilot answers with, so a request that names none or
+// names several has no single answer to give and is refused at the door.
+func TestARequestMustRecommendExactlyOneOption(t *testing.T) {
+	cases := map[string][]*core_itf.ApprovalOption{
+		"no recommendation": {
+			{ID: "sqlite", Label: "Store it in SQLite"},
+			{ID: "files", Label: "Store it on disk"},
+		},
+		"two recommendations": {
+			{ID: "sqlite", Label: "Store it in SQLite", Recommended: true},
+			{ID: "files", Label: "Store it on disk", Recommended: true},
+		},
+	}
+
+	for name, options := range cases {
+		t.Run(name, func(t *testing.T) {
+			broker := newBroker(t)
+
+			req := newRequest(uuid.New(), "where do we store it?", false)
+			req.Options = options
+
+			if _, err := broker.Request(req); err == nil {
+				t.Fatal("the request was accepted, want a refusal")
+			}
+		})
 	}
 }

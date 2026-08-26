@@ -66,15 +66,9 @@ export const WORKFLOW_CANVAS_MESSAGES = {
     'canvas.sheet.settings': {en: 'Settings', vi: 'Cài đặt'},
     'canvas.sheet.projectDir': {en: 'Project folder', vi: 'Thư mục dự án'},
     'canvas.sheet.noProjectDir': {en: 'Not set', vi: 'Chưa chọn'},
-    'canvas.sheet.chooseProjectDir': {en: 'Choose project folder', vi: 'Chọn thư mục dự án'},
     'canvas.sheet.progress': {en: 'Progress', vi: 'Tiến độ'},
 
     'canvas.dirs.none': {en: 'No project folder', vi: 'Chưa có thư mục dự án'},
-    'canvas.dirs.choose': {en: 'Choose project folder', vi: 'Chọn thư mục dự án'},
-    'canvas.dirs.chooseHint': {
-        en: 'Pick the folder these steps run in. A workflow cannot run without one.',
-        vi: 'Chọn thư mục các bước sẽ chạy trong đó. Không có thư mục thì workflow không chạy được.',
-    },
     'canvas.dirs.label': {en: 'Workflow directories', vi: 'Thư mục của workflow'},
     'canvas.dirs.change': {en: 'Click to change it.', vi: 'Bấm để đổi.'},
 
@@ -95,7 +89,12 @@ export const WORKFLOW_CANVAS_MESSAGES = {
     'canvas.cost.elapsed': {en: 'Elapsed', vi: 'Thời gian chạy'},
     'canvas.cost.finishedAt': {en: 'Finished {moment}', vi: 'Kết thúc {moment}'},
     'canvas.cost.startedAt': {en: 'Started {moment}', vi: 'Bắt đầu {moment}'},
+    'canvas.cost.breakdown': {en: 'Cost breakdown', vi: 'Phân tích chi phí'},
     'canvas.cost.byStep': {en: 'By step', vi: 'Theo bước'},
+    'canvas.cost.byModel': {en: 'By model', vi: 'Theo model'},
+    'canvas.cost.unknownModel': {en: 'Unknown model', vi: 'Model không rõ'},
+    'canvas.cost.stepCount.one': {en: '{count} step', vi: '{count} bước'},
+    'canvas.cost.stepCount.other': {en: '{count} steps', vi: '{count} bước'},
     'canvas.cost.everyAttempt': {en: 'Every attempt', vi: 'Gồm mọi lần thử'},
     'canvas.cost.nothingSpent': {
         en: 'No step has spent anything yet.',

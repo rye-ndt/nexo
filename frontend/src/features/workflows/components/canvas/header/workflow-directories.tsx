@@ -1,4 +1,4 @@
-import {Folder, FolderOpen} from 'lucide-react'
+import {Folder} from 'lucide-react'
 
 import {Tooltip, TooltipContent, TooltipTrigger} from '@/shared/ui/tooltip'
 import {isLocked} from '@/features/workflows/graph'
@@ -8,30 +8,12 @@ import type {Workflow} from '@/features/workflows/types'
 const WIDTH = 'hidden min-w-0 shrink lg:max-w-40 xl:max-w-72'
 
 export function WorkflowDirectories({workflow, onEdit}: {workflow: Workflow; onEdit: () => void}) {
-    if (!workflow.projectDir) {
-        if (isLocked(workflow))
-            return (
-                <span className={`${WIDTH} truncate text-sm text-muted-foreground lg:block`}>
-                    {t('canvas.dirs.none')}
-                </span>
-            )
-
+    if (!workflow.projectDir)
         return (
-            <Tooltip>
-                <TooltipTrigger asChild>
-                    <button
-                        type="button"
-                        onClick={onEdit}
-                        className="hidden shrink-0 items-center gap-2 rounded-md border border-live/40 bg-live-tint px-2 py-1 text-sm font-medium text-live outline-none transition-colors hover:border-live/70 focus-visible:ring-2 focus-visible:ring-live lg:flex"
-                    >
-                        <FolderOpen className="size-3.5 shrink-0" />
-                        {t('canvas.dirs.choose')}
-                    </button>
-                </TooltipTrigger>
-                <TooltipContent side="bottom">{t('canvas.dirs.chooseHint')}</TooltipContent>
-            </Tooltip>
+            <span className={`${WIDTH} truncate text-sm text-muted-foreground lg:block`}>
+                {t('canvas.dirs.none')}
+            </span>
         )
-    }
 
     if (isLocked(workflow))
         return (
