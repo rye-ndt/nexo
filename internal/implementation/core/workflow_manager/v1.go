@@ -388,15 +388,18 @@ func (s *v1) Assign(stepID, agentID uuid.UUID) error {
 	return s.commit(c, "step assignment")
 }
 
+// Everything the revert point does not vouch for goes back into the pool, not only what
+// hangs off it: a revert cancels the whole run first, so a parallel branch that never
+// finished would otherwise sit at cancelled forever with nothing to take it.
 func (s *v1) RewindTo(stepID uuid.UUID) error {
-	workflow, dependents, err := s.dependentsOf(stepID)
+	workflow, undone, err := s.rewoundBy(stepID)
 	if err != nil {
 		return err
 	}
 
-	commitErrs := make([]error, 0, len(dependents))
+	commitErrs := make([]error, 0, len(undone))
 
-	for _, dependent := range dependents {
+	for _, dependent := range undone {
 		c, err := s.editStep(dependent, uuid.Nil, enums.WorkflowStepStatusChanged,
 			func(workflow *workflowMetadata, step *input_itf.StepEntity) (func(), error) {
 				kept, hadReport := workflow.stepIDToReport[step.ID]
@@ -423,7 +426,10 @@ func (s *v1) RewindTo(stepID uuid.UUID) error {
 	return firstErr(commitErrs...)
 }
 
-func (s *v1) dependentsOf(stepID uuid.UUID) (*workflowMetadata, []uuid.UUID, error) {
+// The revert point keeps its own result, and so does any step outside its shadow that
+// already reached one. Every other step — the ones downstream of it, and the ones a
+// cancel parked mid-flight elsewhere in the graph — is undone.
+func (s *v1) rewoundBy(stepID uuid.UUID) (*workflowMetadata, []uuid.UUID, error) {
 	s.locker.Lock()
 	defer s.locker.Unlock()
 
@@ -453,10 +459,17 @@ func (s *v1) dependentsOf(stepID uuid.UUID) (*workflowMetadata, []uuid.UUID, err
 		}
 	}
 
-	delete(downstream, stepID)
+	ids := make([]uuid.UUID, 0, len(workflow.stepIDToStep))
 
-	ids := make([]uuid.UUID, 0, len(downstream))
-	for id := range downstream {
+	for id, step := range workflow.stepIDToStep {
+		if id == stepID {
+			continue
+		}
+
+		if !downstream[id] && step.Status.Reached() {
+			continue
+		}
+
 		ids = append(ids, id)
 	}
 

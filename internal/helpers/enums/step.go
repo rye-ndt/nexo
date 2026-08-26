@@ -29,6 +29,11 @@ var removable = []StepStatus{
 	StepCancelled,
 }
 
+var reached = []StepStatus{
+	StepCompleted,
+	StepFailed,
+}
+
 var cancellable = []StepStatus{
 	StepNotTaken,
 	StepProcessing,
@@ -45,6 +50,10 @@ func (s StepStatus) Retryable() bool {
 
 func (s StepStatus) Removable() bool {
 	return slices.Contains(removable, s)
+}
+
+func (s StepStatus) Reached() bool {
+	return slices.Contains(reached, s)
 }
 
 func (s StepStatus) Cancellable() bool {

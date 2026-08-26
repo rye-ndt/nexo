@@ -482,6 +482,62 @@ func TestRewindToResetsEverythingDownstream(t *testing.T) {
 	}
 }
 
+// A revert cancels the run before it rewinds, which parks every step that had not
+// finished — including the ones on a branch the revert point knows nothing about. Those
+// have to come back into the pool or the workflow can never finish.
+func TestRewindReleasesABranchTheCancelParkedElsewhere(t *testing.T) {
+	manager, _ := newManager(t)
+	workflow := newWorkflow(t, manager)
+
+	a := addStep(t, manager, workflow, "a", false)
+	b := addStep(t, manager, workflow, "b", false, a)
+	sibling := addStep(t, manager, workflow, "sibling", false)
+	downstream := addStep(t, manager, workflow, "downstream", false, sibling)
+
+	reportDone(t, manager, a, uuid.New())
+	reportDone(t, manager, b, uuid.New())
+
+	if _, err := manager.Cancel(workflow); err != nil {
+		t.Fatalf("cancel: %v", err)
+	}
+
+	if got := statusOf(t, manager, workflow, sibling); got != enums.StepCancelled {
+		t.Fatalf("sibling status after the cancel = %s, want %s", got, enums.StepCancelled)
+	}
+
+	if err := manager.RewindTo(a); err != nil {
+		t.Fatalf("rewind: %v", err)
+	}
+
+	for _, stepID := range []uuid.UUID{b, sibling} {
+		if got := statusOf(t, manager, workflow, stepID); got != enums.StepNotTaken {
+			t.Fatalf("step %v status after the rewind = %s, want %s", stepID, got, enums.StepNotTaken)
+		}
+	}
+
+	if got := statusOf(t, manager, workflow, a); got != enums.StepCompleted {
+		t.Fatalf("the revert point status = %s, want %s", got, enums.StepCompleted)
+	}
+
+	ready := readyIDs(t, manager, workflow)
+	if !ready[b] || !ready[sibling] {
+		t.Fatalf("after a revert the pool must offer b and the parked sibling again, got %v", ready)
+	}
+
+	if ready[downstream] {
+		t.Fatal("a step whose upstream has not run is ready")
+	}
+
+	status, err := manager.Status(workflow)
+	if err != nil {
+		t.Fatalf("workflow status: %v", err)
+	}
+
+	if status.Status == enums.WorkflowCompleted {
+		t.Fatal("the workflow is still completed after a revert reopened it")
+	}
+}
+
 func TestCancelClearsAnOpenGate(t *testing.T) {
 	manager, _ := newManager(t)
 	workflow := newWorkflow(t, manager)
