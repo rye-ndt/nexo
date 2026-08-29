@@ -31,6 +31,7 @@ type v1 struct {
 	watchers  map[uuid.UUID]chan struct{}
 	stop      chan struct{}
 	stopOnce  sync.Once
+	loops     sync.WaitGroup
 }
 
 type workspace struct {
@@ -73,7 +74,13 @@ func (c *v1) Run(workflow uuid.UUID) error {
 		return err
 	}
 
-	go c.runWorkflow(workflow, halt, progress)
+	c.loops.Add(1)
+
+	go func() {
+		defer c.loops.Done()
+
+		c.runWorkflow(workflow, halt, progress)
+	}()
 
 	return nil
 }
@@ -132,8 +139,12 @@ func (c *v1) DiscardRun(workflow uuid.UUID) error {
 	return nil
 }
 
+// Stop waits for the loops it signalled: they drive git against the user's workspace,
+// so returning while one is mid-snapshot leaves a half-written tree behind.
 func (c *v1) Stop() {
 	c.stopOnce.Do(func() { close(c.stop) })
+
+	c.loops.Wait()
 }
 
 func (c *v1) startRunning(workflow uuid.UUID) (chan struct{}, error) {
@@ -319,7 +330,11 @@ func (c *v1) watch(agentID uuid.UUID) {
 	c.watchers[agentID] = watcher
 	c.locker.Unlock()
 
+	c.loops.Add(1)
+
 	go func() {
+		defer c.loops.Done()
+
 		ticker := time.NewTicker(c.cfg.AgentHeartbeatInterval)
 		defer ticker.Stop()
 
