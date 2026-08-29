@@ -58,19 +58,24 @@ export const ONBOARDING_MESSAGES = {
     'onboarding.tour.next': {en: 'Next', vi: 'Tiếp'},
     'onboarding.tour.skip': {en: 'Skip tour', vi: 'Bỏ qua'},
     'onboarding.tour.done': {en: 'Start building', vi: 'Bắt đầu'},
-    'onboarding.tour.role.title': {en: 'Roles', vi: 'Vai trò'},
-    'onboarding.tour.role.body': {
-        en: 'A role is a kind of worker you write once - what it does, how hard it tries, and the inputs it needs. Every step starts from one.',
-        vi: 'Vai trò là một kiểu nhân sự bạn định nghĩa một lần - nó làm gì, cố gắng tới đâu, cần đầu vào nào. Mọi bước ứng với một vai trò.',
+    'onboarding.tour.store.title': {en: 'The store', vi: 'Store'},
+    'onboarding.tour.store.body': {
+        en: 'Nexo ships with workflows and roles already written. Browse them here, add what you want, and it lands in your rail. All of it is free.',
+        vi: 'Nexo có sẵn workflow và vai trò đã viết xong. Xem ở đây, thêm cái bạn muốn, nó sẽ vào thanh bên. Tất cả đều miễn phí.',
     },
-    'onboarding.tour.workflow.title': {en: 'Workflows', vi: 'Workflow'},
-    'onboarding.tour.workflow.body': {
-        en: 'A workflow is a graph of steps pointed at one project folder. This one ships with the app — pick a folder and run it.',
-        vi: 'Luồng công việc là một sơ đồ các bước trỏ vào một thư mục dự án. Luồng này có sẵn trong ứng dụng - chọn thư mục rồi chạy thử.',
+    'onboarding.tour.template.title': {en: 'Add one', vi: 'Thêm một cái'},
+    'onboarding.tour.template.body': {
+        en: 'Pick a workflow and press Add. Point it at a project folder — it brings its steps and the roles they run on with it.',
+        vi: 'Chọn một workflow rồi bấm Thêm. Trỏ nó vào một thư mục dự án — các bước và vai trò đi kèm sẽ theo về cùng.',
     },
     'onboarding.tour.step.title': {en: 'Steps', vi: 'Bước'},
     'onboarding.tour.step.body': {
         en: 'Each step runs on one agent, then hands what it learned to the steps wired after it. Click one to change its prompt or read its result.',
         vi: 'Mỗi bước chạy trên một Agent, rồi handoff kết quả cho bước tiếp theo. Bấm vào một bước để sửa prompt hoặc đọc kết quả.',
+    },
+    'onboarding.tour.run.title': {en: 'Run it', vi: 'Chạy nó'},
+    'onboarding.tour.run.body': {
+        en: 'This button always carries the workflow forward: pick its project folder, lock the graph, then Run. You can unlock and edit again any time.',
+        vi: 'Nút này luôn đưa workflow đi tiếp: chọn thư mục dự án, khóa sơ đồ, rồi Chạy. Bạn có thể mở khóa để sửa tiếp bất cứ lúc nào.',
     },
 } as const satisfies Catalog

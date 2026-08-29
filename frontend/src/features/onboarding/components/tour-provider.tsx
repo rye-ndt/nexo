@@ -1,9 +1,7 @@
-import {useCallback, useEffect, useMemo, useState, type ReactNode} from 'react'
+import {useCallback, useMemo, useState, type ReactNode} from 'react'
 
-import {TOUR_STOPS, TourStopId} from '@/features/onboarding/tour'
+import {STORE_STOPS, TOUR_STOPS} from '@/features/onboarding/tour'
 import {TourContext} from '@/features/onboarding/tour-context'
-
-const REVEAL_MS = 700
 
 export function TourProvider({
     active,
@@ -15,33 +13,40 @@ export function TourProvider({
     children: ReactNode
 }) {
     const [index, setIndex] = useState(0)
-    const [revealed, setRevealed] = useState(false)
 
     const stop = active ? (TOUR_STOPS[index] ?? null) : null
-    const onRoleStop = stop?.id === TourStopId.Role
-
-    useEffect(() => {
-        if (!onRoleStop) return
-
-        const timer = setTimeout(() => setRevealed(true), REVEAL_MS)
-        return () => clearTimeout(timer)
-    }, [onRoleStop])
 
     const next = useCallback(() => {
         if (index + 1 >= TOUR_STOPS.length) return onDone()
         setIndex(index + 1)
     }, [index, onDone])
 
+    /**
+     * The store has said everything it has to say — the user added something, or
+     * navigated out. Skips whichever of its stops are still ahead, so leaving from
+     * the first one does not strand the tour on a surface the app has moved off.
+     */
+    const leaveStore = useCallback(() => {
+        if (!active) return
+
+        let ahead = index
+        while (ahead < TOUR_STOPS.length && STORE_STOPS.has(TOUR_STOPS[ahead].id)) ahead += 1
+
+        if (ahead >= TOUR_STOPS.length) return onDone()
+        setIndex(ahead)
+    }, [active, index, onDone])
+
     const value = useMemo(
         () => ({
             stop,
             index,
             total: TOUR_STOPS.length,
-            openRole: onRoleStop && revealed,
+            openStore: Boolean(stop && STORE_STOPS.has(stop.id)),
             next,
+            leaveStore,
             skip: onDone,
         }),
-        [stop, index, onRoleStop, revealed, next, onDone],
+        [stop, index, next, leaveStore, onDone],
     )
 
     return <TourContext value={value}>{children}</TourContext>

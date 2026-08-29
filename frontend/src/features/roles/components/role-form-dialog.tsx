@@ -4,13 +4,10 @@ import {ConfirmDialog} from '@/shared/components/confirm-dialog'
 import {DialogShell} from '@/shared/components/dialog-shell'
 import {RefineButton} from '@/features/roles/components/refine-button'
 import {RoleForm} from '@/features/roles/components/role-form'
-import {TourBanner} from '@/features/onboarding/components/tour-banner'
-import {TourStopId} from '@/features/onboarding/tour'
 import {Button} from '@/shared/ui/button'
 import {t} from '@/shared/lib/i18n'
 import {useRoleHelper} from '@/features/roles/use-role-helper'
 import {useRoles} from '@/features/roles/use-roles'
-import {useTourStop} from '@/features/onboarding/tour-context'
 import {emptyRole, roleIssues} from '@/features/roles/role'
 import type {DraftContext, Role, RoleDraft} from '@/features/roles/types'
 
@@ -24,7 +21,6 @@ export function RoleFormDialog({
     onClose: () => void
 }) {
     const {saveRole, saving} = useRoles()
-    const guided = useTourStop(TourStopId.Role)
     const [draft, setDraft] = useState<RoleDraft>(() =>
         role ? structuredClone(role) : emptyRole(),
     )
@@ -59,7 +55,6 @@ export function RoleFormDialog({
     }
 
     const requestClose = () => {
-        if (guided) return
         if (JSON.stringify(draft) !== opened) setAsking('discard')
         else onClose()
     }
@@ -80,7 +75,6 @@ export function RoleFormDialog({
             onClose={requestClose}
             size="wide"
             title={role ? t('role.form.titleEdit') : t('role.form.titleNew')}
-            banner={guided ? <TourBanner stop={TourStopId.Role} /> : undefined}
             footer={
                 <>
                     <p className="min-w-0 flex-1 truncate text-sm text-muted-foreground">{hint}</p>

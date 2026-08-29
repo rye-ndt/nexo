@@ -3,7 +3,7 @@ import {useMutation, useQuery, useQueryClient} from '@tanstack/react-query'
 import * as api from '@/features/roles/api'
 import {t} from '@/shared/lib/i18n'
 
-const ROLES_KEY = ['roles']
+export const ROLES_KEY = ['roles']
 
 export function useRoles() {
     const queryClient = useQueryClient()

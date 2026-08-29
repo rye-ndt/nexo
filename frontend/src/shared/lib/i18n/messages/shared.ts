@@ -105,6 +105,15 @@ export const SHARED_MESSAGES = {
         en: 'Define a reviewer once and every step that reviews starts from it.',
         vi: 'Định nghĩa người kiểm duyệt một lần, mọi bước kiểm duyệt đều bắt đầu từ đó.',
     },
+    'glossary.store.title': {en: 'Store', vi: 'Store'},
+    'glossary.store.what': {
+        en: 'The workflows and roles Nexo ships with, ready to add.',
+        vi: 'Các workflow và vai trò Nexo có sẵn, thêm được ngay.',
+    },
+    'glossary.store.why': {
+        en: 'A running workflow without writing one first. Everything in it is free.',
+        vi: 'Có workflow chạy được mà không cần tự dựng. Mọi thứ trong đó đều miễn phí.',
+    },
     'glossary.agent.title': {en: 'Agent', vi: 'Agent'},
     'glossary.agent.what': {
         en: 'The coding CLI that runs a step — Claude Code, OpenCode, or Codex.',

@@ -1,3 +1,4 @@
+import type {ReactNode} from 'react'
 import {FolderInput, Plus} from 'lucide-react'
 
 import {HelpTip} from '@/shared/components/help-tip'
@@ -11,6 +12,7 @@ import {Tooltip, TooltipContent, TooltipTrigger} from '@/shared/ui/tooltip'
 import type {Workflow} from '@/features/workflows/types'
 
 export function WorkflowsRail({
+    nav,
     workflows,
     activeWorkflowId,
     onSelect,
@@ -21,6 +23,7 @@ export function WorkflowsRail({
     onDelete,
     onReorder,
 }: {
+    nav: ReactNode
     workflows: Workflow[]
     activeWorkflowId: string | null
     onSelect: (workflowId: string) => void
@@ -35,6 +38,8 @@ export function WorkflowsRail({
 
     return (
         <aside className="surface-card flex h-full w-[280px] shrink-0 flex-col overflow-hidden ring-1 ring-border-strong">
+            {nav}
+
             <div className="flex h-14 shrink-0 items-center justify-between border-b border-border pr-2 pl-4">
                 <span className="flex items-center gap-2">
                     <span className="micro-label">{t('workflow.rail.title')}</span>

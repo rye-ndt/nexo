@@ -99,6 +99,13 @@ Then, in the app:
 8. come back, review, revert what you don't like
 9. commit
 
+Steps 3-5 have a shortcut. Open the **Store** in the sidebar and add a ready-made
+workflow: it arrives with its steps already wired and the roles they run on
+already in your library, so you go straight to locking and running it. Open any
+card first to read what you are about to take: every step's prompt, and every
+role's instructions and report format. The store also lists the roles on their
+own, to start your own graph from. Everything in it is free.
+
 ### MCP server
 
 Nexo serves an MCP endpoint on a random port behind a token that changes every
@@ -221,6 +228,12 @@ Sau đó, trong ứng dụng:
 7. đi chơi pickleball
 8. quay lại, xem kết quả, revert những gì bạn không ưng
 9. commit
+
+Bước 3-5 có lối tắt. Mở **Store** ở thanh bên rồi thêm một workflow có sẵn: nó về
+với các step đã nối sẵn và các role đi kèm đã nằm trong thư viện của bạn, nên bạn
+đi thẳng tới khoá và chạy. Bấm vào một thẻ trước để đọc kỹ thứ mình sắp lấy: prompt
+của từng step, chỉ dẫn và định dạng báo cáo của từng role. Store cũng liệt kê riêng
+các role, để bạn tự dựng graph của mình. Mọi thứ trong đó đều miễn phí.
 
 ### MCP server
 

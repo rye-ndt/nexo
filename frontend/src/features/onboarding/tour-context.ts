@@ -5,16 +5,18 @@ import {TOUR_STOPS, type TourStopId, type TourStop} from '@/features/onboarding/
 /**
  * The tour drives the app rather than describing it: hosts read the active stop
  * and open what it explains. Kept in a context because the surfaces it opens —
- * settings, the role editor, the rail, the canvas — sit four levels apart, and
+ * the store, the rail, the canvas, the header — sit four levels apart, and
  * threading one overlay through all of them would touch every component between.
  */
 export type Tour = {
     stop: TourStop | null
     index: number
     total: number
-    /** False for the first beat of the role stop, so the user sees the list before the editor. */
-    openRole: boolean
+    /** True while the stop being explained lives in the store, which the tour opens itself. */
+    openStore: boolean
     next: () => void
+    /** Advances past every stop the store hosts, for when the user adds from any of them. */
+    leaveStore: () => void
     skip: () => void
 }
 
@@ -22,8 +24,9 @@ const IDLE_TOUR: Tour = {
     stop: null,
     index: 0,
     total: TOUR_STOPS.length,
-    openRole: false,
+    openStore: false,
     next: () => {},
+    leaveStore: () => {},
     skip: () => {},
 }
 

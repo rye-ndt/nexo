@@ -36,10 +36,7 @@ const ROUNDTRIP_MS = 400
 /** The real call spawns an agent and waits for it, so the mock has to feel like it. */
 const REFINE_MS = 2600
 
-/** ?noRoles=1 empties the seeded roster, so the tour's empty-list path is reachable. */
-const seeded = new URLSearchParams(window.location.search).get('noRoles') !== '1'
-
-let roles: Role[] = seeded ? structuredClone(MOCK_ROLES) : []
+let roles: Role[] = structuredClone(MOCK_ROLES)
 
 async function roundtrip() {
     await new Promise((resolve) => setTimeout(resolve, ROUNDTRIP_MS))

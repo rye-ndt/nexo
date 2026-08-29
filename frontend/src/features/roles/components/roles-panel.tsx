@@ -6,15 +6,12 @@ import {NoticeDialog} from '@/shared/components/notice-dialog'
 import {RoleExportDialog} from '@/features/roles/components/role-export-dialog'
 import {RoleFormDialog} from '@/features/roles/components/role-form-dialog'
 import {RoleList} from '@/features/roles/components/role-list'
-import {TourBanner} from '@/features/onboarding/components/tour-banner'
-import {TourStopId} from '@/features/onboarding/tour'
 import {WorkingDialog} from '@/shared/components/working-dialog'
 import {chooseFile, chooseSaveFile} from '@/shared/api/dialogs'
 import {reportError} from '@/shared/lib/error-bus'
 import {t, tn} from '@/shared/lib/i18n'
 import {useRoles, useRoleTransfer} from '@/features/roles/use-roles'
 import {useToggle} from '@/shared/hooks/use-toggle'
-import {useTourStop} from '@/features/onboarding/tour-context'
 import type {DraftContext, Role} from '@/features/roles/types'
 
 const JSON_FILES = '*.json'
@@ -36,26 +33,15 @@ export function RolesPanel({
 }) {
     const {roles, loading, removeRole} = useRoles()
     const transfer = useRoleTransfer()
-    const guided = useTourStop(TourStopId.Role)
 
     const [editing, setEditing] = useState<RoleEdit | null>(null)
-    const [leftGuidedRole, setLeftGuidedRole] = useState(false)
     const [notice, setNotice] = useState<Notice | null>(null)
     const exporting = useToggle()
-
-    const guidedRole = !onPick && guided?.openRole && !leftGuidedRole ? roles[0] : undefined
-    const shown = editing ?? (guidedRole ? {role: guidedRole} : null)
-
-    const stranded = !onPick && Boolean(guided) && !shown && !loading && roles.length === 0
 
     const newRole = () => setEditing({role: null})
     const editRole = (role: Role) => setEditing({role})
 
-    const closeForm = () => {
-        setLeftGuidedRole(true)
-        setEditing(null)
-        guided?.next()
-    }
+    const closeForm = () => setEditing(null)
     const dismissNotice = () => setNotice(null)
 
     const pickPath = async (pick: () => Promise<string>) => {
@@ -147,9 +133,9 @@ export function RolesPanel({
                 </div>
             )}
 
-            {stranded && <TourBanner stop={TourStopId.Role} />}
-
-            {shown && <RoleFormDialog role={shown.role} context={context} onClose={closeForm} />}
+            {editing && (
+                <RoleFormDialog role={editing.role} context={context} onClose={closeForm} />
+            )}
 
             {exporting.on && (
                 <RoleExportDialog roles={roles} onExport={runExport} onClose={exporting.close} />

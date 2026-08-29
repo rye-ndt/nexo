@@ -15,7 +15,10 @@ export function HeaderAction({action, onClick}: {action: WorkflowAction; onClick
     const alwaysLabelled = emphasis === ActionEmphasis.Primary
 
     return (
-        <span className="flex items-center gap-1">
+        <span
+            data-tour={alwaysLabelled ? 'primary' : undefined}
+            className="flex items-center gap-1"
+        >
             <Tooltip>
                 <TooltipTrigger asChild>
                     <Button

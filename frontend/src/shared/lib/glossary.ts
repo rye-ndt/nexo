@@ -22,6 +22,11 @@ export const GLOSSARY = {
         what: 'glossary.role.what',
         why: 'glossary.role.why',
     },
+    store: {
+        title: 'glossary.store.title',
+        what: 'glossary.store.what',
+        why: 'glossary.store.why',
+    },
     agent: {
         title: 'glossary.agent.title',
         what: 'glossary.agent.what',

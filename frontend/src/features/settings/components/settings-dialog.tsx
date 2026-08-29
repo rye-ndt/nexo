@@ -6,8 +6,6 @@ import {MCPPanel} from '@/features/settings/components/mcp-panel'
 import {PreferencesPanel} from '@/features/settings/components/preferences-panel'
 import {RolesPanel} from '@/features/roles/components/roles-panel'
 import {SettingsNav, type SettingsTab} from '@/features/settings/components/settings-nav'
-import {TourStopId} from '@/features/onboarding/tour'
-import {useTourStop} from '@/features/onboarding/tour-context'
 import {t} from '@/shared/lib/i18n'
 import {Dialog, DialogContent, DialogDescription, DialogTitle} from '@/shared/ui/dialog'
 
@@ -34,18 +32,11 @@ export function SettingsDialog({
     open: boolean
     onOpenChange: (open: boolean) => void
 }) {
-    const guided = useTourStop(TourStopId.Role)
     const [activeId, setActiveId] = useState<SettingsTabId>(TABS[0].id)
-    const shownId = guided ? SettingsTabId.Roles : activeId
-    const active = TABS.find((tab) => tab.id === shownId) ?? TABS[0]
-
-    const change = (next: boolean) => {
-        if (!next && guided) return
-        onOpenChange(next)
-    }
+    const active = TABS.find((tab) => tab.id === activeId) ?? TABS[0]
 
     return (
-        <Dialog open={open || Boolean(guided)} onOpenChange={change}>
+        <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="flex h-[560px] max-w-[760px] gap-0 overflow-hidden rounded-[20px] bg-card p-0">
                 <DialogDescription className="sr-only">
                     {t('settings.dialog.description')}

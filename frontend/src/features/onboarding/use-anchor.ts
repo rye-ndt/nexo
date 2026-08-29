@@ -27,6 +27,10 @@ const same = (a: Rect | null, b: Rect | null) =>
  * when the rail opens. The rect is stored with the selector it came from, so a
  * stop change never shows the previous stop's position for a frame, and state
  * only changes when the rect does.
+ *
+ * A match with no size counts as no match: an element hidden by a breakpoint is
+ * still in the DOM and still measures, and a zero rect would ring a point in the
+ * corner instead of letting the card come adrift.
  */
 export function useAnchorRect(selector: string | null): Rect | null {
     const [tracked, setTracked] = useState<Tracked | null>(null)
@@ -38,7 +42,8 @@ export function useAnchorRect(selector: string | null): Rect | null {
 
         const read = () => {
             const target = document.querySelector(selector)
-            const next = target ? round(target.getBoundingClientRect()) : null
+            const box = target?.getBoundingClientRect()
+            const next = box?.width && box.height ? round(box) : null
 
             setTracked((current) =>
                 current && current.selector === selector && same(current.rect, next)

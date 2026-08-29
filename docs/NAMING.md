@@ -33,6 +33,7 @@ leaves a **handoff** for the next step.
 | **Instructions** | The role's named prompt blocks, composed into what the agent receives. | Not "system prompts". The step's own free text stays **Prompt**. |
 | **Project folder** | The checkout agents read and change. | Not "working directory". |
 | **Duplicate** | Copy a workflow, new ids, run history cleared, project folder empty. Asks once whether the values typed into its steps come across. For trying another approach beside the original — changing a locked workflow is Unlock's job now. | Not "clone". Both words existed; only this one survives. Not the way out of a lock. |
+| **Store** | The tab that browses the ready-made work Nexo ships with, on two tabs of its own: **Workflows** and **Roles**. Adding from it writes a real workflow or a real role — nothing in the store is a new kind of thing. | Not "template store", not "marketplace", not "gallery". It sells nothing and it introduces no fifth noun: what you browse is workflows and roles, and what you press is **Add**. |
 | **Tour** | The one-time walkthrough a new user gets after onboarding: three surfaces, explained where they live. | Not "tutorial", not "walkthrough", not "coach marks". |
 | **Stop** | One beat of the tour — the surface it rings and the sentence it says about it. | Not "step": a step is work an agent runs, and the tour runs nothing. |
 | **Conflict aware** | A role's switch, on for a new role, that gives it one more instruction: other agents are working the same project folder right now, so write and edit in ways that cannot collide. Held as an instruction under the reserved key `conflict_awareness`, not as a field of its own. | Not "parallel safe", not "locking": nothing is locked, the agent is only told what else is running. |
@@ -189,6 +190,7 @@ the interface says in Vietnamese; it is as binding as the English column above.
 | Project folder | thư mục dự án | |
 | Duplicate | nhân bản | |
 | Conflict aware | tránh xung đột | |
+| Store | store | Loanword. "Cửa hàng" implies buying; nothing here is sold. |
 | Tour | hướng dẫn | |
 | Stop | chặng | "bước" is taken by Step. |
 | Model | model | Loanword. |

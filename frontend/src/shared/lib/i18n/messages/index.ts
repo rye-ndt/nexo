@@ -4,6 +4,7 @@ import {ONBOARDING_MESSAGES} from '@/shared/lib/i18n/messages/onboarding'
 import {ROLE_MESSAGES} from '@/shared/lib/i18n/messages/roles'
 import {SETTINGS_MESSAGES} from '@/shared/lib/i18n/messages/settings'
 import {SHARED_MESSAGES} from '@/shared/lib/i18n/messages/shared'
+import {STORE_MESSAGES} from '@/shared/lib/i18n/messages/store'
 import {WORKFLOW_CANVAS_MESSAGES} from '@/shared/lib/i18n/messages/workflows-canvas'
 import {WORKFLOW_MESSAGES} from '@/shared/lib/i18n/messages/workflows'
 
@@ -14,6 +15,7 @@ export const MESSAGES = {
     ...ROLE_MESSAGES,
     ...SETTINGS_MESSAGES,
     ...SHARED_MESSAGES,
+    ...STORE_MESSAGES,
     ...WORKFLOW_MESSAGES,
     ...WORKFLOW_CANVAS_MESSAGES,
 } as const

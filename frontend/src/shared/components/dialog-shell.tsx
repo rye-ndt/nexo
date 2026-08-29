@@ -16,7 +16,6 @@ export function DialogShell({
     description,
     term,
     aside,
-    banner,
     footer,
     size = 'default',
     onClose,
@@ -26,7 +25,6 @@ export function DialogShell({
     description?: string
     term?: GlossaryTerm
     aside?: ReactNode
-    banner?: ReactNode
     footer: ReactNode
     size?: keyof typeof SIZES
     onClose: () => void
@@ -36,16 +34,9 @@ export function DialogShell({
         if (!open) onClose()
     }
 
-    // A banner is here to be read and acted on, so it takes the opening focus
-    // instead of the first field — which the dialog would otherwise select.
-    const openFocus = (event: Event) => {
-        if (banner) event.preventDefault()
-    }
-
     return (
         <Dialog open onOpenChange={change}>
             <DialogContent
-                onOpenAutoFocus={openFocus}
                 {...(description ? {} : {'aria-describedby': undefined})}
                 className={cn('flex flex-col gap-0 overflow-hidden p-0', SIZES[size])}
             >
@@ -65,8 +56,6 @@ export function DialogShell({
                 </div>
 
                 <div className="min-h-0 flex-1 scroll-py-6 overflow-y-auto">{children}</div>
-
-                {banner}
 
                 <div className="flex h-14 shrink-0 items-center gap-2 border-t border-border px-4">
                     {footer}
