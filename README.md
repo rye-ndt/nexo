@@ -271,4 +271,4 @@ phần frontend.
 
 ## License
 
-[MIT](LICENSE), v1.1.0
+[MIT](LICENSE), v1.2.0
