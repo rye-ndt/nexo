@@ -31,8 +31,8 @@ export function InstallStep({onboarding}: {onboarding: Onboarding}) {
                 <Progress
                     aria-label={label}
                     value={percent}
-                    className="h-2 rounded-full bg-progress-track"
-                    indicatorClassName={onboarding.failed ? 'bg-state-failed' : 'bg-progress'}
+                    className="h-2 rounded-full bg-muted"
+                    indicatorClassName={onboarding.failed ? 'bg-state-failed' : 'bg-brand'}
                 />
             </div>
 

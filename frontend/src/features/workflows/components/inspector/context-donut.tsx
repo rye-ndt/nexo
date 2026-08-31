@@ -20,7 +20,7 @@ export function ContextDonut({used, total}: {used: number; total: number}) {
                     cy="40"
                     r={RADIUS}
                     fill="none"
-                    stroke="var(--progress-track)"
+                    className="stroke-muted"
                     strokeWidth="7"
                 />
                 <circle

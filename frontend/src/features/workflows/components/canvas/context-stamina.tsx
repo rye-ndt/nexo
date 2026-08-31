@@ -25,7 +25,7 @@ export function ContextStamina({used, total}: {used: number; total: number}) {
                     r={RADIUS}
                     fill="none"
                     strokeWidth="2.5"
-                    className="stroke-progress-track"
+                    className="stroke-muted"
                 />
                 <circle
                     cx="10"

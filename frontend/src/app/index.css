@@ -45,12 +45,12 @@
 @theme inline {
     --font-heading: var(--font-sans);
     --font-mono: 'Geist Mono Variable', ui-monospace, monospace;
+    --color-brand: var(--brand);
+    --color-brand-foreground: var(--brand-foreground);
     --color-live: var(--live);
     --color-live-tint: var(--live-tint);
     --color-info: var(--info);
     --color-info-tint: var(--info-tint);
-    --color-progress: var(--progress);
-    --color-progress-track: var(--progress-track);
     --color-state-idle: var(--state-idle);
     --color-state-idle-tint: var(--state-idle-tint);
     --color-state-running: var(--state-running);
@@ -111,18 +111,18 @@
     --border: #ecece9;
     --border-strong: #dbdbd5;
     --input: #ecece9;
-    --ring: #fd7b38;
+    --brand: #fd7b38;
+    --brand-foreground: #1b1c1e;
+    --ring: var(--brand);
     --radius: 0.625rem;
 
-    --live: #fd7b38;
+    --live: var(--brand);
     --live-tint: #fff2ec;
     --info: #007aff;
     --info-tint: #e6f2ff;
-    --progress: #545dad;
-    --progress-track: #e8eaf2;
     --state-idle: #65676d;
     --state-idle-tint: #f1f2f4;
-    --state-running: #fd7b38;
+    --state-running: var(--brand);
     --state-running-tint: #fff2ec;
     --state-approval: #f2a50c;
     --state-approval-tint: #fff6e0;
@@ -156,7 +156,7 @@
     --border: oklch(1 0 0 / 10%);
     --border-strong: oklch(1 0 0 / 20%);
     --input: oklch(1 0 0 / 15%);
-    --ring: #fd7b38;
+    --ring: var(--brand);
     --sidebar: oklch(0.205 0 0);
     --veil: rgb(0 0 0 / 0.62);
 }

@@ -4,8 +4,8 @@ import {Tooltip, TooltipContent, TooltipTrigger} from '@/shared/ui/tooltip'
 import {ActionEmphasis, type WorkflowAction} from '@/features/workflows/workflow-actions'
 import {cn} from '@/shared/lib/utils'
 
-const VARIANTS: Record<ActionEmphasis, 'default' | 'outline' | 'ghost'> = {
-    [ActionEmphasis.Primary]: 'default',
+const VARIANTS: Record<ActionEmphasis, 'brand' | 'outline' | 'ghost'> = {
+    [ActionEmphasis.Primary]: 'brand',
     [ActionEmphasis.Outline]: 'outline',
     [ActionEmphasis.Ghost]: 'ghost',
 }
