@@ -77,6 +77,7 @@ export const SHARED_MESSAGES = {
     'enum.inputType.select': {en: 'Choice', vi: 'Chọn một'},
     'enum.inputType.multiselect': {en: 'Multiple choices', vi: 'Chọn nhiều'},
     'enum.inputType.file': {en: 'File', vi: 'Tệp'},
+    'enum.inputType.folder': {en: 'Folder', vi: 'Thư mục'},
 
     'glossary.workflow.title': {en: 'Workflow', vi: 'Workflow'},
     'glossary.workflow.what': {

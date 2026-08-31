@@ -198,6 +198,7 @@ export const InputType = {
     Select: 'select',
     MultiSelect: 'multiselect',
     File: 'file',
+    Folder: 'folder',
 } as const
 
 export type InputType = (typeof InputType)[keyof typeof InputType]
@@ -210,6 +211,7 @@ export const INPUT_TYPES: InputType[] = [
     InputType.Select,
     InputType.MultiSelect,
     InputType.File,
+    InputType.Folder,
 ]
 
 export const INPUT_TYPE_LABELS: Record<InputType, MessageKey> = {
@@ -220,6 +222,7 @@ export const INPUT_TYPE_LABELS: Record<InputType, MessageKey> = {
     [InputType.Select]: 'enum.inputType.select',
     [InputType.MultiSelect]: 'enum.inputType.multiselect',
     [InputType.File]: 'enum.inputType.file',
+    [InputType.Folder]: 'enum.inputType.folder',
 }
 
 export const Language = {

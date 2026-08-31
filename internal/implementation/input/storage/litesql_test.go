@@ -97,6 +97,56 @@ func TestRoleRoundTripsPauseForReview(t *testing.T) {
 	}
 }
 
+func TestRolesListNewestUpdatedFirst(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "harness.db")
+
+	store, err := New(path)
+	if err != nil {
+		t.Fatalf("open storage: %v", err)
+	}
+
+	roles := store.RoleStore()
+	base := time.Date(2031, 4, 5, 6, 7, 8, 0, time.UTC)
+
+	written := []*input_itf.RoleEntity{
+		{Name: "oldest", UpdatedAt: base},
+		{Name: "beta", UpdatedAt: base.Add(time.Hour)},
+		{Name: "alpha", UpdatedAt: base.Add(time.Hour)},
+		{Name: "newest", UpdatedAt: base.Add(2 * time.Hour)},
+	}
+
+	ids := map[uuid.UUID]bool{}
+
+	for _, role := range written {
+		role.ID = uuid.New()
+		role.Effort = enums.EffortStandard
+		role.Instructions = map[string]string{"base": "do the work"}
+		ids[role.ID] = true
+
+		if err := roles.Upsert(role); err != nil {
+			t.Fatalf("upsert role %s: %v", role.Name, err)
+		}
+	}
+
+	listed, err := roles.List()
+	if err != nil {
+		t.Fatalf("list roles: %v", err)
+	}
+
+	order := []string{}
+
+	for _, role := range listed {
+		if ids[role.ID] {
+			order = append(order, role.Name)
+		}
+	}
+
+	want := []string{"newest", "alpha", "beta", "oldest"}
+	if !reflect.DeepEqual(order, want) {
+		t.Fatalf("listed roles as %v, want %v", order, want)
+	}
+}
+
 func TestMigrationsAreIdempotentAcrossReopen(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "harness.db")
 

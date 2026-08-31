@@ -145,9 +145,7 @@ const mockRolesBackend: RolesBackend = {
         await roundtrip()
 
         const next: Role = {...draft, id: draft.id ?? crypto.randomUUID()}
-        roles = roles.some((role) => role.id === next.id)
-            ? roles.map((role) => (role.id === next.id ? next : role))
-            : [...roles, next]
+        roles = [next, ...roles.filter((role) => role.id !== next.id)]
 
         return next
     },
@@ -165,7 +163,7 @@ const mockRolesBackend: RolesBackend = {
         await roundtrip()
 
         const imported = mockImported(roles, mockReadFile(path), path)
-        roles = [...roles, ...imported]
+        roles = [...imported, ...roles]
 
         return imported.length
     },

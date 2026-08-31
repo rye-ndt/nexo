@@ -1,6 +1,6 @@
 import {useId} from 'react'
 import type {ChangeEvent} from 'react'
-import {Check, ChevronDown, File} from 'lucide-react'
+import {Check, ChevronDown, File, Folder} from 'lucide-react'
 
 import {Button} from '@/shared/ui/button'
 import {
@@ -12,7 +12,7 @@ import {
 import {Input} from '@/shared/ui/input'
 import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from '@/shared/ui/select'
 import {Textarea} from '@/shared/ui/textarea'
-import {chooseFile} from '@/shared/api/dialogs'
+import {chooseDirectory, chooseFile} from '@/shared/api/dialogs'
 import {reportError} from '@/shared/lib/error-bus'
 import {InputType} from '@/shared/lib/enums'
 import {t} from '@/shared/lib/i18n'
@@ -127,10 +127,11 @@ function InputField({
                 />
             )}
 
-            {input.type === InputType.File && (
-                <FileField
+            {(input.type === InputType.File || input.type === InputType.Folder) && (
+                <PathField
                     id={id}
                     label={label}
+                    folder={input.type === InputType.Folder}
                     value={text}
                     disabled={disabled}
                     onChange={change}
@@ -207,25 +208,29 @@ function MultiChoiceField({
     )
 }
 
-function FileField({
+function PathField({
     id,
     label,
+    folder,
     value,
     disabled,
     onChange,
 }: {
     id: string
     label: string
+    folder: boolean
     value: string
     disabled: boolean
     onChange: (path: string) => void
 }) {
     const choose = async () => {
         try {
-            const path = await chooseFile(t('role.field.filePicker', {label}))
+            const path = folder
+                ? await chooseDirectory(t('role.field.folderPicker', {label}))
+                : await chooseFile(t('role.field.filePicker', {label}))
             if (path) onChange(path)
         } catch (cause) {
-            reportError(cause, t('role.error.filePicker'))
+            reportError(cause, t(folder ? 'role.error.folderPicker' : 'role.error.filePicker'))
         }
     }
 
@@ -238,7 +243,7 @@ function FileField({
                         : 'min-w-0 flex-1 truncate rounded-lg border border-dashed border-input px-3 py-2 text-base text-muted-foreground'
                 }
             >
-                {value || t('role.field.noFile')}
+                {value || t(folder ? 'role.field.noFolder' : 'role.field.noFile')}
             </span>
 
             <Button
@@ -249,8 +254,8 @@ function FileField({
                 disabled={disabled}
                 onClick={choose}
             >
-                <File />
-                {value ? t('role.field.changeFile') : t('role.field.chooseFile')}
+                {folder ? <Folder /> : <File />}
+                {value ? t('role.field.changePath') : t('role.field.choosePath')}
             </Button>
         </div>
     )

@@ -402,7 +402,7 @@ func upsertRole(db execer, t *input_itf.RoleEntity) error {
 }
 
 func (s *roleStore) List() ([]*input_itf.RoleEntity, error) {
-	rows, err := s.db.Query(`SELECT ` + roleColumns + ` FROM roles ORDER BY name`)
+	rows, err := s.db.Query(`SELECT ` + roleColumns + ` FROM roles ORDER BY updated_at DESC, name`)
 	if err != nil {
 		return nil, err
 	}

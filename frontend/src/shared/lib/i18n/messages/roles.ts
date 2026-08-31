@@ -128,9 +128,14 @@ export const ROLE_MESSAGES = {
     'role.field.pickOne': {en: 'Pick one', vi: 'Chọn một'},
     'role.field.pickAny': {en: 'Pick any', vi: 'Chọn một hoặc nhiều'},
     'role.field.noFile': {en: 'No file chosen', vi: 'Chưa chọn file'},
-    'role.field.changeFile': {en: 'Change', vi: 'Đổi'},
-    'role.field.chooseFile': {en: 'Choose', vi: 'Chọn'},
+    'role.field.noFolder': {en: 'No folder chosen', vi: 'Chưa chọn thư mục'},
+    'role.field.changePath': {en: 'Change', vi: 'Đổi'},
+    'role.field.choosePath': {en: 'Choose', vi: 'Chọn'},
     'role.field.filePicker': {en: 'Choose a file for {label}', vi: 'Chọn file cho {label}'},
+    'role.field.folderPicker': {
+        en: 'Choose a folder for {label}',
+        vi: 'Chọn thư mục cho {label}',
+    },
 
     'role.prompt.unknownOne': {
         en: '{refs} is not an input on this role, so it reaches the agent as written.',
@@ -263,6 +268,10 @@ export const ROLE_MESSAGES = {
     'role.error.filePicker': {
         en: 'Could not open the file picker',
         vi: 'Không mở được hộp thoại chọn file',
+    },
+    'role.error.folderPicker': {
+        en: 'Could not open the folder picker',
+        vi: 'Không mở được hộp thoại chọn thư mục',
     },
     'role.error.nameRequired': {
         en: 'A role needs a name before it can be saved.',

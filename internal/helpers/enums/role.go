@@ -12,6 +12,7 @@ const (
 	SelectInput   InputType = "select"
 	MultiInput    InputType = "multiselect"
 	FileInput     InputType = "file"
+	FolderInput   InputType = "folder"
 )
 
 var inputTypes = []InputType{
@@ -22,6 +23,7 @@ var inputTypes = []InputType{
 	SelectInput,
 	MultiInput,
 	FileInput,
+	FolderInput,
 }
 
 func InputTypes() []InputType {
